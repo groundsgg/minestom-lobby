@@ -1,6 +1,12 @@
 # Minestom Lobby
 
 This is a simple lobby built on Minestom.
+ 
+Following features are implemented:
+
+- Official skins are loaded
+- Works with velocity and as standalone
+- Configurable address, port 
 
 ## Running 
 
