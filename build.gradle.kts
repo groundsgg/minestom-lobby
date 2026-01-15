@@ -3,9 +3,7 @@ plugins {
     application
 }
 
-application {
-    mainClass.set("gg.grounds.minestom.lobby.MainKt")
-}
+application { mainClass.set("gg.grounds.minestom.lobby.MainKt") }
 
 dependencies {
     implementation("net.minestom:minestom:2026.01.08-1.21.11")
