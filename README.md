@@ -26,4 +26,8 @@ Use `gradle run` to run the server or use the IntelliJ run configuration `Run be
 
 ### As standalone
 
-Use `gradle run --args="--auth no_proxy"` to rand as standalone or use the IntelliJ run configuration `Run standalone` 
+Use `gradle run --args="--auth no_proxy"` to rand as standalone or use the IntelliJ run configuration `Run standalone`
+
+## License
+
+Licensed under the GNU Affero General Public License v3.0
