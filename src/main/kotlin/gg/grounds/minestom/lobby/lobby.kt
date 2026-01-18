@@ -15,7 +15,8 @@ import net.minestom.server.utils.chunk.ChunkSupplier
 const val SUNRISE_TIME: Long = 6000
 
 enum class LobbyAuthType {
-    NO_PROXY, VELOCITY
+    NO_PROXY,
+    VELOCITY,
 }
 
 const val VELOCITY_SECRET_ENV_NAME = "GROUNDS_LOBBY_VELOCITY_SECRET"
@@ -23,14 +24,20 @@ const val VELOCITY_SECRET_ENV_NAME = "GROUNDS_LOBBY_VELOCITY_SECRET"
 object LobbyServer {
 
     fun start(address: String, port: Int, authType: LobbyAuthType) {
-        val auth = when (authType) {
-            LobbyAuthType.NO_PROXY -> { Auth.Online() }
-            LobbyAuthType.VELOCITY -> {
-                val secret: String = System.getenv(VELOCITY_SECRET_ENV_NAME)
-                    ?: throw IllegalArgumentException("Env '$VELOCITY_SECRET_ENV_NAME' is not set, but is required for the lobby to work with velocity")
-                Auth.Velocity(secret)
+        val auth =
+            when (authType) {
+                LobbyAuthType.NO_PROXY -> {
+                    Auth.Online()
+                }
+                LobbyAuthType.VELOCITY -> {
+                    val secret: String =
+                        System.getenv(VELOCITY_SECRET_ENV_NAME)
+                            ?: throw IllegalArgumentException(
+                                "Env '$VELOCITY_SECRET_ENV_NAME' is not set, but is required for the lobby to work with velocity"
+                            )
+                    Auth.Velocity(secret)
+                }
             }
-        }
 
         val minecraftServer = MinecraftServer.init(auth)
         MinecraftServer.setBrandName("Grounds Lobby")
@@ -76,8 +83,10 @@ object LobbyServer {
         minecraftServer.start(address, port)
 
         when (authType) {
-            LobbyAuthType.NO_PROXY -> println("Started Lobby Server as standalone on $address:$port")
-            LobbyAuthType.VELOCITY -> println("Started Lobby Server as behind Velocity Proxy on $address:$port")
+            LobbyAuthType.NO_PROXY ->
+                println("Started Lobby Server as standalone on $address:$port")
+            LobbyAuthType.VELOCITY ->
+                println("Started Lobby Server as behind Velocity Proxy on $address:$port")
         }
     }
 }
