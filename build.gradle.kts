@@ -1,5 +1,6 @@
 plugins {
     id("gg.grounds.root") version "0.1.1"
+    id("com.gradleup.shadow") version "8.3.6"
     application
 }
 

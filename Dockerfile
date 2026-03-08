@@ -19,7 +19,7 @@ RUN --mount=type=cache,target=/root/.gradle/caches,sharing=locked \
       ./gradlew --no-daemon --stacktrace \
         -Pgithub.user="${GITHUB_USER}" \
         -Pgithub.token="${token}" \
-        build -x test \
+        shadowJar \
     '
 
 FROM gcr.io/distroless/java25-debian13 AS runtime
@@ -28,7 +28,7 @@ WORKDIR /minestom
 
 USER nonroot:nonroot
 
-COPY --from=build --chown=nonroot:nonroot /workspace/build/libs/*.jar /minestom/minestom-lobby.jar
+COPY --from=build --chown=nonroot:nonroot /workspace/build/libs/*-all.jar /minestom/minestom-lobby.jar
 
 EXPOSE 30066
 ENTRYPOINT ["java", "-jar", "/minestom/minestom-lobby.jar"]
