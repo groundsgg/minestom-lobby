@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/groundsgg/minestom-lobby/compare/v0.1.1...v0.1.2) (2026-03-09)
+
+
+### Bug Fixes
+
+* **docker:** use shadow JAR for fat JAR with dependencies ([#12](https://github.com/groundsgg/minestom-lobby/issues/12)) ([80755b6](https://github.com/groundsgg/minestom-lobby/commit/80755b6ff65ece0f713ddaa0aa65d48c607bc179))
+
 ## [0.1.1](https://github.com/groundsgg/minestom-lobby/compare/v0.1.0...v0.1.1) (2026-03-08)
 
 
