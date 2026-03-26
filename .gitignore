@@ -7,3 +7,9 @@ build/
 *.ipr
 *.iml
 *.iws
+
+# Ignore everything inside worlds
+worlds/*
+
+# But don't ignore this specific subfolder
+!worlds/default lobby/
