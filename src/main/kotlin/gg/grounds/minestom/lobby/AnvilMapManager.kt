@@ -1,6 +1,7 @@
 package gg.grounds.minestom.lobby
 
 import com.github.ajalt.clikt.core.FileNotFound
+import io.github.oshai.kotlinlogging.KotlinLogging
 import net.kyori.adventure.nbt.CompoundBinaryTag
 import net.minestom.server.coordinate.Pos
 import net.minestom.server.entity.Player
@@ -22,6 +23,8 @@ class AnvilMapManager(
     private val instance: InstanceContainer,
     private val worldDir: Path = Path.of("worlds"),
 ) {
+
+    private val logger = KotlinLogging.logger {}
 
     companion object {
         const val DEFAULT_MAP_NAME: String = "default lobby"
@@ -67,7 +70,7 @@ class AnvilMapManager(
         // This is anvil specific
         instance.chunkLoader = AnvilLoader(worldPath)
 
-        println("Loaded world $worldPath")
+        logger.info { "Loaded world $worldPath" }
         return Result.success(Unit)
     }
 

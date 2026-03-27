@@ -79,7 +79,7 @@ object LobbyServer {
         // If desired, chat messages can be canceled with the line below
         // globalEventHandler.addListener<PlayerChatEvent> { it.isCancelled = true }
         globalEventHandler.addListener<AsyncPlayerConfigurationEvent> { event ->
-            println("${event.player.uuid}/${event.player.username} joined the server")
+            logger.info { "${event.player.uuid}/${event.player.username} joined the server" }
         }
 
         if (isDevMode) {
