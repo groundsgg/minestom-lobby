@@ -1,5 +1,7 @@
 package gg.grounds.minestom.lobby.commands
 
+import com.github.michaelbull.result.onErr
+import com.github.michaelbull.result.onOk
 import gg.grounds.minestom.lobby.AnvilMapManager
 import net.minestom.server.command.builder.Command
 import net.minestom.server.command.builder.arguments.ArgumentType
@@ -14,13 +16,9 @@ class LoadWorldCommand(
         addSyntax({ sender, context ->
             val name = context[nameArgument]
 
-            val result = mapManager.loadMap(name)
-
-            if (result.isFailure) {
-                sender.sendMessage("Error: $result")
-            } else {
-                sender.sendMessage("Reloaded World $name")
-            }
+            mapManager.loadMap(name)
+                .onOk { sender.sendMessage("Reloaded World $name") }
+                .onErr { error -> sender.sendMessage("Failed to load World $name, ${error.path} does not exist") }
         }, nameArgument)
     }
 }

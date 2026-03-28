@@ -27,4 +27,5 @@ dependencies {
     implementation("com.github.ajalt.clikt:clikt:5.0.1")
     implementation("io.github.oshai:kotlin-logging-jvm:5.1.0")
     implementation("ch.qos.logback:logback-classic:1.5.18")
+    implementation("com.michael-bull.kotlin-result:kotlin-result:2.3.1")
 }

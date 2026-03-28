@@ -13,7 +13,7 @@ class StartLobbyCommand : CliktCommand() {
 
     val address: String by option("--address").help("The address without a port").default("0.0.0.0")
     val port: Int by option("--port").help("The port").int().default(30066)
-    val isDevMode: Boolean by option("--dev").flag(default = false)
+    val isDevMode: Boolean by option("--dev").help("Enable the dev mode").flag(default = false)
 
     val lobbyAuth: LobbyAuthType by
         option("--auth")

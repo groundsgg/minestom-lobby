@@ -11,7 +11,6 @@ import net.minestom.server.event.Event
 import net.minestom.server.event.GlobalEventHandler
 import net.minestom.server.event.player.AsyncPlayerConfigurationEvent
 import net.minestom.server.event.player.PlayerBlockBreakEvent
-import kotlin.math.log
 
 const val SUNRISE_TIME: Long = 6000
 
@@ -21,6 +20,7 @@ enum class LobbyAuthType {
 }
 
 const val VELOCITY_SECRET_ENV_NAME = "GROUNDS_LOBBY_VELOCITY_SECRET"
+const val LOBBY_MAP_NAME = "GROUNDS_LOBBY_STARTUP_MAP"
 
 object LobbyServer {
 
@@ -55,7 +55,7 @@ object LobbyServer {
         MinecraftServer.getBlockManager().registerHandler(Key.key("minecraft:sign")) { DisplaySignTextHandler }
 
         val anvilMapManager = AnvilMapManager(instanceContainer)
-        anvilMapManager.loadMap(AnvilMapManager.DEFAULT_MAP_NAME).getOrThrow()
+        anvilMapManager.loadLobbyMapNameOrDefault()
 
         // Disable day-night cycle
         instanceContainer.timeRate = 0
@@ -69,7 +69,7 @@ object LobbyServer {
             val player = event.player
 
             event.spawningInstance = instanceContainer
-            player.gameMode = GameMode.SURVIVAL
+            player.gameMode = if (isDevMode) { GameMode.CREATIVE } else { GameMode.SURVIVAL }
         }
 
         // The server must explicitly forbid to break blocks

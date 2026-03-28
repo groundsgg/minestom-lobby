@@ -1,6 +1,10 @@
 package gg.grounds.minestom.lobby
 
 import com.github.ajalt.clikt.core.FileNotFound
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.expect
 import io.github.oshai.kotlinlogging.KotlinLogging
 import net.kyori.adventure.nbt.CompoundBinaryTag
 import net.minestom.server.coordinate.Pos
@@ -9,6 +13,7 @@ import net.minestom.server.event.player.PlayerSpawnEvent
 import net.minestom.server.instance.InstanceContainer
 import net.minestom.server.instance.LightingChunk
 import net.minestom.server.instance.anvil.AnvilLoader
+import net.minestom.server.utils.Either
 import net.minestom.server.utils.chunk.ChunkSupplier
 import net.minestom.server.utils.nbt.BinaryTagReader
 import java.io.BufferedInputStream
@@ -27,7 +32,10 @@ class AnvilMapManager(
     private val logger = KotlinLogging.logger {}
 
     companion object {
-        const val DEFAULT_MAP_NAME: String = "default lobby"
+        const val DEFAULT_MAP_NAME: String = "default"
+
+        // Error types
+        data class MapDoesNotExist(val path: Path)
     }
 
     var instanceSpawn: Pos = Pos.ZERO
@@ -47,10 +55,24 @@ class AnvilMapManager(
         instance.chunkSupplier = ChunkSupplier { instance, x, y -> LightingChunk(instance, x, y) }
     }
 
-    fun loadMap(name: String): Result<Unit> {
+    fun loadLobbyMapNameOrDefault() {
+        val mapNameFromEnv: String? = System.getenv(LOBBY_MAP_NAME)
+
+        val defaultMap = if (mapNameFromEnv == null) {
+            logger.warn { "No lobby map name specified. Using default map" }
+            DEFAULT_MAP_NAME
+        } else {
+            logger.info { "Using lobby map from env: $mapNameFromEnv" }
+            mapNameFromEnv
+        }
+
+        this.loadMap(defaultMap).expect { "The default map should exist" }
+    }
+
+    fun loadMap(name: String): Result<Unit, MapDoesNotExist> {
         val worldPath = worldDir.resolve(name)
         if (worldPath.notExists()) {
-            return Result.failure(FileNotFound("$worldPath does not exist"))
+            return Err(MapDoesNotExist(worldPath))
         }
 
         // Loads the spawn from the level.dat
@@ -71,7 +93,7 @@ class AnvilMapManager(
         instance.chunkLoader = AnvilLoader(worldPath)
 
         logger.info { "Loaded world $worldPath" }
-        return Result.success(Unit)
+        return Ok(Unit)
     }
 
     /**

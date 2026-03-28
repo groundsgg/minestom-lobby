@@ -29,6 +29,7 @@ WORKDIR /minestom
 USER nonroot:nonroot
 
 COPY --from=build --chown=nonroot:nonroot /workspace/build/libs/*-all.jar /minestom/minestom-lobby.jar
+COPY --chown=nonroot:nonroot worlds/default /minestom/worlds/default
 
 EXPOSE 30066
 ENTRYPOINT ["java", "-jar", "/minestom/minestom-lobby.jar"]
