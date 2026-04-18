@@ -1,5 +1,6 @@
 package gg.grounds.minestom.lobby
 
+import gg.grounds.chat.minestom.GroundsChatMinestom
 import net.minestom.server.Auth
 import net.minestom.server.MinecraftServer
 import net.minestom.server.coordinate.Pos
@@ -79,6 +80,8 @@ object LobbyServer {
         globalEventHandler.addListener<PlayerDisconnectEvent>() {
             println("${it.player.uuid}/${it.player.username} left the server")
         }
+
+        GroundsChatMinestom(globalEventHandler).enable()
 
         minecraftServer.start(address, port)
 
