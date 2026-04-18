@@ -6,7 +6,21 @@ plugins {
 
 application { mainClass.set("gg.grounds.minestom.lobby.MainKt") }
 
+repositories {
+    mavenLocal()
+    mavenCentral()
+    maven {
+        url = uri("https://maven.pkg.github.com/groundsgg/*")
+        credentials {
+            username = providers.gradleProperty("github.user").get()
+            password = providers.gradleProperty("github.token").get()
+        }
+    }
+}
+
 dependencies {
     implementation("net.minestom:minestom:2026.01.08-1.21.11")
     implementation("com.github.ajalt.clikt:clikt:5.0.1")
+    implementation("gg.grounds:plugin-chat-minestom:local-SNAPSHOT")
+    runtimeOnly("ch.qos.logback:logback-classic:1.5.18")
 }
