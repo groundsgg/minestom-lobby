@@ -1,5 +1,6 @@
 package gg.grounds.minestom.lobby
 
+import gg.grounds.GroundsPluginAgones
 import net.minestom.server.Auth
 import net.minestom.server.MinecraftServer
 import net.minestom.server.coordinate.Pos
@@ -78,6 +79,16 @@ object LobbyServer {
 
         globalEventHandler.addListener<PlayerDisconnectEvent>() {
             println("${it.player.uuid}/${it.player.username} left the server")
+        }
+
+        // Register as an Agones GameServer only when the SDK sidecar is present.
+        // The Agones webhook sets AGONES_SDK_HTTP_PORT on GameServer pods, so the
+        // lobby calls ready() and Velocity's plugin-agones can discover it. A plain
+        // standalone lobby (e.g. local NO_PROXY dev) has no sidecar; calling ready()
+        // there just loops on connection errors. Mirrors plugin-agones-paper's gate,
+        // which the minestom variant doesn't apply itself.
+        if (!System.getenv("AGONES_SDK_HTTP_PORT").isNullOrBlank()) {
+            GroundsPluginAgones().enable()
         }
 
         minecraftServer.start(address, port)
