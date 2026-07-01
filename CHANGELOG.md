@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.0](https://github.com/groundsgg/minestom-lobby/compare/v0.1.1...v0.2.0) (2026-07-01)
+
+
+### Features
+
+* **agones:** register the lobby as an Agones GameServer ([#16](https://github.com/groundsgg/minestom-lobby/issues/16)) ([352b23c](https://github.com/groundsgg/minestom-lobby/commit/352b23c334c360d5a44d538101f39456807fd551))
+
+
+### Bug Fixes
+
+* **docker:** use shadow JAR for fat JAR with dependencies ([#12](https://github.com/groundsgg/minestom-lobby/issues/12)) ([80755b6](https://github.com/groundsgg/minestom-lobby/commit/80755b6ff65ece0f713ddaa0aa65d48c607bc179))
+* update lobby to MC 26.1.2 and bind the standard 25565 port ([#17](https://github.com/groundsgg/minestom-lobby/issues/17)) ([1f90800](https://github.com/groundsgg/minestom-lobby/commit/1f9080014fe771c2a29a78a5642b8460771474f9))
+
 ## [0.1.1](https://github.com/groundsgg/minestom-lobby/compare/v0.1.0...v0.1.1) (2026-03-08)
 
 
