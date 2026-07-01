@@ -30,5 +30,5 @@ USER nonroot:nonroot
 
 COPY --from=build --chown=nonroot:nonroot /workspace/build/libs/*-all.jar /minestom/minestom-lobby.jar
 
-EXPOSE 30066
+EXPOSE 25565
 ENTRYPOINT ["java", "-jar", "/minestom/minestom-lobby.jar"]
