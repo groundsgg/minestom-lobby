@@ -19,8 +19,8 @@ repositories {
 }
 
 dependencies {
-    implementation("net.minestom:minestom:2026.01.08-1.21.11")
+    implementation("net.minestom:minestom:2026.06.20-26.1.2")
     implementation("com.github.ajalt.clikt:clikt:5.0.1")
-    implementation("gg.grounds:plugin-agones-minestom:0.5.0")
+    implementation("gg.grounds:plugin-agones-minestom:0.6.0")
     runtimeOnly("ch.qos.logback:logback-classic:1.5.18")
 }

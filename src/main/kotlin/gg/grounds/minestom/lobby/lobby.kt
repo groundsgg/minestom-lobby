@@ -51,9 +51,11 @@ object LobbyServer {
             LightingChunk(instance, x, y)
         }
 
-        // Disable day-night cycle
-        instanceContainer.timeRate = 0
-        instanceContainer.time = SUNRISE_TIME
+        // Freeze the day-night cycle at sunrise (minestom 26.1.2 clock API:
+        // the old Instance.timeRate/time setters moved to Instance.defaultClock()).
+        val clock = instanceContainer.defaultClock()!!
+        clock.rate(0f)
+        clock.time(SUNRISE_TIME)
 
         val globalEventHandler = MinecraftServer.getGlobalEventHandler()
 
