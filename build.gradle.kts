@@ -19,8 +19,15 @@ repositories {
 }
 
 dependencies {
-    implementation("net.minestom:minestom:2026.06.20-26.1.2")
-    implementation("com.github.ajalt.clikt:clikt:5.0.1")
+    implementation(platform("gg.grounds:grounds-dependencies:0.1.0"))
+
+    implementation("gg.grounds:grounds-minestom-runtime-runtime-core:0.2.0")
+    implementation("net.minestom:minestom")
     implementation("gg.grounds:plugin-agones-minestom:0.6.0")
-    runtimeOnly("ch.qos.logback:logback-classic:1.5.18")
+    implementation("org.slf4j:slf4j-api")
+
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+    runtimeOnly("org.slf4j:slf4j-simple")
 }
