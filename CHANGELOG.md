@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/groundsgg/minestom-lobby/compare/v0.2.0...v0.3.0) (2026-07-02)
+
+
+### Features
+
+* use runtime bootstrap ([#18](https://github.com/groundsgg/minestom-lobby/issues/18)) ([ba09052](https://github.com/groundsgg/minestom-lobby/commit/ba09052060cc267be0a835d5b0ed80a1ee1ba8ec))
+
 ## [0.2.0](https://github.com/groundsgg/minestom-lobby/compare/v0.1.1...v0.2.0) (2026-07-01)
 
 
