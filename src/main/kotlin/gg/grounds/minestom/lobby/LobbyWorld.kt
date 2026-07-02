@@ -13,8 +13,8 @@ internal object LobbyWorld {
         val instanceContainer = MinecraftServer.getInstanceManager().createInstanceContainer()
 
         instanceContainer.setGenerator { it.modifier().fillHeight(0, 40, Block.GRASS_BLOCK) }
-        instanceContainer.chunkSupplier = ChunkSupplier { instance, x, y ->
-            LightingChunk(instance, x, y)
+        instanceContainer.chunkSupplier = ChunkSupplier { instance, x, z ->
+            LightingChunk(instance, x, z)
         }
 
         val clock = instanceContainer.defaultClock()!!

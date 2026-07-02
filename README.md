@@ -12,7 +12,7 @@ Following features are implemented:
 
 ## Running 
 
-Use `GROUNDS_BIND_HOST` and `GROUNDS_BIND_PORT` to configure the bind address.
+Use `GROUNDS_BIND_HOST`, `GROUNDS_BIND_PORT`, and `GROUNDS_SERVER_BRAND` to configure the server.
 
 ### Behind Velocity
 
@@ -22,7 +22,7 @@ Use `GROUNDS_BIND_HOST` and `GROUNDS_BIND_PORT` to configure the bind address.
 3. Configure runtime proxy auth with `GROUNDS_PROXY_MODE=velocity`.
 4. Set `GROUNDS_VELOCITY_FORWARDING_SECRET` to the content of Velocity's `forwarding.secret`.
 
-Use `gradle run` to run the server.
+Use `./gradlew run` to run the server.
 
 ### As standalone
 
