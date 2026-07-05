@@ -10,6 +10,13 @@ repositories {
     mavenLocal()
     mavenCentral()
     maven {
+        url = uri("https://maven.pkg.github.com/groundsgg/plugin-permissions")
+        credentials {
+            username = providers.gradleProperty("github.user").get()
+            password = providers.gradleProperty("github.token").get()
+        }
+    }
+    maven {
         url = uri("https://maven.pkg.github.com/groundsgg/*")
         credentials {
             username = providers.gradleProperty("github.user").get()
