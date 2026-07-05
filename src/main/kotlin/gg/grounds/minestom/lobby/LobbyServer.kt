@@ -26,7 +26,17 @@ internal fun lobbyRuntimeConfig(env: Map<String, String> = System.getenv()): Run
     RuntimeConfig.fromEnvironment(env).copy(serverType = ServerType.LOBBY)
 
 internal fun selectedRuntimeProviderIds(env: Map<String, String> = System.getenv()): List<String> =
-    if (hasAgonesSidecar(env)) listOf("grounds.agones") else emptyList()
+    buildList {
+        if (hasAgonesSidecar(env)) {
+            add("grounds.agones")
+        }
+        if (hasPermissionsTarget(env)) {
+            add("grounds.permissions")
+        }
+    }
 
 private fun hasAgonesSidecar(env: Map<String, String>): Boolean =
     !env["AGONES_SDK_HTTP_PORT"].isNullOrBlank() || !env["AGONES_SDK_GRPC_PORT"].isNullOrBlank()
+
+private fun hasPermissionsTarget(env: Map<String, String>): Boolean =
+    !env["PERMISSIONS_GRPC_TARGET"].isNullOrBlank()

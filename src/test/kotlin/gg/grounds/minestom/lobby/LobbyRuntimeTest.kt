@@ -47,4 +47,29 @@ class LobbyRuntimeTest {
         assertFalse(standalone.contains("grounds.agones"))
         assertTrue(withAgones.contains("grounds.agones"))
     }
+
+    @Test
+    fun `lobby selects permissions provider only when permissions target is configured`() {
+        val standalone = selectedRuntimeProviderIds(emptyMap())
+        val withPermissions =
+            selectedRuntimeProviderIds(
+                mapOf("PERMISSIONS_GRPC_TARGET" to "service-permissions:9000")
+            )
+
+        assertFalse(standalone.contains("grounds.permissions"))
+        assertTrue(withPermissions.contains("grounds.permissions"))
+    }
+
+    @Test
+    fun `lobby selects agones and permissions providers together`() {
+        val providers =
+            selectedRuntimeProviderIds(
+                mapOf(
+                    "AGONES_SDK_GRPC_PORT" to "9357",
+                    "PERMISSIONS_GRPC_TARGET" to "service-permissions:9000",
+                )
+            )
+
+        assertEquals(listOf("grounds.agones", "grounds.permissions"), providers)
+    }
 }

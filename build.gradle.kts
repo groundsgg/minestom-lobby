@@ -24,6 +24,7 @@ dependencies {
     implementation("gg.grounds:grounds-minestom-runtime-runtime-core:0.2.0")
     implementation("net.minestom:minestom")
     implementation("gg.grounds:plugin-agones-minestom:0.6.0")
+    implementation("gg.grounds:plugin-permissions-minestom:0.2.0")
     implementation("org.slf4j:slf4j-api")
 
     testImplementation("org.junit.jupiter:junit-jupiter")
