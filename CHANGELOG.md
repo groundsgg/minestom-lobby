@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0](https://github.com/groundsgg/minestom-lobby/compare/v0.3.0...v0.4.0) (2026-07-05)
+
+
+### Features
+
+* enable permissions runtime in lobby ([327f729](https://github.com/groundsgg/minestom-lobby/commit/327f7292193fcbb7d9827bb684d639de02e9cb70))
+
+
+### Bug Fixes
+
+* resolve permissions package in ci ([be9e7db](https://github.com/groundsgg/minestom-lobby/commit/be9e7db0f46ae216b02b37a2b40c9648272a46fe))
+
 ## [0.3.0](https://github.com/groundsgg/minestom-lobby/compare/v0.2.0...v0.3.0) (2026-07-02)
 
 
