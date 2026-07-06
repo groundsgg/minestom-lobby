@@ -1,3 +1,6 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import org.gradle.api.file.DuplicatesStrategy
+
 plugins {
     id("gg.grounds.root") version "0.1.1"
     id("com.gradleup.shadow") version "8.3.6"
@@ -5,6 +8,11 @@ plugins {
 }
 
 application { mainClass.set("gg.grounds.minestom.lobby.MainKt") }
+
+tasks.named<ShadowJar>("shadowJar") {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    mergeServiceFiles()
+}
 
 repositories {
     mavenLocal()
