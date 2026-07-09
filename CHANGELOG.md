@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1](https://github.com/groundsgg/minestom-lobby/compare/v0.4.0...v0.4.1) (2026-07-09)
+
+
+### Bug Fixes
+
+* **deps:** update plugin permissions to 0.3.0 ([#22](https://github.com/groundsgg/minestom-lobby/issues/22)) ([91c6439](https://github.com/groundsgg/minestom-lobby/commit/91c64390c6822b51b3b08fada0850279eadd0112))
+* **lobby:** merge runtime provider descriptors ([7f889cb](https://github.com/groundsgg/minestom-lobby/commit/7f889cbcfeab7cf64729ba202b819c07c8cc89b3))
+
 ## [0.4.0](https://github.com/groundsgg/minestom-lobby/compare/v0.3.0...v0.4.0) (2026-07-05)
 
 
