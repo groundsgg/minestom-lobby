@@ -34,7 +34,7 @@ repositories {
 }
 
 dependencies {
-    implementation(platform("gg.grounds:grounds-dependencies:0.1.0"))
+    implementation(platform("gg.grounds:grounds-dependencies:1.0.0"))
 
     implementation("gg.grounds:grounds-minestom-runtime-runtime-core:0.2.0")
     implementation("net.minestom:minestom")
