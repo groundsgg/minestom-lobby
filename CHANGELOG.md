@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/groundsgg/minestom-lobby/compare/v0.4.1...v1.0.0) (2026-07-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* update the lobby to Minecraft 26.2 ([#23](https://github.com/groundsgg/minestom-lobby/issues/23))
+
+### Features
+
+* update the lobby to Minecraft 26.2 ([#23](https://github.com/groundsgg/minestom-lobby/issues/23)) ([25d054a](https://github.com/groundsgg/minestom-lobby/commit/25d054a8b891469263e688d6cd5807f10df8ce00))
+
 ## [0.4.1](https://github.com/groundsgg/minestom-lobby/compare/v0.4.0...v0.4.1) (2026-07-09)
 
 
