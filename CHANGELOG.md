@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/groundsgg/minestom-lobby/compare/v1.0.0...v1.0.1) (2026-07-13)
+
+
+### Bug Fixes
+
+* **runtime:** bump runtime-core to 0.4.0 so permission manifests register ([#25](https://github.com/groundsgg/minestom-lobby/issues/25)) ([b833419](https://github.com/groundsgg/minestom-lobby/commit/b83341925de6269ab35534cb81aea70ab438f1a5))
+
 ## [1.0.0](https://github.com/groundsgg/minestom-lobby/compare/v0.4.1...v1.0.0) (2026-07-12)
 
 
