@@ -24,16 +24,6 @@ repositories {
             password = providers.gradleProperty("github.token").get()
         }
     }
-    // The `groundsgg/*` wildcard below does NOT serve gg.grounds.vanilla — GitHub Packages
-    // answered it with nothing in CI, and the build fell through to Maven Central and died.
-    // Name the publishing repo explicitly, exactly as plugin-permissions does above.
-    maven {
-        url = uri("https://maven.pkg.github.com/groundsgg/grounds-vanilla")
-        credentials {
-            username = providers.gradleProperty("github.user").get()
-            password = providers.gradleProperty("github.token").get()
-        }
-    }
     maven {
         url = uri("https://maven.pkg.github.com/groundsgg/*")
         credentials {
@@ -50,8 +40,9 @@ dependencies {
     implementation("net.minestom:minestom")
     implementation("gg.grounds:plugin-agones-minestom:0.6.0")
     implementation("gg.grounds:plugin-permissions-minestom:0.5.0")
-    implementation("gg.grounds.vanilla:vanilla-maps:0.2.0")
-    implementation("gg.grounds.vanilla:vanilla-core:0.2.0")
+    // Reads the map's map.json sidecar (the spawn). Minestom pulls gson in transitively;
+    // declare it because we use it directly.
+    implementation("com.google.code.gson:gson:2.13.2")
     implementation("org.slf4j:slf4j-api")
 
     testImplementation("org.junit.jupiter:junit-jupiter")
