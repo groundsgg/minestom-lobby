@@ -12,14 +12,14 @@ import org.slf4j.LoggerFactory
 internal object LobbyEvents {
     private val logger = LoggerFactory.getLogger(LobbyEvents::class.java)
 
-    fun register(eventNode: EventNode<Event>, instanceContainer: InstanceContainer) {
+    fun register(eventNode: EventNode<Event>, instanceContainer: InstanceContainer, spawn: Pos) {
         eventNode.addListener<AsyncPlayerConfigurationEvent>(
             AsyncPlayerConfigurationEvent::class.java
         ) { event: AsyncPlayerConfigurationEvent ->
             val player = event.player
 
             event.spawningInstance = instanceContainer
-            player.respawnPoint = Pos(0.0, 40.0, 0.0)
+            player.respawnPoint = spawn
         }
 
         eventNode.addListener<PlayerBlockBreakEvent> { it.isCancelled = true }
