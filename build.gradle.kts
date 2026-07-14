@@ -40,6 +40,8 @@ dependencies {
     implementation("net.minestom:minestom")
     implementation("gg.grounds:plugin-agones-minestom:0.6.0")
     implementation("gg.grounds:plugin-permissions-minestom:0.5.0")
+    implementation("gg.grounds.vanilla:vanilla-maps:0.2.0")
+    implementation("gg.grounds.vanilla:vanilla-core:0.2.0")
     implementation("org.slf4j:slf4j-api")
 
     testImplementation("org.junit.jupiter:junit-jupiter")

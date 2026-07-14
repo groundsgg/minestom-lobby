@@ -14,9 +14,9 @@ internal class LobbyModule : GroundsModule {
     override val id: String = "grounds.lobby"
 
     override fun install(ctx: GroundsServerContext) {
-        val instanceContainer = LobbyWorld.createInstance()
+        val (instanceContainer, spawn) = LobbyWorld.createInstance()
         val node = ctx.eventNode("grounds-lobby")
-        LobbyEvents.register(node, instanceContainer)
+        LobbyEvents.register(node, instanceContainer, spawn)
         MinecraftServer.getGlobalEventHandler().addChild(node)
         eventNode = node
 
