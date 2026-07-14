@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/groundsgg/minestom-lobby/compare/v1.0.2...v1.1.0) (2026-07-14)
+
+
+### Features
+
+* load the authored lobby map instead of flat grass ([#29](https://github.com/groundsgg/minestom-lobby/issues/29)) ([c4d9cfb](https://github.com/groundsgg/minestom-lobby/commit/c4d9cfbe44fa727d2c06e2f70b3167e92dbe25de))
+
 ## [1.0.2](https://github.com/groundsgg/minestom-lobby/compare/v1.0.1...v1.0.2) (2026-07-14)
 
 
