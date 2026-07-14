@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2](https://github.com/groundsgg/minestom-lobby/compare/v1.0.1...v1.0.2) (2026-07-14)
+
+
+### Bug Fixes
+
+* bump plugin-permissions-minestom to 0.5.0 ([#27](https://github.com/groundsgg/minestom-lobby/issues/27)) ([c2402ee](https://github.com/groundsgg/minestom-lobby/commit/c2402ee029421bc41000c6341a793acf88ec97c3))
+
 ## [1.0.1](https://github.com/groundsgg/minestom-lobby/compare/v1.0.0...v1.0.1) (2026-07-13)
 
 
