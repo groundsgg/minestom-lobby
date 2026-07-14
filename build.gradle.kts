@@ -40,6 +40,9 @@ dependencies {
     implementation("net.minestom:minestom")
     implementation("gg.grounds:plugin-agones-minestom:0.6.0")
     implementation("gg.grounds:plugin-permissions-minestom:0.5.0")
+    // Forwards chat to the proxy, which owns the channels. Without it a Minestom server
+    // never sends a chat plugin message at all, so `!`-into-staff-chat silently does nothing.
+    implementation("gg.grounds:plugin-chat-minestom:0.1.0")
     // Reads the map's map.json sidecar (the spawn). Minestom pulls gson in transitively;
     // declare it because we use it directly.
     implementation("com.google.code.gson:gson:2.13.2")
