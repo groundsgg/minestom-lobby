@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/groundsgg/minestom-lobby/compare/v1.1.1...v1.1.2) (2026-07-14)
+
+
+### Bug Fixes
+
+* load the lobby map with Minestom's own AnvilLoader ([#33](https://github.com/groundsgg/minestom-lobby/issues/33)) ([5a055a0](https://github.com/groundsgg/minestom-lobby/commit/5a055a077ecb0fa199d6dd6958609dad64cbbc5c))
+
 ## [1.1.1](https://github.com/groundsgg/minestom-lobby/compare/v1.1.0...v1.1.1) (2026-07-14)
 
 
