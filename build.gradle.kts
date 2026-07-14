@@ -24,6 +24,16 @@ repositories {
             password = providers.gradleProperty("github.token").get()
         }
     }
+    // The `groundsgg/*` wildcard below does NOT serve gg.grounds.vanilla — GitHub Packages
+    // answered it with nothing in CI, and the build fell through to Maven Central and died.
+    // Name the publishing repo explicitly, exactly as plugin-permissions does above.
+    maven {
+        url = uri("https://maven.pkg.github.com/groundsgg/grounds-vanilla")
+        credentials {
+            username = providers.gradleProperty("github.user").get()
+            password = providers.gradleProperty("github.token").get()
+        }
+    }
     maven {
         url = uri("https://maven.pkg.github.com/groundsgg/*")
         credentials {
