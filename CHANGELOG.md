@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/groundsgg/minestom-lobby/compare/v1.1.0...v1.1.1) (2026-07-14)
+
+
+### Bug Fixes
+
+* resolve vanilla-maps from the repo that actually publishes it ([#31](https://github.com/groundsgg/minestom-lobby/issues/31)) ([0bb6d60](https://github.com/groundsgg/minestom-lobby/commit/0bb6d60edd81cf96fc7da21ea4044f06f26a9da9))
+
 ## [1.1.0](https://github.com/groundsgg/minestom-lobby/compare/v1.0.2...v1.1.0) (2026-07-14)
 
 
