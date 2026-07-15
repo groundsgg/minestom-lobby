@@ -39,7 +39,7 @@ dependencies {
     implementation("gg.grounds:grounds-minestom-runtime-runtime-core:0.4.0")
     implementation("net.minestom:minestom")
     implementation("gg.grounds:plugin-agones-minestom:0.6.0")
-    implementation("gg.grounds:plugin-permissions-minestom:0.5.0")
+    implementation("gg.grounds:plugin-permissions-minestom:0.5.1")
     // Reads the map's map.json sidecar (the spawn). Minestom pulls gson in transitively;
     // declare it because we use it directly.
     implementation("com.google.code.gson:gson:2.13.2")
