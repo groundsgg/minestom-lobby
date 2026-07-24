@@ -12,3 +12,9 @@ permissions:
 jobs:
   reusable:
     uses: groundsgg/.github/.github/workflows/gradle-publish.yml@main
+    secrets:
+      # Read-only, and only for resolving plugin-chat-minestom: its Maven
+      # package is owned by the private plugin-chat repo, and this job's
+      # GITHUB_TOKEN is scoped to minestom-lobby alone. Unset falls back to
+      # GITHUB_TOKEN, so this line is inert until the secret exists.
+      PACKAGES_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
