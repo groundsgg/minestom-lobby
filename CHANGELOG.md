@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/groundsgg/minestom-lobby/compare/v1.1.2...v1.2.0) (2026-07-24)
+
+
+### Features
+
+* load the chat module in the lobby ([#37](https://github.com/groundsgg/minestom-lobby/issues/37)) ([f050633](https://github.com/groundsgg/minestom-lobby/commit/f0506332904ff7efcea8698fc1a422046dbd37f4))
+
 ## [1.1.2](https://github.com/groundsgg/minestom-lobby/compare/v1.1.1...v1.1.2) (2026-07-14)
 
 
