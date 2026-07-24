@@ -40,6 +40,11 @@ dependencies {
     implementation("net.minestom:minestom")
     implementation("gg.grounds:plugin-agones-minestom:0.6.0")
     implementation("gg.grounds:plugin-permissions-minestom:0.5.0")
+    // Discovered through the runtime's SPI, like the two above — there is no
+    // call site here. Without it the module is simply absent, and a `!`
+    // message is broadcast locally instead of being forwarded to the proxy's
+    // staff chat.
+    implementation("gg.grounds:plugin-chat-minestom:0.1.0")
     // Reads the map's map.json sidecar (the spawn). Minestom pulls gson in transitively;
     // declare it because we use it directly.
     implementation("com.google.code.gson:gson:2.13.2")
