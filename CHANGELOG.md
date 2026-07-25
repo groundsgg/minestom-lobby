@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/groundsgg/minestom-lobby/compare/v1.2.0...v1.2.1) (2026-07-25)
+
+
+### Bug Fixes
+
+* **deps:** update permissions runtime to 0.6.0 ([#39](https://github.com/groundsgg/minestom-lobby/issues/39)) ([6ff31c8](https://github.com/groundsgg/minestom-lobby/commit/6ff31c8d2ea8aa20868f97cb6631385eb466cae7))
+
 ## [1.2.0](https://github.com/groundsgg/minestom-lobby/compare/v1.1.2...v1.2.0) (2026-07-24)
 
 
