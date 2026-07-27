@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/groundsgg/minestom-lobby/compare/v1.2.1...v1.3.0) (2026-07-27)
+
+
+### Features
+
+* **permissions:** use REST runtime client ([#41](https://github.com/groundsgg/minestom-lobby/issues/41)) ([0b67565](https://github.com/groundsgg/minestom-lobby/commit/0b67565f3a32f09195d516c9197f0aa03d133d0f))
+
 ## [1.2.1](https://github.com/groundsgg/minestom-lobby/compare/v1.2.0...v1.2.1) (2026-07-25)
 
 
