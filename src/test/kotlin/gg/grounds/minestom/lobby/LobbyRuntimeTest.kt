@@ -4,6 +4,7 @@ import gg.grounds.runtime.ServerType
 import gg.grounds.runtime.core.ProxyMode
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -49,15 +50,32 @@ class LobbyRuntimeTest {
     }
 
     @Test
-    fun `lobby selects permissions provider only when permissions target is configured`() {
+    fun `lobby selects permissions provider only when REST runtime is fully configured`() {
         val standalone = selectedRuntimeProviderIds(emptyMap())
         val withPermissions =
             selectedRuntimeProviderIds(
-                mapOf("PERMISSIONS_GRPC_TARGET" to "service-permissions:9000")
+                mapOf(
+                    "PERMISSIONS_SERVICE_URL" to "http://service-permissions-runtime:8080",
+                    "PERMISSIONS_TOKEN_FILE" to "/var/run/secrets/grounds/permissions-token",
+                )
             )
 
         assertFalse(standalone.contains("grounds.permissions"))
         assertTrue(withPermissions.contains("grounds.permissions"))
+    }
+
+    @Test
+    fun `lobby rejects partial permissions REST runtime configuration`() {
+        assertThrows(IllegalStateException::class.java) {
+            selectedRuntimeProviderIds(
+                mapOf("PERMISSIONS_SERVICE_URL" to "http://service-permissions-runtime:8080")
+            )
+        }
+        assertThrows(IllegalStateException::class.java) {
+            selectedRuntimeProviderIds(
+                mapOf("PERMISSIONS_TOKEN_FILE" to "/var/run/secrets/grounds/permissions-token")
+            )
+        }
     }
 
     @Test
@@ -66,7 +84,8 @@ class LobbyRuntimeTest {
             selectedRuntimeProviderIds(
                 mapOf(
                     "AGONES_SDK_GRPC_PORT" to "9357",
-                    "PERMISSIONS_GRPC_TARGET" to "service-permissions:9000",
+                    "PERMISSIONS_SERVICE_URL" to "http://service-permissions-runtime:8080",
+                    "PERMISSIONS_TOKEN_FILE" to "/var/run/secrets/grounds/permissions-token",
                 )
             )
 

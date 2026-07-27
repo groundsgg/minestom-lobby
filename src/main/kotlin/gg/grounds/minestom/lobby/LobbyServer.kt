@@ -30,7 +30,7 @@ internal fun selectedRuntimeProviderIds(env: Map<String, String> = System.getenv
         if (hasAgonesSidecar(env)) {
             add("grounds.agones")
         }
-        if (hasPermissionsTarget(env)) {
+        if (hasPermissionsRuntime(env)) {
             add("grounds.permissions")
         }
     }
@@ -38,5 +38,11 @@ internal fun selectedRuntimeProviderIds(env: Map<String, String> = System.getenv
 private fun hasAgonesSidecar(env: Map<String, String>): Boolean =
     !env["AGONES_SDK_HTTP_PORT"].isNullOrBlank() || !env["AGONES_SDK_GRPC_PORT"].isNullOrBlank()
 
-private fun hasPermissionsTarget(env: Map<String, String>): Boolean =
-    !env["PERMISSIONS_GRPC_TARGET"].isNullOrBlank()
+private fun hasPermissionsRuntime(env: Map<String, String>): Boolean {
+    val serviceUrl = env["PERMISSIONS_SERVICE_URL"]?.takeIf { it.isNotBlank() }
+    val tokenFile = env["PERMISSIONS_TOKEN_FILE"]?.takeIf { it.isNotBlank() }
+    check((serviceUrl == null) == (tokenFile == null)) {
+        "PERMISSIONS_SERVICE_URL and PERMISSIONS_TOKEN_FILE must be configured together"
+    }
+    return serviceUrl != null
+}

@@ -39,7 +39,7 @@ dependencies {
     implementation("gg.grounds:grounds-minestom-runtime-runtime-core:0.4.0")
     implementation("net.minestom:minestom")
     implementation("gg.grounds:plugin-agones-minestom:0.6.0")
-    implementation("gg.grounds:plugin-permissions-minestom:0.6.0")
+    implementation("gg.grounds:plugin-permissions-minestom:0.7.0")
     // Discovered through the runtime's SPI, like the two above — there is no
     // call site here. Without it the module is simply absent, and a `!`
     // message is broadcast locally instead of being forwarded to the proxy's
