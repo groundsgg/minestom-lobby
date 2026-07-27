@@ -24,6 +24,13 @@ Use `GROUNDS_BIND_HOST`, `GROUNDS_BIND_PORT`, and `GROUNDS_SERVER_BRAND` to conf
 
 Use `./gradlew run` to run the server.
 
+### Permissions runtime
+
+Set both `PERMISSIONS_SERVICE_URL` and `PERMISSIONS_TOKEN_FILE` to enable the
+REST permissions provider. In Kubernetes, Forge and the `grounds-gamemode`
+chart supply these values together with the projected workload token. Leaving
+both unset disables the provider; partial configuration fails startup.
+
 ### As standalone
 
 Use `GROUNDS_PROXY_MODE=auto` with `GROUNDS_ONLINE_MODE=true` to run a standalone online-mode lobby.
