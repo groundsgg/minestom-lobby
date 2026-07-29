@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/groundsgg/minestom-lobby/compare/v1.3.0...v1.4.0) (2026-07-29)
+
+
+### Features
+
+* **permissions:** consume live snapshot invalidations ([#43](https://github.com/groundsgg/minestom-lobby/issues/43)) ([3d71763](https://github.com/groundsgg/minestom-lobby/commit/3d71763a5642c5a72c847eee316d96fccd505ae3))
+
 ## [1.3.0](https://github.com/groundsgg/minestom-lobby/compare/v1.2.1...v1.3.0) (2026-07-27)
 
 
