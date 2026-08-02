@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/groundsgg/minestom-lobby/compare/v1.8.0...v1.9.0) (2026-08-02)
+
+
+### Features
+
+* translated menus and a lobby sidebar ([#57](https://github.com/groundsgg/minestom-lobby/issues/57)) ([f15aa48](https://github.com/groundsgg/minestom-lobby/commit/f15aa48b828c792fc2fcf620a043998c3805a358))
+
 ## [1.8.0](https://github.com/groundsgg/minestom-lobby/compare/v1.7.0...v1.8.0) (2026-08-02)
 
 
