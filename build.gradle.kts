@@ -47,11 +47,12 @@ dependencies {
     implementation("net.minestom:minestom")
     implementation("gg.grounds:plugin-agones-minestom:0.6.0")
     implementation("gg.grounds:plugin-permissions-minestom:0.8.0")
-    // Discovered through the runtime's SPI, like the two above — there is no
-    // call site here. Without it the module is simply absent, and a `!`
-    // message is broadcast locally instead of being forwarded to the proxy's
-    // staff chat.
-    implementation("gg.grounds:plugin-chat-minestom:0.1.0")
+    // Reaches the runtime through the SPI, like the two above, so there is no call site here —
+    // but being on the classpath is not enough. Discovery only *lists* providers; a provider runs
+    // only if LobbyServer names it in useProvider(), and for a long time this one was not named.
+    // 0.2.0 is also the first version with the shared chat line, so a message looks the same
+    // whether it crossed the proxy or was broadcast inside this lobby.
+    implementation("gg.grounds:plugin-chat-minestom:0.2.0")
     // The locked inventory and the slot-9 navigator. Selected unconditionally in
     // LobbyServer: it needs no backing service, and a lobby without it is a lobby a
     // player cannot leave except by disconnecting.

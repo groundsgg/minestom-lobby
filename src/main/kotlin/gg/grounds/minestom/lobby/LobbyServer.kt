@@ -31,6 +31,12 @@ internal fun selectedRuntimeProviderIds(env: Map<String, String> = System.getenv
         // there is no service to be configured and nothing to degrade to. Every other entry here
         // is gated because it would fail without its backend; this one would only be missing.
         add("grounds.lobby.navigator")
+        // Unconditional for the same reason, and it was missing entirely: the dependency was
+        // declared and the provider was discovered, but never selected, so Minestom's own
+        // `<name> message` was what players actually saw and nothing ever reached the proxy.
+        // Like the navigator it needs no backend — with CHAT_GLOBAL_ENABLED unset it broadcasts
+        // inside this lobby instead of failing.
+        add("grounds.chat")
         if (hasAgonesSidecar(env)) {
             add("grounds.agones")
         }
