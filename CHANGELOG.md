@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.1](https://github.com/groundsgg/minestom-lobby/compare/v1.6.0...v1.6.1) (2026-08-02)
+
+
+### Bug Fixes
+
+* the navigator's clock actually appears ([#49](https://github.com/groundsgg/minestom-lobby/issues/49)) ([40621aa](https://github.com/groundsgg/minestom-lobby/commit/40621aac10072e15594c1aeb8c38253ff41e3585))
+
 ## [1.6.0](https://github.com/groundsgg/minestom-lobby/compare/v1.5.0...v1.6.0) (2026-08-02)
 
 
