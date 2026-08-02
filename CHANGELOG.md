@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/groundsgg/minestom-lobby/compare/v1.4.0...v1.5.0) (2026-08-02)
+
+
+### Features
+
+* load the lobby navigator ([#45](https://github.com/groundsgg/minestom-lobby/issues/45)) ([160bab0](https://github.com/groundsgg/minestom-lobby/commit/160bab0228c4dad86153bbc518ccb95335a43cd1))
+
 ## [1.4.0](https://github.com/groundsgg/minestom-lobby/compare/v1.3.0...v1.4.0) (2026-07-29)
 
 
