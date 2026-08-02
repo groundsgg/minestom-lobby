@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/groundsgg/minestom-lobby/compare/v1.7.0...v1.8.0) (2026-08-02)
+
+
+### Features
+
+* the lobby list shows player counts ([#55](https://github.com/groundsgg/minestom-lobby/issues/55)) ([169be72](https://github.com/groundsgg/minestom-lobby/commit/169be728786aa43391041c73ebce27ac12237c2f))
+
 ## [1.7.0](https://github.com/groundsgg/minestom-lobby/compare/v1.6.2...v1.7.0) (2026-08-02)
 
 
