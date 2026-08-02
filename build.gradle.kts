@@ -25,6 +25,13 @@ repositories {
         }
     }
     maven {
+        url = uri("https://maven.pkg.github.com/groundsgg/plugin-lobby")
+        credentials {
+            username = providers.gradleProperty("github.user").get()
+            password = providers.gradleProperty("github.token").get()
+        }
+    }
+    maven {
         url = uri("https://maven.pkg.github.com/groundsgg/*")
         credentials {
             username = providers.gradleProperty("github.user").get()
@@ -45,6 +52,10 @@ dependencies {
     // message is broadcast locally instead of being forwarded to the proxy's
     // staff chat.
     implementation("gg.grounds:plugin-chat-minestom:0.1.0")
+    // The locked inventory and the slot-9 navigator. Selected unconditionally in
+    // LobbyServer: it needs no backing service, and a lobby without it is a lobby a
+    // player cannot leave except by disconnecting.
+    implementation("gg.grounds:plugin-lobby-minestom:0.1.0")
     // Reads the map's map.json sidecar (the spawn). Minestom pulls gson in transitively;
     // declare it because we use it directly.
     implementation("com.google.code.gson:gson:2.13.2")
