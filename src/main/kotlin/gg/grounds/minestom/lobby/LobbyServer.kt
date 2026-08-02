@@ -27,6 +27,10 @@ internal fun lobbyRuntimeConfig(env: Map<String, String> = System.getenv()): Run
 
 internal fun selectedRuntimeProviderIds(env: Map<String, String> = System.getenv()): List<String> =
     buildList {
+        // Unconditional: the navigator talks to the proxy over the player's own connection, so
+        // there is no service to be configured and nothing to degrade to. Every other entry here
+        // is gated because it would fail without its backend; this one would only be missing.
+        add("grounds.lobby.navigator")
         if (hasAgonesSidecar(env)) {
             add("grounds.agones")
         }

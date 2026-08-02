@@ -89,6 +89,14 @@ class LobbyRuntimeTest {
                 )
             )
 
-        assertEquals(listOf("grounds.agones", "grounds.permissions"), providers)
+        assertEquals(
+            listOf("grounds.lobby.navigator", "grounds.agones", "grounds.permissions"),
+            providers,
+        )
+    }
+
+    @Test
+    fun `lobby always selects the navigator`() {
+        assertTrue(selectedRuntimeProviderIds(emptyMap()).contains("grounds.lobby.navigator"))
     }
 }
