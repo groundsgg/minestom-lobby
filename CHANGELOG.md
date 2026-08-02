@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.0](https://github.com/groundsgg/minestom-lobby/compare/v1.11.0...v1.12.0) (2026-08-02)
+
+
+### Features
+
+* a compass with every registered game mode ([#65](https://github.com/groundsgg/minestom-lobby/issues/65)) ([4077483](https://github.com/groundsgg/minestom-lobby/commit/4077483936ea1b3b6e092e25566ad1f275e575ac))
+
 ## [1.11.0](https://github.com/groundsgg/minestom-lobby/compare/v1.10.0...v1.11.0) (2026-08-02)
 
 
