@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/groundsgg/minestom-lobby/compare/v1.5.0...v1.6.0) (2026-08-02)
+
+
+### Features
+
+* zones and regions the navigator offers are now live ([#47](https://github.com/groundsgg/minestom-lobby/issues/47)) ([38ad56f](https://github.com/groundsgg/minestom-lobby/commit/38ad56f8d62fc3a9326bb49a72ffc300db9b027f))
+
 ## [1.5.0](https://github.com/groundsgg/minestom-lobby/compare/v1.4.0...v1.5.0) (2026-08-02)
 
 
