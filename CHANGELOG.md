@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.1](https://github.com/groundsgg/minestom-lobby/compare/v1.9.0...v1.9.1) (2026-08-02)
+
+
+### Bug Fixes
+
+* the lobby starts again ([#59](https://github.com/groundsgg/minestom-lobby/issues/59)) ([c2bff39](https://github.com/groundsgg/minestom-lobby/commit/c2bff391ac1c6e706ba4770af0308cf6f0ae3628))
+
 ## [1.9.0](https://github.com/groundsgg/minestom-lobby/compare/v1.8.0...v1.9.0) (2026-08-02)
 
 
