@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0](https://github.com/groundsgg/minestom-lobby/compare/v1.9.1...v1.10.0) (2026-08-02)
+
+
+### Features
+
+* playtime shows whole minutes ([#61](https://github.com/groundsgg/minestom-lobby/issues/61)) ([fc92579](https://github.com/groundsgg/minestom-lobby/commit/fc92579379d57b4da813408d1dc1d9311f521191))
+
 ## [1.9.1](https://github.com/groundsgg/minestom-lobby/compare/v1.9.0...v1.9.1) (2026-08-02)
 
 
