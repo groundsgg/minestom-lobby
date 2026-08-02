@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/groundsgg/minestom-lobby/compare/v1.6.2...v1.7.0) (2026-08-02)
+
+
+### Features
+
+* the navigator offers regions, not datacentres ([#53](https://github.com/groundsgg/minestom-lobby/issues/53)) ([f59678b](https://github.com/groundsgg/minestom-lobby/commit/f59678b2b7956ee0b421e85672fb569262e1267e))
+
 ## [1.6.2](https://github.com/groundsgg/minestom-lobby/compare/v1.6.1...v1.6.2) (2026-08-02)
 
 
