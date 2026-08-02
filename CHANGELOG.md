@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.0](https://github.com/groundsgg/minestom-lobby/compare/v1.10.0...v1.11.0) (2026-08-02)
+
+
+### Features
+
+* the sidebar shows name, region and playtime ([#63](https://github.com/groundsgg/minestom-lobby/issues/63)) ([306f553](https://github.com/groundsgg/minestom-lobby/commit/306f55351bf739b2210ade48951af3b52702f014))
+
 ## [1.10.0](https://github.com/groundsgg/minestom-lobby/compare/v1.9.1...v1.10.0) (2026-08-02)
 
 
