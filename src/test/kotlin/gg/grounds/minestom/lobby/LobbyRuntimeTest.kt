@@ -40,6 +40,20 @@ class LobbyRuntimeTest {
         assertEquals("secret", config.proxy.velocityForwardingSecret)
     }
 
+    /**
+     * Chat was on the classpath and discovered by the SPI for months, but never named here, so
+     * players saw Minestom's own `<name> message` and nothing reached the proxy. Being discovered
+     * is not being selected — this is the test that would have caught it.
+     */
+    @Test
+    fun `lobby always selects chat, with or without any backend configured`() {
+        assertTrue(selectedRuntimeProviderIds(emptyMap()).contains("grounds.chat"))
+        assertTrue(
+            selectedRuntimeProviderIds(mapOf("AGONES_SDK_HTTP_PORT" to "9358"))
+                .contains("grounds.chat")
+        )
+    }
+
     @Test
     fun `lobby selects agones provider only when sidecar is detected`() {
         val standalone = selectedRuntimeProviderIds(emptyMap())
@@ -90,7 +104,12 @@ class LobbyRuntimeTest {
             )
 
         assertEquals(
-            listOf("grounds.lobby.navigator", "grounds.agones", "grounds.permissions"),
+            listOf(
+                "grounds.lobby.navigator",
+                "grounds.chat",
+                "grounds.agones",
+                "grounds.permissions",
+            ),
             providers,
         )
     }
