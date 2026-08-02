@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.2](https://github.com/groundsgg/minestom-lobby/compare/v1.6.1...v1.6.2) (2026-08-02)
+
+
+### Bug Fixes
+
+* actually select the chat module, do not just ship it ([#51](https://github.com/groundsgg/minestom-lobby/issues/51)) ([4302b36](https://github.com/groundsgg/minestom-lobby/commit/4302b3644e462717e9f6ca1475dd7bd39d6e8d01))
+
 ## [1.6.1](https://github.com/groundsgg/minestom-lobby/compare/v1.6.0...v1.6.1) (2026-08-02)
 
 
