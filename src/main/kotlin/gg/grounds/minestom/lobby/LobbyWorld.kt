@@ -55,7 +55,7 @@ internal data class LobbyMap(val instance: InstanceContainer, val spawn: Pos)
 
 internal object LobbyWorld {
     fun createInstance(): LobbyMap {
-        val mapPath = Path.of(System.getenv("GROUNDS_LOBBY_MAP_PATH") ?: DEFAULT_MAP_PATH)
+        val mapPath = resolveMapPath()
         val world = mapPath.resolve(OVERWORLD).takeIf { Files.isDirectory(it) } ?: mapPath
 
         val instanceContainer = MinecraftServer.getInstanceManager().createInstanceContainer()
@@ -70,17 +70,27 @@ internal object LobbyWorld {
         clock.rate(0f)
         clock.time(SUNRISE_TIME)
 
-        return LobbyMap(instanceContainer, readSpawn(mapPath))
+        return LobbyMap(instanceContainer, spawnFor(mapPath))
     }
 
     /**
-     * The spawn lives in the map's own `map.json` sidecar, next to the world data — the same file
-     * the gamemodes read. Duplicating it as a constant here would mean the map and the server could
-     * disagree about where the map's spawn is.
+     * Where players land, from the map itself — never a constant here, or the map and the server
+     * could disagree about the map's own spawn.
+     *
+     * Two sources, in order: the point a builder marked with `/ms spawn`, which travels inside the
+     * bundle in `grounds/pois.json`; then the `map.json` sidecar an exported world carries. A map
+     * from the registry has no sidecar, so requiring one would kill the lobby at boot the moment it
+     * loads a published version — which is exactly what this server is now pointed at.
      */
-    private fun readSpawn(mapPath: Path): Pos {
+    private fun spawnFor(mapPath: Path): Pos =
+        LobbyPoints.read(mapPath, SPAWN_POINT) ?: readSidecarSpawn(mapPath)
+
+    private fun readSidecarSpawn(mapPath: Path): Pos {
         val sidecar = mapPath.resolve("map.json")
-        require(Files.isRegularFile(sidecar)) { "no map.json next to the lobby map at $mapPath" }
+        require(Files.isRegularFile(sidecar)) {
+            "the lobby map at $mapPath carries neither grounds/pois.json nor map.json, so nothing" +
+                " says where players should land"
+        }
 
         val spawns = JsonParser.parseString(Files.readString(sidecar)).asJsonObject["spawns"]
         val spawn = spawns.asJsonArray.first().asJsonObject
