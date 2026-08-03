@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.0](https://github.com/groundsgg/minestom-lobby/compare/v1.12.0...v1.13.0) (2026-08-03)
+
+
+### Features
+
+* **deps:** runtime 0.6.0 — the server can publish its own metrics ([#67](https://github.com/groundsgg/minestom-lobby/issues/67)) ([aaab297](https://github.com/groundsgg/minestom-lobby/commit/aaab29764e8ef61b047d0fa2ae3a6ba61d612628))
+
 ## [1.12.0](https://github.com/groundsgg/minestom-lobby/compare/v1.11.0...v1.12.0) (2026-08-02)
 
 
