@@ -38,3 +38,30 @@ Use `GROUNDS_PROXY_MODE=auto` with `GROUNDS_ONLINE_MODE=true` to run a standalon
 ## License
 
 Licensed under the GNU Affero General Public License v3.0
+
+## Where the world comes from
+
+By default the lobby loads the world baked into its image (`GROUNDS_LOBBY_MAP_PATH`, or `lobby/`
+next to the working directory).
+
+Set **`GROUNDS_LOBBY_MAP`** to a map address — `lobby/mainlobby` — and it instead loads the version
+pinned for its environment:
+
+| Variable | Meaning |
+|---|---|
+| `GROUNDS_LOBBY_MAP` | Map address to load. Unset keeps the baked-in world |
+| `MAPS_ENVIRONMENT` | Which pin file to read. Defaults to `stage` |
+| `MAPS_CDN_BASE` | CDN origin for the pin file. Defaults to `https://maps.grounds.gg` |
+| `MAPS_CACHE_DIR` | Where unpacked worlds are cached, keyed by digest |
+
+**The map service is never called.** It publishes `pins/<env>.json` to the CDN and that file names
+the content-addressed bundle, so a lobby boots and loads its world with the registry down. Bundles
+are immutable and cached under their own digest, so a restart that changes nothing downloads
+nothing.
+
+If anything fails — no pin, no network, a broken bundle — the lobby **starts on the world it
+shipped with** and says so in the log. An empty lobby is worse than a slightly old one.
+
+The spawn comes from `grounds/pois.json` inside the world, which is what a builder marked with
+`/ms spawn` on the build server. A world published before points existed falls back to the map
+template's first spawn.

@@ -18,10 +18,34 @@ private const val SUNRISE_TIME: Long = 6000
 // right next to build.gradle.kts), so the same default works in both places.
 private const val DEFAULT_MAP_PATH = "lobby"
 
+/** The map address to pull from the registry, e.g. `lobby/mainlobby`. Unset keeps the baked-in world. */
+private const val MAP_ADDRESS_ENV = "GROUNDS_LOBBY_MAP"
+
+/** What a builder marks with `/ms spawn` on the build server. */
+private const val SPAWN_POINT = "spawn"
+
 // The map was exported by WorldDownloader, which puts the region files one dimension deep
 // rather than in a top-level region/. AnvilLoader wants the directory that *contains*
 // region/, so descend when that layout is what we got.
 private const val OVERWORLD = "dimensions/minecraft/overworld"
+
+/**
+ * Where the world comes from: the pinned version in the map service when `GROUNDS_LOBBY_MAP` names
+ * a map, otherwise the folder baked into the image.
+ *
+ * The fallback is not politeness. A lobby that cannot reach the CDN should still start and serve
+ * players on the world it shipped with — an empty lobby is worse than a slightly old one, and the
+ * log says which it got.
+ */
+private fun resolveMapPath(): Path {
+    val address = System.getenv(MAP_ADDRESS_ENV)
+    if (!address.isNullOrBlank()) {
+        MapDistribution().worldFor(address)?.let {
+            return it
+        }
+    }
+    return Path.of(System.getenv("GROUNDS_LOBBY_MAP_PATH") ?: DEFAULT_MAP_PATH)
+}
 
 /** The loaded lobby instance and the spawn every joining player is teleported to. */
 internal data class LobbyMap(val instance: InstanceContainer, val spawn: Pos)
