@@ -23,17 +23,19 @@ internal object LobbyPoints {
             return null
         }
         return runCatching {
-            val pois =
-                JsonParser.parseString(Files.readString(file)).asJsonObject.getAsJsonObject("pois")
-            val poi = pois?.getAsJsonObject(name) ?: return null
-            Pos(
-                poi.get("x").asDouble,
-                poi.get("y").asDouble,
-                poi.get("z").asDouble,
-                poi.get("yaw").asFloat,
-                poi.get("pitch").asFloat,
-            )
-        }
+                val pois =
+                    JsonParser.parseString(Files.readString(file))
+                        .asJsonObject
+                        .getAsJsonObject("pois")
+                val poi = pois?.getAsJsonObject(name) ?: return null
+                Pos(
+                    poi.get("x").asDouble,
+                    poi.get("y").asDouble,
+                    poi.get("z").asDouble,
+                    poi.get("yaw").asFloat,
+                    poi.get("pitch").asFloat,
+                )
+            }
             .onFailure { logger.warn("Could not read {} from {}", name, file, it) }
             .getOrNull()
     }

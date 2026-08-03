@@ -54,7 +54,9 @@ class LobbyPointsTest {
     @Test
     fun `a point the map does not carry reads as null`() {
         world.resolve("grounds").createDirectories()
-        world.resolve("grounds/pois.json").writeText("""{"format":1,"pois":{"other":{"x":0,"y":0,"z":0,"yaw":0,"pitch":0}}}""")
+        world
+            .resolve("grounds/pois.json")
+            .writeText("""{"format":1,"pois":{"other":{"x":0,"y":0,"z":0,"yaw":0,"pitch":0}}}""")
 
         assertNull(LobbyPoints.read(world, "spawn"))
         Files.deleteIfExists(world.resolve("grounds/pois.json"))

@@ -40,8 +40,7 @@ internal class MapDistribution(
 
     private val logger = LoggerFactory.getLogger(MapDistribution::class.java)
 
-    private val http =
-        HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build()
+    private val http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build()
 
     /** What the pin file says about one map. */
     data class Pinned(val version: Int, val bundleSha256: String, val bundleUrl: String)
@@ -55,16 +54,21 @@ internal class MapDistribution(
      */
     fun worldFor(address: String): Path? =
         runCatching {
-            val pinned = pin(address) ?: return null
-            val unpacked = cacheDir.resolve(pinned.bundleSha256)
-            if (Files.isDirectory(unpacked)) {
-                logger.info("Using cached {} v{} ({})", address, pinned.version, short(pinned.bundleSha256))
-                return unpacked
+                val pinned = pin(address) ?: return null
+                val unpacked = cacheDir.resolve(pinned.bundleSha256)
+                if (Files.isDirectory(unpacked)) {
+                    logger.info(
+                        "Using cached {} v{} ({})",
+                        address,
+                        pinned.version,
+                        short(pinned.bundleSha256),
+                    )
+                    return unpacked
+                }
+                download(pinned, unpacked)
+                logger.info("Loaded {} v{} from the map service", address, pinned.version)
+                unpacked
             }
-            download(pinned, unpacked)
-            logger.info("Loaded {} v{} from the map service", address, pinned.version)
-            unpacked
-        }
             .onFailure { logger.warn("Could not get {} from the map service", address, it) }
             .getOrNull()
 
@@ -72,7 +76,10 @@ internal class MapDistribution(
         val url = "${cdnBase.trimEnd('/')}/pins/$environment.json"
         val response =
             http.send(
-                HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(30)).GET().build(),
+                HttpRequest.newBuilder(URI.create(url))
+                    .timeout(Duration.ofSeconds(30))
+                    .GET()
+                    .build(),
                 HttpResponse.BodyHandlers.ofString(),
             )
         if (response.statusCode() != 200) {
@@ -95,7 +102,8 @@ internal class MapDistribution(
     private fun download(pinned: Pinned, target: Path) {
         // Unpacked beside the target and moved into place: a half-extracted world that another
         // boot mistakes for a cache hit is a lobby with holes in it.
-        val staging = Files.createTempDirectory(cacheDir.also { Files.createDirectories(it) }, "unpacking-")
+        val staging =
+            Files.createTempDirectory(cacheDir.also { Files.createDirectories(it) }, "unpacking-")
         try {
             http
                 .send(
@@ -107,18 +115,21 @@ internal class MapDistribution(
                 )
                 .body()
                 .use { body ->
-                    TarArchiveInputStream(ZstdCompressorInputStream(BufferedInputStream(body))).use { tar ->
-                        generateSequence { tar.nextEntry }
-                            .filter { !it.isDirectory }
-                            .forEach { entry ->
-                                val file = staging.resolve(entry.name).normalize()
-                                // A bundle is fetched over the network; an entry named `../..`
-                                // would write outside the cache directory entirely.
-                                require(file.startsWith(staging)) { "bundle entry escapes: ${entry.name}" }
-                                Files.createDirectories(file.parent)
-                                Files.newOutputStream(file).use { tar.copyTo(it) }
-                            }
-                    }
+                    TarArchiveInputStream(ZstdCompressorInputStream(BufferedInputStream(body)))
+                        .use { tar ->
+                            generateSequence { tar.nextEntry }
+                                .filter { !it.isDirectory }
+                                .forEach { entry ->
+                                    val file = staging.resolve(entry.name).normalize()
+                                    // A bundle is fetched over the network; an entry named `../..`
+                                    // would write outside the cache directory entirely.
+                                    require(file.startsWith(staging)) {
+                                        "bundle entry escapes: ${entry.name}"
+                                    }
+                                    Files.createDirectories(file.parent)
+                                    Files.newOutputStream(file).use { tar.copyTo(it) }
+                                }
+                        }
                 }
             Files.move(staging, target, StandardCopyOption.ATOMIC_MOVE)
         } catch (failure: Exception) {

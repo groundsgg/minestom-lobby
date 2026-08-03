@@ -18,7 +18,10 @@ private const val SUNRISE_TIME: Long = 6000
 // right next to build.gradle.kts), so the same default works in both places.
 private const val DEFAULT_MAP_PATH = "lobby"
 
-/** The map address to pull from the registry, e.g. `lobby/mainlobby`. Unset keeps the baked-in world. */
+/**
+ * The map address to pull from the registry, e.g. `lobby/mainlobby`. Unset keeps the baked-in
+ * world.
+ */
 private const val MAP_ADDRESS_ENV = "GROUNDS_LOBBY_MAP"
 
 /** What a builder marks with `/ms spawn` on the build server. */
