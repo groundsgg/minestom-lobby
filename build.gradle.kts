@@ -60,6 +60,10 @@ dependencies {
     // Reads the map's map.json sidecar (the spawn). Minestom pulls gson in transitively;
     // declare it because we use it directly.
     implementation("com.google.code.gson:gson:2.13.2")
+    // Fetching and unpacking the pinned bundle: the same tar.zst the build server produces.
+    implementation("org.apache.commons:commons-compress:1.28.0")
+    implementation("com.github.luben:zstd-jni:1.5.7-6")
+    implementation("com.google.code.gson:gson:2.13.2")
     implementation("org.slf4j:slf4j-api")
 
     testImplementation("org.junit.jupiter:junit-jupiter")
