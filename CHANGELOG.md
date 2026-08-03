@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.0](https://github.com/groundsgg/minestom-lobby/compare/v1.13.0...v1.14.0) (2026-08-03)
+
+
+### Features
+
+* load the lobby world from the map service ([#69](https://github.com/groundsgg/minestom-lobby/issues/69)) ([3bf6acf](https://github.com/groundsgg/minestom-lobby/commit/3bf6acfb1eec5aa5d7a84eb7584b77f4abdc4afc))
+
 ## [1.13.0](https://github.com/groundsgg/minestom-lobby/compare/v1.12.0...v1.13.0) (2026-08-03)
 
 
