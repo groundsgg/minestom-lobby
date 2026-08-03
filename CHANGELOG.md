@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.1](https://github.com/groundsgg/minestom-lobby/compare/v1.14.0...v1.14.1) (2026-08-03)
+
+
+### Bug Fixes
+
+* actually use the map service path ([#71](https://github.com/groundsgg/minestom-lobby/issues/71)) ([e14e6fd](https://github.com/groundsgg/minestom-lobby/commit/e14e6fd9a9e66082cce470ec11e3bc7ae396c376))
+
 ## [1.14.0](https://github.com/groundsgg/minestom-lobby/compare/v1.13.0...v1.14.0) (2026-08-03)
 
 
