@@ -56,7 +56,7 @@ dependencies {
     // The locked inventory and the slot-9 navigator. Selected unconditionally in
     // LobbyServer: it needs no backing service, and a lobby without it is a lobby a
     // player cannot leave except by disconnecting.
-    implementation("gg.grounds:plugin-lobby-minestom:1.6.0")
+    implementation("gg.grounds:plugin-lobby-minestom:1.7.0")
     // Reads the map's map.json sidecar (the spawn). Minestom pulls gson in transitively;
     // declare it because we use it directly.
     implementation("com.google.code.gson:gson:2.13.2")
