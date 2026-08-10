@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.0](https://github.com/groundsgg/minestom-lobby/compare/v1.14.1...v1.15.0) (2026-08-10)
+
+
+### Features
+
+* **lobby:** plugin-lobby 1.7.0 — the duel menu ([#74](https://github.com/groundsgg/minestom-lobby/issues/74)) ([8758899](https://github.com/groundsgg/minestom-lobby/commit/8758899a287ce3374626c66a3115ee2b0324ab3c))
+
 ## [1.14.1](https://github.com/groundsgg/minestom-lobby/compare/v1.14.0...v1.14.1) (2026-08-03)
 
 
