@@ -52,7 +52,7 @@ dependencies {
     // only if LobbyServer names it in useProvider(), and for a long time this one was not named.
     // 0.2.0 is also the first version with the shared chat line, so a message looks the same
     // whether it crossed the proxy or was broadcast inside this lobby.
-    implementation("gg.grounds:plugin-chat-minestom:0.2.0")
+    implementation("gg.grounds:plugin-chat-minestom:1.1.0")
     // The locked inventory and the slot-9 navigator. Selected unconditionally in
     // LobbyServer: it needs no backing service, and a lobby without it is a lobby a
     // player cannot leave except by disconnecting.

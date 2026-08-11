@@ -55,6 +55,14 @@ class LobbyRuntimeTest {
     }
 
     @Test
+    fun `lobby selects navigator before chat without backend configuration`() {
+        assertEquals(
+            listOf("grounds.lobby.navigator", "grounds.chat"),
+            selectedRuntimeProviderIds(emptyMap()),
+        )
+    }
+
+    @Test
     fun `lobby selects agones provider only when sidecar is detected`() {
         val standalone = selectedRuntimeProviderIds(emptyMap())
         val withAgones = selectedRuntimeProviderIds(mapOf("AGONES_SDK_HTTP_PORT" to "9358"))
