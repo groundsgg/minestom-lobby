@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.16.0](https://github.com/groundsgg/minestom-lobby/compare/v1.15.0...v1.16.0) (2026-08-11)
+
+
+### Features
+
+* **chat:** enable player reporting in lobby ([#76](https://github.com/groundsgg/minestom-lobby/issues/76)) ([a8f3ac6](https://github.com/groundsgg/minestom-lobby/commit/a8f3ac613cdeb413d4aa992a5389e1ba612c3d8f))
+
 ## [1.15.0](https://github.com/groundsgg/minestom-lobby/compare/v1.14.1...v1.15.0) (2026-08-10)
 
 
