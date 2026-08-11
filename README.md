@@ -1,7 +1,7 @@
 # Minestom Lobby
 
 This is a simple lobby built on Minestom.
- 
+
 Following features are implemented:
 
 - Official skins are loaded
@@ -10,19 +10,24 @@ Following features are implemented:
 - Server startup is delegated to `grounds-minestom-runtime`
 - Auth and profile forwarding are configured through `grounds-minestom-runtime`
 
-## Running 
+## Running
 
 Use `GROUNDS_BIND_HOST`, `GROUNDS_BIND_PORT`, and `GROUNDS_SERVER_BRAND` to configure the server.
 
 ### Behind Velocity
 
 1. In Velocity, got to the `velocity.toml` and change `player-info-forwarding-mode` to `modern`.
-(Example: `player-info-forwarding-mode = "modern"`).
+   (Example: `player-info-forwarding-mode = "modern"`).
 2. Add the server to the `servers` section.
 3. Configure runtime proxy auth with `GROUNDS_PROXY_MODE=velocity`.
 4. Set `GROUNDS_VELOCITY_FORWARDING_SECRET` to the content of Velocity's `forwarding.secret`.
 
-Use `./gradlew run` to run the server.
+Launch the lobby group with shared chat enabled:
+
+```shell
+# Lobby group behind Velocity
+CHAT_GLOBAL_ENABLED=true CHAT_GROUP=lobby ./gradlew run
+```
 
 ### Permissions runtime
 
@@ -34,6 +39,11 @@ both unset disables the provider; partial configuration fails startup.
 ### As standalone
 
 Use `GROUNDS_PROXY_MODE=auto` with `GROUNDS_ONLINE_MODE=true` to run a standalone online-mode lobby.
+
+```shell
+# Standalone local chat
+CHAT_GLOBAL_ENABLED=false CHAT_GROUP= ./gradlew run
+```
 
 ## License
 
@@ -47,12 +57,12 @@ next to the working directory).
 Set **`GROUNDS_LOBBY_MAP`** to a map address — `lobby/mainlobby` — and it instead loads the version
 pinned for its environment:
 
-| Variable | Meaning |
-|---|---|
-| `GROUNDS_LOBBY_MAP` | Map address to load. Unset keeps the baked-in world |
-| `MAPS_ENVIRONMENT` | Which pin file to read. Defaults to `stage` |
-| `MAPS_CDN_BASE` | CDN origin for the pin file. Defaults to `https://maps.grounds.gg` |
-| `MAPS_CACHE_DIR` | Where unpacked worlds are cached, keyed by digest |
+| Variable            | Meaning                                                            |
+| ------------------- | ------------------------------------------------------------------ |
+| `GROUNDS_LOBBY_MAP` | Map address to load. Unset keeps the baked-in world                |
+| `MAPS_ENVIRONMENT`  | Which pin file to read. Defaults to `stage`                        |
+| `MAPS_CDN_BASE`     | CDN origin for the pin file. Defaults to `https://maps.grounds.gg` |
+| `MAPS_CACHE_DIR`    | Where unpacked worlds are cached, keyed by digest                  |
 
 **The map service is never called.** It publishes `pins/<env>.json` to the CDN and that file names
 the content-addressed bundle, so a lobby boots and loads its world with the registry down. Bundles
