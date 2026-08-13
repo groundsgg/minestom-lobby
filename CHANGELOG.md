@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.0](https://github.com/groundsgg/minestom-lobby/compare/v1.16.0...v1.17.0) (2026-08-13)
+
+
+### Features
+
+* double jump in the lobby ([#78](https://github.com/groundsgg/minestom-lobby/issues/78)) ([c6129bf](https://github.com/groundsgg/minestom-lobby/commit/c6129bf72af0731bce56b63bf148294d3a66b8f6))
+
 ## [1.16.0](https://github.com/groundsgg/minestom-lobby/compare/v1.15.0...v1.16.0) (2026-08-11)
 
 
