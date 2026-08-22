@@ -8,6 +8,7 @@ import net.minestom.server.instance.InstanceContainer
 import net.minestom.server.instance.LightingChunk
 import net.minestom.server.instance.anvil.AnvilLoader
 import net.minestom.server.utils.chunk.ChunkSupplier
+import net.minestom.server.world.DimensionType
 
 private const val SUNRISE_TIME: Long = 6000
 
@@ -55,7 +56,7 @@ internal object LobbyWorld {
         val world = mapPath.resolve(OVERWORLD).takeIf { Files.isDirectory(it) } ?: mapPath
 
         val instanceContainer = MinecraftServer.getInstanceManager().createInstanceContainer()
-        instanceContainer.chunkLoader = AnvilLoader(world)
+        instanceContainer.chunkLoader = AnvilLoader(world, DimensionType.OVERWORLD.key())
         // The authored map ships no light data we can trust after Minestom rewrites blocks,
         // so let it compute lighting per chunk.
         instanceContainer.chunkSupplier = ChunkSupplier { instance, x, z ->
