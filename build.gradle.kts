@@ -56,6 +56,11 @@ dependencies {
     // The locked inventory and the slot-9 navigator. Selected unconditionally in
     // LobbyServer: it needs no backing service, and a lobby without it is a lobby a
     // player cannot leave except by disconnecting.
+    //
+    // Since 1.10.0 the navigator, compass and duel menu are declared rather than drawn,
+    // so they render as a chest for a Java player and as a native form for a Bedrock one.
+    // Before that a Bedrock player reached the lobby and found missing-glyph text where
+    // the menu should be — which made this the one dependency a Bedrock rollout waits on.
     implementation("gg.grounds:plugin-lobby-minestom:1.10.0")
     // Reads the map's map.json sidecar (the spawn). Minestom pulls gson in transitively;
     // declare it because we use it directly.
