@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.19.0](https://github.com/groundsgg/minestom-lobby/compare/v1.18.1...v1.19.0) (2026-08-22)
+
+
+### Features
+
+* load and expose the versioned lobby spawn ([#85](https://github.com/groundsgg/minestom-lobby/issues/85)) ([c38dfc7](https://github.com/groundsgg/minestom-lobby/commit/c38dfc73b77a0e40886cec81752707e2864da46f))
+
 ## [1.18.1](https://github.com/groundsgg/minestom-lobby/compare/v1.18.0...v1.18.1) (2026-08-22)
 
 
