@@ -10,11 +10,16 @@ import org.slf4j.LoggerFactory
 internal class LobbyModule : GroundsModule {
     private val logger = LoggerFactory.getLogger(LobbyModule::class.java)
     private var eventNode: EventNode<Event>? = null
+    private var spawnCommand: SpawnCommand? = null
 
     override val id: String = "grounds.lobby"
 
     override fun install(ctx: GroundsServerContext) {
         val (instanceContainer, spawn) = LobbyWorld.createInstance()
+        val command = SpawnCommand(spawn)
+        MinecraftServer.getCommandManager().register(command)
+        spawnCommand = command
+
         val node = ctx.eventNode("grounds-lobby")
         LobbyEvents.register(node, instanceContainer, spawn)
         MinecraftServer.getGlobalEventHandler().addChild(node)
@@ -30,5 +35,7 @@ internal class LobbyModule : GroundsModule {
     override fun stop() {
         eventNode?.let(MinecraftServer.getGlobalEventHandler()::removeChild)
         eventNode = null
+        spawnCommand?.let(MinecraftServer.getCommandManager()::unregister)
+        spawnCommand = null
     }
 }
