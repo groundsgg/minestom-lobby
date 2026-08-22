@@ -22,9 +22,7 @@ class LobbySpawnTest {
             )
         world
             .resolve("map.json")
-            .writeText(
-                """{"spawns":[{"x":14.5,"y":3.0,"z":-1.5,"yaw":180.0,"pitch":0.0}]}"""
-            )
+            .writeText("""{"spawns":[{"x":14.5,"y":3.0,"z":-1.5,"yaw":180.0,"pitch":0.0}]}""")
 
         val spawn = LobbySpawn.resolve(world)
 
@@ -40,9 +38,7 @@ class LobbySpawnTest {
     fun `falls back to the map sidecar including facing`() {
         world
             .resolve("map.json")
-            .writeText(
-                """{"spawns":[{"x":14.5,"y":3.0,"z":-1.5,"yaw":180.0,"pitch":0.0}]}"""
-            )
+            .writeText("""{"spawns":[{"x":14.5,"y":3.0,"z":-1.5,"yaw":180.0,"pitch":0.0}]}""")
 
         val spawn = LobbySpawn.resolve(world)
 
