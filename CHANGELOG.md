@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.18.1](https://github.com/groundsgg/minestom-lobby/compare/v1.18.0...v1.18.1) (2026-08-22)
+
+
+### Bug Fixes
+
+* **deps:** release the lobby menus a Bedrock player can use ([#83](https://github.com/groundsgg/minestom-lobby/issues/83)) ([0660553](https://github.com/groundsgg/minestom-lobby/commit/0660553fba4e800f3099f2aeaf6d6b315adfe2e5))
+
 ## [1.18.0](https://github.com/groundsgg/minestom-lobby/compare/v1.17.0...v1.18.0) (2026-08-21)
 
 
