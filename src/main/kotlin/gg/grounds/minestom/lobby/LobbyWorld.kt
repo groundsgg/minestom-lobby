@@ -1,6 +1,5 @@
 package gg.grounds.minestom.lobby
 
-import com.google.gson.JsonParser
 import java.nio.file.Files
 import java.nio.file.Path
 import net.minestom.server.MinecraftServer
@@ -23,9 +22,6 @@ private const val DEFAULT_MAP_PATH = "lobby"
  * world.
  */
 private const val MAP_ADDRESS_ENV = "GROUNDS_LOBBY_MAP"
-
-/** What a builder marks with `/ms spawn` on the build server. */
-private const val SPAWN_POINT = "spawn"
 
 // The map was exported by WorldDownloader, which puts the region files one dimension deep
 // rather than in a top-level region/. AnvilLoader wants the directory that *contains*
@@ -70,36 +66,6 @@ internal object LobbyWorld {
         clock.rate(0f)
         clock.time(SUNRISE_TIME)
 
-        return LobbyMap(instanceContainer, spawnFor(mapPath))
-    }
-
-    /**
-     * Where players land, from the map itself — never a constant here, or the map and the server
-     * could disagree about the map's own spawn.
-     *
-     * Two sources, in order: the point a builder marked with `/ms spawn`, which travels inside the
-     * bundle in `grounds/pois.json`; then the `map.json` sidecar an exported world carries. A map
-     * from the registry has no sidecar, so requiring one would kill the lobby at boot the moment it
-     * loads a published version — which is exactly what this server is now pointed at.
-     */
-    private fun spawnFor(mapPath: Path): Pos =
-        LobbyPoints.read(mapPath, SPAWN_POINT) ?: readSidecarSpawn(mapPath)
-
-    private fun readSidecarSpawn(mapPath: Path): Pos {
-        val sidecar = mapPath.resolve("map.json")
-        require(Files.isRegularFile(sidecar)) {
-            "the lobby map at $mapPath carries neither grounds/pois.json nor map.json, so nothing" +
-                " says where players should land"
-        }
-
-        val spawns = JsonParser.parseString(Files.readString(sidecar)).asJsonObject["spawns"]
-        val spawn = spawns.asJsonArray.first().asJsonObject
-        return Pos(
-            spawn["x"].asDouble,
-            spawn["y"].asDouble,
-            spawn["z"].asDouble,
-            spawn["yaw"]?.asFloat ?: 0f,
-            spawn["pitch"]?.asFloat ?: 0f,
-        )
+        return LobbyMap(instanceContainer, LobbySpawn.resolve(mapPath))
     }
 }
