@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.0](https://github.com/groundsgg/minestom-lobby/compare/v1.19.3...v1.20.0) (2026-08-23)
+
+
+### Features
+
+* the sidebar shows Coins ([#95](https://github.com/groundsgg/minestom-lobby/issues/95)) ([5278b5b](https://github.com/groundsgg/minestom-lobby/commit/5278b5b7392ffd001054d362dc0ac7ce75f63d38))
+
 ## [1.19.3](https://github.com/groundsgg/minestom-lobby/compare/v1.19.2...v1.19.3) (2026-08-23)
 
 
