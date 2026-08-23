@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.19.1](https://github.com/groundsgg/minestom-lobby/compare/v1.19.0...v1.19.1) (2026-08-22)
+
+
+### Bug Fixes
+
+* use dimension-aware anvil loader ([#87](https://github.com/groundsgg/minestom-lobby/issues/87)) ([e6f824d](https://github.com/groundsgg/minestom-lobby/commit/e6f824d7bf8a5b0f8b324383640fd4924f450a2f))
+
 ## [1.19.0](https://github.com/groundsgg/minestom-lobby/compare/v1.18.1...v1.19.0) (2026-08-22)
 
 
