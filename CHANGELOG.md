@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.19.3](https://github.com/groundsgg/minestom-lobby/compare/v1.19.2...v1.19.3) (2026-08-23)
+
+
+### Bug Fixes
+
+* the sidebar shows the player's rank again ([#93](https://github.com/groundsgg/minestom-lobby/issues/93)) ([c1a34f8](https://github.com/groundsgg/minestom-lobby/commit/c1a34f85a2617ee88eef0a4f7f20116364bb1019))
+
 ## [1.19.2](https://github.com/groundsgg/minestom-lobby/compare/v1.19.1...v1.19.2) (2026-08-23)
 
 
