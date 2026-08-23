@@ -8,7 +8,6 @@ import net.minestom.server.instance.InstanceContainer
 import net.minestom.server.instance.LightingChunk
 import net.minestom.server.instance.anvil.AnvilLoader
 import net.minestom.server.utils.chunk.ChunkSupplier
-import net.minestom.server.world.DimensionType
 
 private const val SUNRISE_TIME: Long = 6000
 
@@ -47,16 +46,30 @@ private fun resolveMapPath(): Path {
     return Path.of(System.getenv("GROUNDS_LOBBY_MAP_PATH") ?: DEFAULT_MAP_PATH)
 }
 
+/**
+ * The directory to hand [AnvilLoader]: the one that *contains* `region/`.
+ *
+ * Two layouts arrive here. A world exported by WorldDownloader keeps its region files one dimension
+ * deep, so descend. A bundle from the map registry has `region/` at the top, so do not.
+ *
+ * Deliberately paired with the one-argument [AnvilLoader]. The dimension-aware constructor resolves
+ * `<path>/dimensions/<namespace>/<value>/region` itself, and this function has already stripped
+ * exactly that segment — using both appends the dimension path twice, which is a directory no
+ * layout has. The chunk loader then finds nothing, every chunk comes back empty, and a player
+ * standing in a finished lobby sees no world at all.
+ */
+internal fun regionRoot(mapPath: Path): Path =
+    mapPath.resolve(OVERWORLD).takeIf { Files.isDirectory(it) } ?: mapPath
+
 /** The loaded lobby instance and the spawn every joining player is teleported to. */
 internal data class LobbyMap(val instance: InstanceContainer, val spawn: Pos)
 
 internal object LobbyWorld {
     fun createInstance(): LobbyMap {
         val mapPath = resolveMapPath()
-        val world = mapPath.resolve(OVERWORLD).takeIf { Files.isDirectory(it) } ?: mapPath
 
         val instanceContainer = MinecraftServer.getInstanceManager().createInstanceContainer()
-        instanceContainer.chunkLoader = AnvilLoader(world, DimensionType.OVERWORLD.key())
+        instanceContainer.chunkLoader = AnvilLoader(regionRoot(mapPath))
         // The authored map ships no light data we can trust after Minestom rewrites blocks,
         // so let it compute lighting per chunk.
         instanceContainer.chunkSupplier = ChunkSupplier { instance, x, z ->
