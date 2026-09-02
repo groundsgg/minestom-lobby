@@ -21,8 +21,10 @@ private constructor(
     private val scale: DoubleArray,
     private val right: DoubleArray,
 ) {
-    fun apply(meta: AbstractDisplayMeta) {
-        meta.setTranslation(Vec(translation.x, translation.y, translation.z))
+    fun apply(meta: AbstractDisplayMeta, anchor: Vec3 = Vec3(0.0, 0.0, 0.0)) {
+        meta.setTranslation(
+            Vec(translation.x - anchor.x, translation.y - anchor.y, translation.z - anchor.z)
+        )
         meta.setLeftRotation(quaternion(left))
         meta.setScale(Vec(scale[0], scale[1], scale[2]))
         meta.setRightRotation(quaternion(right))

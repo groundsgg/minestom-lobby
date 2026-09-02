@@ -2,6 +2,7 @@ package gg.grounds.minestom.lobby.scene
 
 import gg.grounds.scene.format.LocalBounds
 import gg.grounds.scene.format.LocalId
+import gg.grounds.scene.format.Vec3
 import gg.grounds.scene.minestom.RenderedAssetHandle
 import gg.grounds.scene.minestom.SceneRenderTransform
 import gg.grounds.scene.minestom.SceneViewerVisualState
@@ -14,27 +15,46 @@ import net.minestom.server.network.packet.server.play.EntityMetaDataPacket
 internal class PlaceholderDisplayHandle(
     private val display: HighlightableBlockDisplay,
     private val bounds: LocalBounds,
+    private var anchor: Vec3 = Vec3(0.0, 0.0, 0.0),
 ) : RenderedAssetHandle {
+    private val lock = Any()
     private val highlighted = mutableMapOf<UUID, Boolean>()
+    private var closed = false
 
     init {
-        display.viewerState = ::sendViewerState
+        display.viewerState = { player ->
+            synchronized(lock) { if (!closed) sendViewerState(player) }
+        }
     }
 
     override fun applyTransform(transform: SceneRenderTransform) {
-        display.editEntityMeta(BlockDisplayMeta::class.java) {
-            DisplayTransform.from(transform, bounds).apply(it)
+        synchronized(lock) {
+            if (closed) return
+            anchor = transform.root.position
+            display.editEntityMeta(BlockDisplayMeta::class.java) {
+                DisplayTransform.from(transform, bounds).apply(it, anchor)
+            }
+            display.teleport(net.minestom.server.coordinate.Pos(anchor.x, anchor.y, anchor.z))
         }
     }
 
     override fun applyViewerState(player: Player, state: SceneViewerVisualState) {
-        if (state.highlighted) highlighted[player.uuid] = true else highlighted.remove(player.uuid)
-        sendViewerState(player)
+        synchronized(lock) {
+            if (!closed) {
+                if (state.highlighted) highlighted[player.uuid] = true
+                else highlighted.remove(player.uuid)
+                sendViewerState(player)
+            }
+        }
     }
 
     override fun clearViewerState(player: Player) {
-        highlighted.remove(player.uuid)
-        sendViewerState(player)
+        synchronized(lock) {
+            if (!closed) {
+                highlighted.remove(player.uuid)
+                sendViewerState(player)
+            }
+        }
     }
 
     override fun startAnimation(animation: LocalId, elapsedMillis: Long) {
@@ -46,9 +66,14 @@ internal class PlaceholderDisplayHandle(
     override fun advanceAnimation(elapsedMillis: Long) = Unit
 
     override fun close() {
-        highlighted.clear()
-        display.viewerState = null
-        display.remove()
+        synchronized(lock) {
+            if (!closed) {
+                closed = true
+                highlighted.clear()
+                display.viewerState = null
+                display.remove()
+            }
+        }
     }
 
     private fun sendViewerState(player: Player) {

@@ -7,6 +7,7 @@ import gg.grounds.scene.minestom.SceneAssetRenderContext
 import gg.grounds.scene.minestom.SceneAssetRendererFactory
 import gg.grounds.scene.minestom.SceneAssetRendererRegistry
 import java.util.concurrent.CompletableFuture
+import net.minestom.server.coordinate.Pos
 import net.minestom.server.entity.Entity
 import net.minestom.server.entity.EntityType
 import net.minestom.server.entity.metadata.display.BlockDisplayMeta
@@ -37,15 +38,35 @@ internal class LobbyPlaceholderRenderers(private val assets: AssetCatalog) :
     ) =
         CompletableFuture<gg.grounds.scene.minestom.RenderedAssetHandle>().also { future ->
             val display = HighlightableBlockDisplay()
+            val anchor = context.transform.root.position
             display.editEntityMeta(BlockDisplayMeta::class.java) { meta ->
                 meta.setBlockState(block)
-                DisplayTransform.from(context.transform, bounds).apply(meta)
+                DisplayTransform.from(context.transform, bounds).apply(meta, anchor)
             }
-            display.setInstance(context.instance).whenComplete { _, error ->
-                if (error != null) {
+            try {
+                val attached =
+                    display.setInstance(context.instance, Pos(anchor.x, anchor.y, anchor.z))
+                if (attached == null) {
                     display.remove()
-                    future.completeExceptionally(error)
-                } else future.complete(PlaceholderDisplayHandle(display, bounds))
+                    future.completeExceptionally(
+                        IllegalStateException("Display attachment was cancelled")
+                    )
+                } else
+                    attached.whenComplete { _, error ->
+                        if (
+                            error != null ||
+                                !display.isActive ||
+                                display.instance !== context.instance
+                        ) {
+                            display.remove()
+                            future.completeExceptionally(
+                                error ?: IllegalStateException("Display was not attached")
+                            )
+                        } else future.complete(PlaceholderDisplayHandle(display, bounds, anchor))
+                    }
+            } catch (error: Throwable) {
+                display.remove()
+                future.completeExceptionally(error)
             }
         }
 }
