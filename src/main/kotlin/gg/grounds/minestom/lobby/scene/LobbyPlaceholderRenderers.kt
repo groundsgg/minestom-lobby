@@ -56,14 +56,22 @@ internal class LobbyPlaceholderRenderers(private val assets: AssetCatalog) :
                         if (
                             error != null ||
                                 !display.isActive ||
+                                display.isRemoved ||
                                 display.instance !== context.instance ||
-                                display.chunk == null
+                                display.chunk == null ||
+                                context.instance.getEntityById(display.entityId) !== display
                         ) {
                             display.remove()
                             future.completeExceptionally(
                                 error ?: IllegalStateException("Display was not attached")
                             )
-                        } else future.complete(PlaceholderDisplayHandle(display, bounds, anchor))
+                        } else {
+                            val handle = PlaceholderDisplayHandle(display, bounds)
+                            // A cancelled caller cannot take ownership. Wait until attachment has
+                            // settled before removing: Minestom can still register a pending
+                            // entity.
+                            if (!future.complete(handle)) handle.close()
+                        }
                     }
             } catch (error: Throwable) {
                 display.remove()
@@ -73,18 +81,16 @@ internal class LobbyPlaceholderRenderers(private val assets: AssetCatalog) :
 }
 
 internal class HighlightableBlockDisplay : Entity(EntityType.BLOCK_DISPLAY) {
-    @Volatile var viewerLock: Any? = null
+    // Never detach this monitor: tracking callbacks can already be waiting when close runs.
+    val viewerLock = Any()
     var viewerState: ((net.minestom.server.entity.Player) -> Unit)? = null
 
     override fun updateNewViewer(player: net.minestom.server.entity.Player) {
-        val lock = viewerLock
-        if (lock == null) {
-            super.updateNewViewer(player)
-            viewerState?.invoke(player)
-        } else
-            synchronized(lock) {
+        synchronized(viewerLock) {
+            if (!isRemoved) {
                 super.updateNewViewer(player)
                 viewerState?.invoke(player)
             }
+        }
     }
 }

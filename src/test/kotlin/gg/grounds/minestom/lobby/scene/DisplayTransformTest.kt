@@ -5,8 +5,14 @@ import gg.grounds.scene.format.LocalBounds
 import gg.grounds.scene.format.Transform
 import gg.grounds.scene.format.Vec3
 import gg.grounds.scene.minestom.SceneRenderTransform
+import java.util.concurrent.TimeUnit
 import kotlin.math.abs
-import net.minestom.server.entity.metadata.display.BlockDisplayMeta
+import net.minestom.server.MinecraftServer
+import net.minestom.server.coordinate.Point
+import net.minestom.server.coordinate.Pos
+import net.minestom.server.entity.MetadataDef
+import net.minestom.server.network.packet.server.play.EntityMetaDataPacket
+import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 
 class DisplayTransformTest {
@@ -79,35 +85,55 @@ class DisplayTransformTest {
         bounds: LocalBounds,
         expected: List<Vec3>,
     ) {
-        val display = HighlightableBlockDisplay()
-        display.editEntityMeta(BlockDisplayMeta::class.java) {
-            DisplayTransform.from(transform, bounds).apply(it)
-        }
-        val meta = display.entityMeta as BlockDisplayMeta
-        val t = meta.translation
         val actual =
-            listOf(0.0, 1.0).flatMap { z ->
-                listOf(0.0, 1.0).flatMap { y ->
-                    listOf(0.0, 1.0).map { x ->
-                        val v =
-                            vecMul(
-                                quat(meta.leftRotation),
-                                vecMul(
-                                    doubleArrayOf(
-                                        meta.scale.x(),
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        meta.scale.y(),
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        meta.scale.z(),
-                                    ),
-                                    vecMul(quat(meta.rightRotation), doubleArrayOf(x, y, z)),
-                                ),
-                            )
-                        Vec3(t.x() + v[0], t.y() + v[1], t.z() + v[2])
+            RendererFixture(bounds).use { fixture ->
+                fixture.create(transform).get(5, TimeUnit.SECONDS).use {
+                    val root = transform.root.position
+                    val player = fixture.player(Pos(root.x, root.y, root.z))
+                    val id = fixture.display.entityId
+                    val anchor = player.connection.spawns(id).single().position()
+                    val entries =
+                        player.connection.packets
+                            .filterIsInstance<EntityMetaDataPacket>()
+                            .filter { it.entityId() == id }
+                            .flatMap { it.entries().entries }
+                            .associate { it.key to it.value }
+                    // Interpret exactly the client-visible TRSR entries, never private
+                    // decomposition fields.
+                    fun value(entry: MetadataDef.Entry<*>) =
+                        entries[entry.index()]?.value() ?: entry.defaultValue()
+                    val t = value(MetadataDef.Display.TRANSLATION) as Point
+                    val scale = value(MetadataDef.Display.SCALE) as Point
+                    val left = value(MetadataDef.Display.ROTATION_LEFT) as FloatArray
+                    val right = value(MetadataDef.Display.ROTATION_RIGHT) as FloatArray
+                    listOf(0.0, 1.0).flatMap { z ->
+                        listOf(0.0, 1.0).flatMap { y ->
+                            listOf(0.0, 1.0).map { x ->
+                                val v =
+                                    vecMul(
+                                        quat(left),
+                                        vecMul(
+                                            doubleArrayOf(
+                                                scale.x(),
+                                                0.0,
+                                                0.0,
+                                                0.0,
+                                                scale.y(),
+                                                0.0,
+                                                0.0,
+                                                0.0,
+                                                scale.z(),
+                                            ),
+                                            vecMul(quat(right), doubleArrayOf(x, y, z)),
+                                        ),
+                                    )
+                                Vec3(
+                                    anchor.x() + t.x() + v[0],
+                                    anchor.y() + t.y() + v[1],
+                                    anchor.z() + t.z() + v[2],
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -130,9 +156,6 @@ class DisplayTransformTest {
         check(abs(expected - actual) < 0.0001) { "$label: expected $expected, got $actual" }
     }
 
-    private fun matMul(a: DoubleArray, b: DoubleArray) =
-        DoubleArray(9) { i -> (0..2).sumOf { a[i / 3 * 3 + it] * b[it * 3 + i % 3] } }
-
     private fun vecMul(a: DoubleArray, b: DoubleArray) =
         DoubleArray(3) { r -> (0..2).sumOf { a[r * 3 + it] * b[it] } }
 
@@ -152,5 +175,13 @@ class DisplayTransformTest {
             2 * y * z + 2 * x * w,
             1 - 2 * x * x - 2 * y * y,
         )
+    }
+
+    companion object {
+        @JvmStatic
+        @BeforeAll
+        fun boot() {
+            MinecraftServer.init()
+        }
     }
 }
