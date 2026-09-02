@@ -9,6 +9,9 @@ Following features are implemented:
 - Configurable address and port through `grounds-minestom-runtime`
 - Server startup is delegated to `grounds-minestom-runtime`
 - Auth and profile forwarding are configured through `grounds-minestom-runtime`
+- `MapBlockRenderingModule` is installed before the world module so authored head
+  profiles, sign text and banner patterns reach clients. This enables rendering
+  without adding Vanilla gameplay to the lobby.
 
 ## Running
 

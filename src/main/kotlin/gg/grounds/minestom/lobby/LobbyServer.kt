@@ -2,6 +2,7 @@ package gg.grounds.minestom.lobby
 
 import gg.grounds.runtime.ServerType
 import gg.grounds.runtime.core.GroundsServer
+import gg.grounds.runtime.core.MapBlockRenderingModule
 import gg.grounds.runtime.core.RuntimeConfig
 
 object LobbyServer {
@@ -15,7 +16,11 @@ internal fun buildLobbyServer(env: Map<String, String> = System.getenv()): Groun
     val runtimeConfig = lobbyRuntimeConfig(env)
 
     val builder =
-        GroundsServer.builder().config(runtimeConfig).discoverProviders().use(LobbyModule())
+        GroundsServer.builder()
+            .config(runtimeConfig)
+            .discoverProviders()
+            .use(MapBlockRenderingModule())
+            .use(LobbyModule())
 
     selectedRuntimeProviderIds(env).forEach { providerId -> builder.useProvider(providerId) }
 
