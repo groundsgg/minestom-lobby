@@ -6,6 +6,7 @@ import gg.grounds.scene.format.Transform
 import gg.grounds.scene.format.Vec3
 import gg.grounds.scene.minestom.SceneRenderTransform
 import kotlin.math.abs
+import net.minestom.server.entity.metadata.display.BlockDisplayMeta
 import org.junit.jupiter.api.Test
 
 class DisplayTransformTest {
@@ -78,7 +79,38 @@ class DisplayTransformTest {
         bounds: LocalBounds,
         expected: List<Vec3>,
     ) {
-        val actual = DisplayTransform.from(transform, bounds).unitCubeCorners()
+        val display = HighlightableBlockDisplay()
+        display.editEntityMeta(BlockDisplayMeta::class.java) {
+            DisplayTransform.from(transform, bounds).apply(it)
+        }
+        val meta = display.entityMeta as BlockDisplayMeta
+        val t = meta.translation
+        val actual =
+            listOf(0.0, 1.0).flatMap { z ->
+                listOf(0.0, 1.0).flatMap { y ->
+                    listOf(0.0, 1.0).map { x ->
+                        val v =
+                            vecMul(
+                                quat(meta.leftRotation),
+                                vecMul(
+                                    doubleArrayOf(
+                                        meta.scale.x(),
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        meta.scale.y(),
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        meta.scale.z(),
+                                    ),
+                                    vecMul(quat(meta.rightRotation), doubleArrayOf(x, y, z)),
+                                ),
+                            )
+                        Vec3(t.x() + v[0], t.y() + v[1], t.z() + v[2])
+                    }
+                }
+            }
         expected.zip(actual).forEachIndexed { index, (want, got) ->
             assertNear(want.x, got.x, "corner $index x")
             assertNear(want.y, got.y, "corner $index y")
@@ -96,5 +128,29 @@ class DisplayTransformTest {
 
     private fun assertNear(expected: Double, actual: Double, label: String) {
         check(abs(expected - actual) < 0.0001) { "$label: expected $expected, got $actual" }
+    }
+
+    private fun matMul(a: DoubleArray, b: DoubleArray) =
+        DoubleArray(9) { i -> (0..2).sumOf { a[i / 3 * 3 + it] * b[it * 3 + i % 3] } }
+
+    private fun vecMul(a: DoubleArray, b: DoubleArray) =
+        DoubleArray(3) { r -> (0..2).sumOf { a[r * 3 + it] * b[it] } }
+
+    private fun quat(q: FloatArray): DoubleArray {
+        val x = q[0].toDouble()
+        val y = q[1].toDouble()
+        val z = q[2].toDouble()
+        val w = q[3].toDouble()
+        return doubleArrayOf(
+            1 - 2 * y * y - 2 * z * z,
+            2 * x * y - 2 * z * w,
+            2 * x * z + 2 * y * w,
+            2 * x * y + 2 * z * w,
+            1 - 2 * x * x - 2 * z * z,
+            2 * y * z - 2 * x * w,
+            2 * x * z - 2 * y * w,
+            2 * y * z + 2 * x * w,
+            1 - 2 * x * x - 2 * y * y,
+        )
     }
 }

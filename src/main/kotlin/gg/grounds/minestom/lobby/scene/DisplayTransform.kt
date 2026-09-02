@@ -30,23 +30,6 @@ private constructor(
         meta.setRightRotation(quaternion(right))
     }
 
-    internal fun unitCubeCorners(): List<Vec3> =
-        listOf(0.0, 1.0).flatMap { z ->
-            listOf(0.0, 1.0).flatMap { y ->
-                listOf(0.0, 1.0).map { x ->
-                    // Reconstruct exactly the display client's L * S * R path, rather than
-                    // retaining
-                    // the source affine matrix as a test-only oracle.
-                    val v =
-                        Matrix3.fromQuaternion(quaternion(left)) *
-                            Matrix3.diagonal(scale) *
-                            Matrix3.fromQuaternion(quaternion(right)) *
-                            doubleArrayOf(x, y, z)
-                    Vec3(translation.x + v[0], translation.y + v[1], translation.z + v[2])
-                }
-            }
-        }
-
     private fun quaternion(rotation: DoubleArray): FloatArray {
         val trace = rotation[0] + rotation[4] + rotation[8]
         val (x, y, z, w) =
