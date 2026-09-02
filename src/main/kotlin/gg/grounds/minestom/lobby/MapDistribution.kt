@@ -159,6 +159,7 @@ internal class MapDistribution(
                 ->
                 generateSequence { tar.nextEntry }
                     .forEach { entry ->
+                        require(!entry.isSparse) { "unsafe sparse bundle entry: ${entry.name}" }
                         val relative = safeEntryPath(entry.name)
                         require(entries.add(relative)) { "duplicate bundle entry: ${entry.name}" }
                         val file = staging.resolve(relative)

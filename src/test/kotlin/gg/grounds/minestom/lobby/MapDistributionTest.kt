@@ -2,6 +2,7 @@ package gg.grounds.minestom.lobby
 
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import java.io.BufferedInputStream
 import java.io.ByteArrayOutputStream
 import java.net.InetSocketAddress
 import java.nio.charset.StandardCharsets
@@ -11,8 +12,10 @@ import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.io.path.createDirectories
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
 import org.apache.commons.compress.archivers.tar.TarConstants
+import org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStream
 import org.apache.commons.compress.compressors.zstandard.ZstdCompressorOutputStream
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -136,6 +139,19 @@ class MapDistributionTest {
     }
 
     @Test
+    fun `rejects a PAX sparse entry without promoting it`(@TempDir cache: Path) {
+        val archive = paxSparseArchive()
+        assertTrue(isSparse(archive))
+        val digest = sha256(archive)
+        server(pin = { base -> pin("lobby/main", 1, digest, "$base/bundle") }, bundle = archive)
+            .use { fixture ->
+                assertNull(MapDistribution(fixture.baseUrl, "test", cache).mapFor("lobby/main"))
+            }
+
+        assertFalse(Files.exists(cache.resolve("verified-v1").resolve(digest)))
+    }
+
+    @Test
     fun `does not trust an old unverified cache directory`(@TempDir cache: Path) {
         val archive = archive("map.json" to "{}", "scene.json" to "{}")
         val digest = sha256(archive)
@@ -193,6 +209,42 @@ class MapDistributionTest {
             }
             bytes.toByteArray()
         }
+
+    private fun paxSparseArchive(): ByteArray =
+        ByteArrayOutputStream().use { bytes ->
+            ZstdCompressorOutputStream(bytes).use { zstd ->
+                TarArchiveOutputStream(zstd).use { tar ->
+                    val headers =
+                        paxRecords("GNU.sparse.size" to "0", "GNU.sparse.numblocks" to "0")
+                    val pax =
+                        TarArchiveEntry("PaxHeaders/sparse", TarConstants.LF_PAX_EXTENDED_HEADER_LC)
+                    pax.size = headers.size.toLong()
+                    tar.putArchiveEntry(pax)
+                    tar.write(headers)
+                    tar.closeArchiveEntry()
+
+                    val entry = TarArchiveEntry("sparse", TarConstants.LF_NORMAL)
+                    entry.size = 0
+                    tar.putArchiveEntry(entry)
+                    tar.closeArchiveEntry()
+                }
+            }
+            bytes.toByteArray()
+        }
+
+    private fun paxRecords(vararg headers: Pair<String, String>): ByteArray =
+        headers
+            .joinToString(separator = "") { (key, value) ->
+                generateSequence(0) { length -> "$length $key=$value\n".length }
+                    .drop(1)
+                    .first { length -> "$length $key=$value\n".length == length }
+                    .let { length -> "$length $key=$value\n" }
+            }
+            .toByteArray(StandardCharsets.UTF_8)
+
+    private fun isSparse(archive: ByteArray): Boolean =
+        TarArchiveInputStream(ZstdCompressorInputStream(BufferedInputStream(archive.inputStream())))
+            .use { tar -> tar.nextEntry.isSparse }
 
     private fun sha256(bytes: ByteArray): String =
         MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
