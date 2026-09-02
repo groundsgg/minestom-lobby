@@ -3,6 +3,7 @@ package gg.grounds.minestom.lobby
 import gg.grounds.runtime.ServerType
 import gg.grounds.runtime.core.GroundsServer
 import gg.grounds.runtime.core.RuntimeConfig
+import net.minestom.server.ServerFlag
 
 object LobbyServer {
 
@@ -12,6 +13,12 @@ object LobbyServer {
 }
 
 internal fun buildLobbyServer(env: Map<String, String> = System.getenv()): GroundsServer {
+    // This must precede configuration/provider discovery: either may initialize ServerFlag.
+    // Grounds owns the single JVM shutdown sequence: scene, providers, then Minestom/ticks.
+    System.setProperty("minestom.shutdown-on-signal", "false")
+    check(!ServerFlag.SHUTDOWN_ON_SIGNAL) {
+        "Lobby bootstrap must run before Minestom ServerFlag initializes signal shutdown"
+    }
     val runtimeConfig = lobbyRuntimeConfig(env)
     lateinit var server: GroundsServer
 

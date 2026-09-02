@@ -116,6 +116,11 @@ Agones readiness. Shutdown closes the gate immediately and awaits scene cleanup 
 runtime returned after shutdown began) before reverse-order provider teardown. A 30-second
 cleanup timeout or failure is logged and thrown, not treated as successful cleanup.
 
+The lobby bootstrap disables Minestom's independent JVM signal hook before configuration/provider
+discovery can initialize `ServerFlag`. Grounds owns signal-driven shutdown so its module cleanup
+runs while instance ticks remain alive, before it stops Minestom. Custom launchers must enter the
+lobby bootstrap first; startup fails if another launcher already cached the competing hook flag.
+
 ### Generate a review fixture (test-only)
 
 Supply both positions explicitly; these example coordinates are not derived from any map or spawn:

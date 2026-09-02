@@ -28,6 +28,10 @@ tasks.register<JavaExec>("generateLobbySceneFixture") {
 
 application { mainClass.set("gg.grounds.minestom.lobby.MainKt") }
 
+tasks.test {
+    systemProperty("lobby.test.runtimeClasspath", sourceSets.test.get().runtimeClasspath.asPath)
+}
+
 tasks.named<ShadowJar>("shadowJar") {
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
     mergeServiceFiles()
