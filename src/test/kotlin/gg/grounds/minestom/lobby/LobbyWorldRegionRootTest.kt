@@ -49,4 +49,13 @@ class LobbyWorldRegionRootTest {
             assertTrue(Files.isDirectory(regionRoot(root).resolve("region")), layout)
         }
     }
+
+    @Test
+    fun `a loaded map carries the same root handed to the region resolver`(@TempDir tmp: Path) {
+        val bundle = tmp.resolve("bundle")
+        bundle.resolve("region").createDirectories()
+        val loaded = LoadedLobbyMap(bundle, LobbyMapSource.Local(bundle))
+
+        assertEquals(loaded.root, regionRoot(loaded.root))
+    }
 }

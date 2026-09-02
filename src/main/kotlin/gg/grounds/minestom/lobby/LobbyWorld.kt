@@ -36,14 +36,15 @@ private const val OVERWORLD = "dimensions/minecraft/overworld"
  * players on the world it shipped with — an empty lobby is worse than a slightly old one, and the
  * log says which it got.
  */
-private fun resolveMapPath(): Path {
+private fun resolveMap(): LoadedLobbyMap {
     val address = System.getenv(MAP_ADDRESS_ENV)
     if (!address.isNullOrBlank()) {
-        MapDistribution().worldFor(address)?.let {
+        MapDistribution().mapFor(address)?.let {
             return it
         }
     }
-    return Path.of(System.getenv("GROUNDS_LOBBY_MAP_PATH") ?: DEFAULT_MAP_PATH)
+    val root = Path.of(System.getenv("GROUNDS_LOBBY_MAP_PATH") ?: DEFAULT_MAP_PATH)
+    return LoadedLobbyMap(root, LobbyMapSource.Local(root))
 }
 
 /**
@@ -62,11 +63,16 @@ internal fun regionRoot(mapPath: Path): Path =
     mapPath.resolve(OVERWORLD).takeIf { Files.isDirectory(it) } ?: mapPath
 
 /** The loaded lobby instance and the spawn every joining player is teleported to. */
-internal data class LobbyMap(val instance: InstanceContainer, val spawn: Pos)
+internal data class LobbyMap(
+    val instance: InstanceContainer,
+    val spawn: Pos,
+    val loaded: LoadedLobbyMap,
+)
 
 internal object LobbyWorld {
     fun createInstance(): LobbyMap {
-        val mapPath = resolveMapPath()
+        val loaded = resolveMap()
+        val mapPath = loaded.root
 
         val instanceContainer = MinecraftServer.getInstanceManager().createInstanceContainer()
         instanceContainer.chunkLoader = AnvilLoader(regionRoot(mapPath))
@@ -80,6 +86,6 @@ internal object LobbyWorld {
         clock.rate(0f)
         clock.time(SUNRISE_TIME)
 
-        return LobbyMap(instanceContainer, LobbySpawn.resolve(mapPath))
+        return LobbyMap(instanceContainer, LobbySpawn.resolve(mapPath), loaded)
     }
 }
