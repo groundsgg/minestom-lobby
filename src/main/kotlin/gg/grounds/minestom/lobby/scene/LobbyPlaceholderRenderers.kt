@@ -56,7 +56,8 @@ internal class LobbyPlaceholderRenderers(private val assets: AssetCatalog) :
                         if (
                             error != null ||
                                 !display.isActive ||
-                                display.instance !== context.instance
+                                display.instance !== context.instance ||
+                                display.chunk == null
                         ) {
                             display.remove()
                             future.completeExceptionally(
@@ -72,10 +73,18 @@ internal class LobbyPlaceholderRenderers(private val assets: AssetCatalog) :
 }
 
 internal class HighlightableBlockDisplay : Entity(EntityType.BLOCK_DISPLAY) {
+    @Volatile var viewerLock: Any? = null
     var viewerState: ((net.minestom.server.entity.Player) -> Unit)? = null
 
     override fun updateNewViewer(player: net.minestom.server.entity.Player) {
-        super.updateNewViewer(player)
-        viewerState?.invoke(player)
+        val lock = viewerLock
+        if (lock == null) {
+            super.updateNewViewer(player)
+            viewerState?.invoke(player)
+        } else
+            synchronized(lock) {
+                super.updateNewViewer(player)
+                viewerState?.invoke(player)
+            }
     }
 }

@@ -30,19 +30,27 @@ class PlaceholderDisplayHandleTest {
         display.addViewer(b)
         a.connection.packets.clear()
         b.connection.packets.clear()
+        display.entityMeta.setOnFire(true)
 
         handle.applyViewerState(a, SceneViewerVisualState(highlighted = true))
 
-        assertTrue(a.connection.metaFlags(display.entityId).any { it and 0x40 != 0 })
+        assertTrue(a.connection.metaFlags(display.entityId).last() and 0x41 == 0x41)
         assertFalse(b.connection.metaFlags(display.entityId).any { it and 0x40 != 0 })
         assertFalse(display.entityMeta.isHasGlowingEffect)
         a.connection.packets.clear()
         display.removeViewer(a)
         display.addViewer(a)
-        assertTrue(a.connection.metaFlags(display.entityId).any { it and 0x40 != 0 })
+        assertTrue(a.connection.metaFlags(display.entityId).last() and 0x41 == 0x41)
 
         handle.clearViewerState(a)
+        assertFalse(a.connection.metaFlags(display.entityId).last() and 0x40 != 0)
+        a.connection.packets.clear()
+        display.removeViewer(a)
+        display.addViewer(a)
+        assertFalse(a.connection.metaFlags(display.entityId).last() and 0x40 != 0)
+        a.connection.packets.clear()
         handle.close()
+        assertTrue(display.viewerState == null)
         assertTrue(display.isRemoved)
     }
 

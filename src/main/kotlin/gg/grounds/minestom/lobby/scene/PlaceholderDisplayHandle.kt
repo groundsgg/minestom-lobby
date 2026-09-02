@@ -22,6 +22,7 @@ internal class PlaceholderDisplayHandle(
     private var closed = false
 
     init {
+        display.viewerLock = lock
         display.viewerState = { player ->
             synchronized(lock) { if (!closed) sendViewerState(player) }
         }
@@ -71,6 +72,7 @@ internal class PlaceholderDisplayHandle(
                 closed = true
                 highlighted.clear()
                 display.viewerState = null
+                display.viewerLock = null
                 display.remove()
             }
         }
