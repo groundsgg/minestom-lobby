@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.1](https://github.com/groundsgg/minestom-lobby/compare/v1.20.0...v1.20.1) (2026-09-02)
+
+
+### Bug Fixes
+
+* preserve authored map block appearance ([#97](https://github.com/groundsgg/minestom-lobby/issues/97)) ([c31501d](https://github.com/groundsgg/minestom-lobby/commit/c31501de1f5c42231b6ecdf623eec89e1c268f9b))
+
 ## [1.20.0](https://github.com/groundsgg/minestom-lobby/compare/v1.19.3...v1.20.0) (2026-08-23)
 
 
