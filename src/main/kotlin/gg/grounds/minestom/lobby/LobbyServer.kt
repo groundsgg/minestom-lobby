@@ -13,13 +13,18 @@ object LobbyServer {
 
 internal fun buildLobbyServer(env: Map<String, String> = System.getenv()): GroundsServer {
     val runtimeConfig = lobbyRuntimeConfig(env)
+    lateinit var server: GroundsServer
 
     val builder =
-        GroundsServer.builder().config(runtimeConfig).discoverProviders().use(LobbyModule())
+        GroundsServer.builder()
+            .config(runtimeConfig)
+            .discoverProviders()
+            .use(LobbyModule(fatalStop = { server.stop() }))
 
     selectedRuntimeProviderIds(env).forEach { providerId -> builder.useProvider(providerId) }
 
-    return builder.build()
+    server = builder.build()
+    return server
 }
 
 internal fun lobbyRuntimeConfig(env: Map<String, String> = System.getenv()): RuntimeConfig =

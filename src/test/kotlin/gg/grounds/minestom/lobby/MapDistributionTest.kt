@@ -27,6 +27,30 @@ import org.junit.jupiter.api.io.TempDir
 class MapDistributionTest {
 
     @Test
+    fun `same cached digest preserves a newly selected address and version`(@TempDir cache: Path) {
+        val archive = archive("map.json" to "{}")
+        val digest = sha256(archive)
+        val selected = java.util.concurrent.atomic.AtomicReference("lobby/main" to 42)
+        server(
+                pin = { base ->
+                    selected.get().let { (address, version) ->
+                        pin(address, version, digest, "$base/bundle")
+                    }
+                },
+                bundle = archive,
+            )
+            .use { fixture ->
+                val distribution = MapDistribution(fixture.baseUrl, "test", cache)
+                val first = distribution.mapFor("lobby/main")!!
+                selected.set("lobby/other" to 99)
+                val second = distribution.mapFor("lobby/other")!!
+                assertEquals(first.root, second.root)
+                assertEquals(LobbyMapSource.Published("lobby/other", 99, digest), second.source)
+                assertEquals(1, fixture.bundleRequests.get())
+            }
+    }
+
+    @Test
     fun `returns the pinned identity and verified root without redownloading`(
         @TempDir cache: Path
     ) {
