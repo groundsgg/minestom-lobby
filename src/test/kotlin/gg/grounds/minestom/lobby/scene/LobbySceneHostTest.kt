@@ -1,14 +1,102 @@
 package gg.grounds.minestom.lobby.scene
 
-import gg.grounds.scene.format.SceneId
+import gg.grounds.lobby.scene.LobbySceneCatalogs
+import gg.grounds.resourcepacks.catalog.GroundsAssetCatalog
+import gg.grounds.scene.format.*
 import gg.grounds.scene.minestom.*
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import net.minestom.server.MinecraftServer
+import net.minestom.server.coordinate.Pos
+import net.minestom.server.event.instance.AddEntityToInstanceEvent
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 
 class LobbySceneHostTest {
+    /**
+     * Catches a host completion that abandons a late automatic renderer delivery for a stopped
+     * owner scheduler, leaving its display registered after provider teardown begins.
+     */
+    @Test
+    fun `host cleanup awaits a gated automatic display attachment before completing`() {
+        val instance = MinecraftServer.getInstanceManager().createInstanceContainer()
+        val gate = ChunkGate()
+        var display: HighlightableBlockDisplay? = null
+        instance.eventNode().addListener(AddEntityToInstanceEvent::class.java) {
+            if (it.entity is HighlightableBlockDisplay)
+                display = it.entity as HighlightableBlockDisplay
+        }
+        try {
+            instance.viewDistance(0)
+            TestPlayer().setInstance(instance, Pos.ZERO).join()
+            instance.unloadChunk(3, 0)
+            gate.install(instance, 3)
+            val authored =
+                lobbySceneFixture(GroundsAssetCatalog.catalog, ORIGIN, Vec3(48.0, 0.0, 0.0))
+            val marker =
+                authored.elements
+                    .filterIsInstance<Prop>()
+                    .single()
+                    .copy(activation = ActivationPolicy.AUTOMATIC)
+            val scene = authored.with(elements = listOf(marker))
+            val policy = LobbyScenePlayerPolicy(instance, null)
+            val request =
+                SceneRuntimeRequest(
+                    scene,
+                    GroundsAssetCatalog.catalog,
+                    LobbySceneCatalogs.CURRENT,
+                    SceneRuntimeIdentity(scene.id, "lobby/test", 1),
+                    instance,
+                    LobbyPlaceholderRenderers(GroundsAssetCatalog.catalog),
+                    UnsupportedLobbySceneEffects,
+                    policy,
+                    LobbySceneActions(null, policy),
+                )
+            val host =
+                LobbySceneHost({ SceneRuntimeFactory.create(request) }) {
+                    fail("Unexpected fatal stop")
+                }
+
+            host.start()
+            repeat(20) {
+                if (host.ready.isDone) return@repeat
+                instance.tick(0)
+            }
+            host.ready.get(5, TimeUnit.SECONDS)
+            repeat(20) {
+                if (gate.entered.count == 0L) return@repeat
+                instance.tick(0)
+            }
+            gate.entered.awaitReady()
+            val attached = checkNotNull(display)
+
+            val closed = host.closeAsync().toCompletableFuture()
+            instance.tick(0)
+            assertFalse(
+                closed.isDone,
+                "Host cleanup must retain ownership until the attachment settles",
+            )
+
+            gate.close()
+            gate.settled.awaitReady()
+            val cleanupDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            while (!closed.isDone && System.nanoTime() < cleanupDeadline) instance.tick(0)
+            closed.get(5, TimeUnit.SECONDS)
+            assertTrue(attached.isRemoved)
+            assertNull(instance.getEntityById(attached.entityId))
+            val entitiesAfterCleanup = instance.entities.map { it.entityId }.toSet()
+            instance.scheduler().processTick()
+            assertEquals(entitiesAfterCleanup, instance.entities.map { it.entityId }.toSet())
+        } finally {
+            gate.close()
+            instance.tick(0)
+            instance.entities.toList().forEach { it.remove() }
+            MinecraftServer.getInstanceManager().unregisterInstance(instance)
+        }
+    }
+
     @Test
     fun `readiness completion can reenter close without losing runtime ownership`() {
         val creation = CompletableFuture<SceneRuntimeCreationResult>()
@@ -180,6 +268,14 @@ class LobbySceneHostTest {
         runtime.closed.completeExceptionally(IllegalStateException("cleanup failed"))
         assertTrue(stopped.isCompletedExceptionally)
         assertTrue(host.isClosed)
+    }
+
+    companion object {
+        @JvmStatic
+        @BeforeAll
+        fun bootMinestom() {
+            MinecraftServer.init()
+        }
     }
 }
 

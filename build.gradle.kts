@@ -67,7 +67,7 @@ dependencies {
     implementation(platform("gg.grounds:grounds-dependencies:1.0.0"))
 
     implementation("gg.grounds:grounds-minestom-runtime-runtime-core:0.6.0")
-    implementation("gg.grounds:scene-minestom:0.2.0")
+    implementation("gg.grounds:scene-minestom:0.2.1")
     implementation("gg.grounds:resourcepacks-catalog:0.6.0")
     implementation("gg.grounds:plugin-lobby-scene-catalog:1.13.1")
     implementation("net.minestom:minestom")

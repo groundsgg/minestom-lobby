@@ -98,7 +98,7 @@ The host currently supports these exact catalogs/capabilities:
   by a scene only when that scene references the navigator action. The action rejects arguments,
   disconnected players, and players outside the owning instance. Permission conditions consult
   the installed permissions service; an absent service denies permissions.
-- `gg.grounds:scene-minestom:0.2.0` provides the scene runtime. Placeholder rendering supports
+- `gg.grounds:scene-minestom:0.2.1` provides the scene runtime. Placeholder rendering supports
   authored transforms, including root/local scale, and private viewer highlights. Viewer-scale
   actions, animations, sound, and particle effects are rejected in preflight. This is not a
   general resource-pack/model renderer.
@@ -112,8 +112,9 @@ server stop from a separate lifecycle thread.
 For a selected scene, player configuration waits at most 30 seconds on its configuration virtual
 thread, then checks both connection state and whether the host has closed. Failure, disconnect,
 or shutdown assigns no spawning instance. This application admission gate is separate from
-Agones readiness. Shutdown closes the gate immediately and awaits scene cleanup (including a
-runtime returned after shutdown began) before reverse-order provider teardown. A 30-second
+Agones readiness. Shutdown closes the gate immediately and waits for pending renderer/NPC
+attachment ownership to drain before claiming scene cleanup and beginning reverse-order provider
+teardown. A 30-second
 cleanup timeout or failure is logged and thrown, not treated as successful cleanup.
 
 The lobby bootstrap disables Minestom's independent JVM signal hook before configuration/provider
