@@ -9,6 +9,9 @@ Following features are implemented:
 - Configurable address and port through `grounds-minestom-runtime`
 - Server startup is delegated to `grounds-minestom-runtime`
 - Auth and profile forwarding are configured through `grounds-minestom-runtime`
+- `MapBlockRenderingModule` is installed before the world module so authored head
+  profiles, sign text and banner patterns reach clients. This enables rendering
+  without adding Vanilla gameplay to the lobby.
 
 ## Running
 
@@ -92,9 +95,9 @@ The host currently supports these exact catalogs/capabilities:
 
 - `gg.grounds:resourcepacks-catalog:0.6.0`: `grounds:assets` version `0.6.0`, with
   `grounds:editor/guide` (NPC body) and `grounds:editor/marker` (prop).
-- `gg.grounds:plugin-lobby-scene-catalog:1.13.1`: `grounds:actions` version `1` (empty legacy
+- `gg.grounds:plugin-lobby-scene-catalog:1.14.0`: `grounds:actions` version `1` (empty legacy
   catalog) or version `2`, which adds the parameterless `grounds:lobby/open_navigator` action.
-- `gg.grounds:plugin-lobby-minestom:1.13.1` supplies the installed navigator service. It is required
+- `gg.grounds:plugin-lobby-minestom:1.14.0` supplies the installed navigator service. It is required
   by a scene only when that scene references the navigator action. The action rejects arguments,
   disconnected players, and players outside the owning instance. Permission conditions consult
   the installed permissions service; an absent service denies permissions.

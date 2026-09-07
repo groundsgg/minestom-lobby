@@ -66,10 +66,10 @@ repositories {
 dependencies {
     implementation(platform("gg.grounds:grounds-dependencies:1.0.0"))
 
-    implementation("gg.grounds:grounds-minestom-runtime-runtime-core:0.6.0")
+    implementation("gg.grounds:grounds-minestom-runtime-runtime-core:0.8.0")
     implementation("gg.grounds:scene-minestom:0.2.1")
     implementation("gg.grounds:resourcepacks-catalog:0.6.0")
-    implementation("gg.grounds:plugin-lobby-scene-catalog:1.13.1")
+    implementation("gg.grounds:plugin-lobby-scene-catalog:1.14.0")
     implementation("net.minestom:minestom")
     implementation("gg.grounds:plugin-agones-minestom:0.6.0")
     implementation("gg.grounds:plugin-permissions-minestom:0.8.0")
@@ -88,7 +88,7 @@ dependencies {
     // so they render as a chest for a Java player and as a native form for a Bedrock one.
     // Before that a Bedrock player reached the lobby and found missing-glyph text where
     // the menu should be — which made this the one dependency a Bedrock rollout waits on.
-    implementation("gg.grounds:plugin-lobby-minestom:1.13.1")
+    implementation("gg.grounds:plugin-lobby-minestom:1.14.0")
     // Reads the map's map.json sidecar (the spawn). Minestom pulls gson in transitively;
     // declare it because we use it directly.
     implementation("com.google.code.gson:gson:2.13.2")

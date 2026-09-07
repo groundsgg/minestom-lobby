@@ -10,6 +10,19 @@ import org.junit.jupiter.api.Test
 
 class LobbyRuntimeTest {
     @Test
+    fun `map rendering is installed before the lobby world`() {
+        val server = buildLobbyServer(emptyMap())
+        val field = server.javaClass.getDeclaredField("modules").apply { isAccessible = true }
+        val ids =
+            (field.get(server) as List<*>).map { module ->
+                val id = module!!.javaClass.getDeclaredField("id").apply { isAccessible = true }
+                id.get(module) as String
+            }
+        assertTrue(ids.indexOf("grounds.map-rendering") >= 0)
+        assertTrue(ids.indexOf("grounds.map-rendering") < ids.indexOf("grounds.lobby"))
+    }
+
+    @Test
     fun `lobby runtime config delegates bind address and brand to runtime env`() {
         val config =
             lobbyRuntimeConfig(

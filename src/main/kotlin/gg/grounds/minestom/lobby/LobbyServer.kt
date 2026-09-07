@@ -2,6 +2,7 @@ package gg.grounds.minestom.lobby
 
 import gg.grounds.runtime.ServerType
 import gg.grounds.runtime.core.GroundsServer
+import gg.grounds.runtime.core.MapBlockRenderingModule
 import gg.grounds.runtime.core.RuntimeConfig
 import net.minestom.server.ServerFlag
 
@@ -26,6 +27,7 @@ internal fun buildLobbyServer(env: Map<String, String> = System.getenv()): Groun
         GroundsServer.builder()
             .config(runtimeConfig)
             .discoverProviders()
+            .use(MapBlockRenderingModule())
             .use(LobbyModule(fatalStop = { server.stop() }))
 
     selectedRuntimeProviderIds(env).forEach { providerId -> builder.useProvider(providerId) }
