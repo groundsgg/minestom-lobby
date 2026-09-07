@@ -78,3 +78,68 @@ shipped with** and says so in the log. An empty lobby is worse than a slightly o
 The spawn comes from `grounds/pois.json` inside the world, which is what a builder marked with
 `/ms spawn` on the build server. A world published before points existed falls back to the map
 template's first spawn.
+
+## Versioned lobby scene
+
+The selected map may include a root `scene.json` alongside its world data. Only this root sidecar
+is considered, never a nested `scene.json`. No sidecar preserves immediate lobby spawning.
+A selected sidecar that is malformed, larger than 16 MiB, a symlink/nonregular file, or unsupported
+is fatal to startup; it is not silently ignored and does not trigger another map fallback. Reading
+is bounded to 16 MiB plus one overflow byte and does not follow the sidecar symlink.
+
+Scene identity uses the same loaded map as the world: published map address/version are preserved,
+including when two pins share cached bytes. Local maps use `local:<absolute-normalized-map-root>`
+and map version `0`.
+
+The host currently supports these exact catalogs/capabilities:
+
+- `gg.grounds:resourcepacks-catalog:0.6.0`: `grounds:assets` version `0.6.0`, with
+  `grounds:editor/guide` (NPC body) and `grounds:editor/marker` (prop).
+- `gg.grounds:plugin-lobby-scene-catalog:1.14.0`: `grounds:actions` version `1` (empty legacy
+  catalog) or version `2`, which adds the parameterless `grounds:lobby/open_navigator` action.
+- `gg.grounds:plugin-lobby-minestom:1.14.0` supplies the installed navigator service. It is required
+  by a scene only when that scene references the navigator action. The action rejects arguments,
+  disconnected players, and players outside the owning instance. Permission conditions consult
+  the installed permissions service; an absent service denies permissions.
+- `gg.grounds:scene-minestom:0.2.1` provides the scene runtime. Placeholder rendering supports
+  authored transforms, including root/local scale, and private viewer highlights. Viewer-scale
+  actions, animations, sound, and particle effects are rejected in preflight. This is not a
+  general resource-pack/model renderer.
+
+Catalog and capability preflight happens before lobby commands/listeners are registered and does
+not create renderer entities. Startup logs include scene ID, map identity/version, and catalog
+versions; invalid sidecars report their path and validation diagnostics. Runtime creation begins
+from module start, after ticks begin. A runtime creation failure denies admission and requests
+server stop from a separate lifecycle thread.
+
+For a selected scene, player configuration waits at most 30 seconds on its configuration virtual
+thread, then checks both connection state and whether the host has closed. Failure, disconnect,
+or shutdown assigns no spawning instance. This application admission gate is separate from
+Agones readiness. Shutdown closes the gate immediately and waits for pending renderer/NPC
+attachment ownership to drain before claiming scene cleanup and beginning reverse-order provider
+teardown. A 30-second
+cleanup timeout or failure is logged and thrown, not treated as successful cleanup.
+
+The lobby bootstrap disables Minestom's independent JVM signal hook before configuration/provider
+discovery can initialize `ServerFlag`. Grounds owns signal-driven shutdown so its module cleanup
+runs while instance ticks remain alive, before it stops Minestom. Custom launchers must enter the
+lobby bootstrap first; startup fails if another launcher already cached the competing hook flag.
+
+### Generate a review fixture (test-only)
+
+Supply both positions explicitly; these example coordinates are not derived from any map or spawn:
+
+```shell
+./gradlew generateLobbySceneFixture \
+  -PsceneFixtureName=lobby-scene-review.json \
+  -PsceneNpc=12,64.5,-7 \
+  -PsceneMarker=16,65,3
+```
+
+This writes only a **new** `build/fixtures/lobby-scene-review.json`, validates it against the real
+pinned catalogs, and refuses existing destinations, path-like filenames, and symlinked output
+directories. It does not load a map or modify a live sidecar. The typed fixture contains the
+`Lobby-Navigator` guide, hover enter/leave highlights, a main-hand right-click navigator action
+with a 500 ms cooldown, and a marker prop. Review placement before any separately authorized map
+publication. The generator lives exclusively in test sources and is absent from production JARs;
+no scene testkit is a production dependency.

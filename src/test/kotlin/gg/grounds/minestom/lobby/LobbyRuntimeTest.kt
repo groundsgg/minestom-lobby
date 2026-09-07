@@ -2,6 +2,8 @@ package gg.grounds.minestom.lobby
 
 import gg.grounds.runtime.ServerType
 import gg.grounds.runtime.core.ProxyMode
+import java.nio.file.Path
+import java.util.concurrent.TimeUnit
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertThrows
@@ -11,15 +13,32 @@ import org.junit.jupiter.api.Test
 class LobbyRuntimeTest {
     @Test
     fun `map rendering is installed before the lobby world`() {
-        val server = buildLobbyServer(emptyMap())
-        val field = server.javaClass.getDeclaredField("modules").apply { isAccessible = true }
-        val ids =
-            (field.get(server) as List<*>).map { module ->
-                val id = module!!.javaClass.getDeclaredField("id").apply { isAccessible = true }
-                id.get(module) as String
-            }
-        assertTrue(ids.indexOf("grounds.map-rendering") >= 0)
-        assertTrue(ids.indexOf("grounds.map-rendering") < ids.indexOf("grounds.lobby"))
+        assertTrue(runProbe("map-module-order").contains("MAP_RENDERING_BEFORE_LOBBY"))
+    }
+
+    private fun runProbe(argument: String): String {
+        val process =
+            ProcessBuilder(
+                    Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                    "-ea",
+                    "-cp",
+                    checkNotNull(System.getProperty("lobby.test.runtimeClasspath")),
+                    LobbyShutdownProcessProbe::class.java.name,
+                    argument,
+                )
+                .redirectErrorStream(true)
+                .start()
+        try {
+            assertTrue(
+                process.waitFor(12, TimeUnit.SECONDS),
+                "Module-order subprocess exceeded 12 seconds",
+            )
+            val output = process.inputStream.bufferedReader().readText()
+            assertEquals(0, process.exitValue(), output)
+            return output
+        } finally {
+            if (process.isAlive) process.destroyForcibly().waitFor(5, TimeUnit.SECONDS)
+        }
     }
 
     @Test

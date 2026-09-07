@@ -2,6 +2,7 @@ package gg.grounds.minestom.lobby
 
 import com.google.gson.JsonParser
 import java.io.BufferedInputStream
+import java.io.BufferedOutputStream
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -9,8 +10,12 @@ import java.net.http.HttpResponse
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import java.security.DigestInputStream
+import java.security.MessageDigest
 import java.time.Duration
+import java.util.HexFormat
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
+import org.apache.commons.compress.archivers.tar.TarConstants
 import org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStream
 import org.slf4j.LoggerFactory
 
@@ -43,7 +48,7 @@ internal class MapDistribution(
     private val http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build()
 
     /** What the pin file says about one map. */
-    data class Pinned(val version: Int, val bundleSha256: String, val bundleUrl: String)
+    data class Pinned(val version: Long, val bundleSha256: String, val bundleUrl: String)
 
     /**
      * The unpacked world folder for [address], or null when anything at all goes wrong.
@@ -52,22 +57,34 @@ internal class MapDistribution(
      * the world baked into its image and serve players, not fail to boot. The caller logs which
      * world it ended up with, so "the update did not take" is visible without being fatal.
      */
-    fun worldFor(address: String): Path? =
+    fun mapFor(address: String): LoadedLobbyMap? =
         runCatching {
                 val pinned = pin(address) ?: return null
-                val unpacked = cacheDir.resolve(pinned.bundleSha256)
-                if (Files.isDirectory(unpacked)) {
+                validate(pinned)
+                val unpacked = cacheDir.resolve(VERIFIED_CACHE_VERSION).resolve(pinned.bundleSha256)
+                if (verified(unpacked, pinned.bundleSha256)) {
                     logger.info(
                         "Using cached {} v{} ({})",
                         address,
                         pinned.version,
-                        short(pinned.bundleSha256),
+                        pinned.bundleSha256,
                     )
-                    return unpacked
+                    return LoadedLobbyMap(
+                        unpacked,
+                        LobbyMapSource.Published(address, pinned.version, pinned.bundleSha256),
+                    )
                 }
                 download(pinned, unpacked)
-                logger.info("Loaded {} v{} from the map service", address, pinned.version)
-                unpacked
+                logger.info(
+                    "Loaded {} v{} from the map service ({})",
+                    address,
+                    pinned.version,
+                    pinned.bundleSha256,
+                )
+                LoadedLobbyMap(
+                    unpacked,
+                    LobbyMapSource.Published(address, pinned.version, pinned.bundleSha256),
+                )
             }
             .onFailure { logger.warn("Could not get {} from the map service", address, it) }
             .getOrNull()
@@ -93,56 +110,122 @@ internal class MapDistribution(
             return null
         }
         return Pinned(
-            version = entry.get("version").asInt,
+            version = entry.get("version").asLong,
             bundleSha256 = entry.get("bundleSha256").asString,
             bundleUrl = entry.get("bundleUrl").asString,
         )
     }
 
     private fun download(pinned: Pinned, target: Path) {
-        // Unpacked beside the target and moved into place: a half-extracted world that another
-        // boot mistakes for a cache hit is a lobby with holes in it.
-        val staging =
-            Files.createTempDirectory(cacheDir.also { Files.createDirectories(it) }, "unpacking-")
+        val verifiedCache = cacheDir.resolve(VERIFIED_CACHE_VERSION)
+        Files.createDirectories(verifiedCache)
+        val compressed = Files.createTempFile(verifiedCache, "bundle-", ".tar.zst")
+        var staging: Path? = null
         try {
-            http
-                .send(
+            val response =
+                http.send(
                     HttpRequest.newBuilder(URI.create(pinned.bundleUrl))
                         .timeout(Duration.ofMinutes(10))
                         .GET()
                         .build(),
                     HttpResponse.BodyHandlers.ofInputStream(),
                 )
-                .body()
-                .use { body ->
-                    TarArchiveInputStream(ZstdCompressorInputStream(BufferedInputStream(body)))
-                        .use { tar ->
-                            generateSequence { tar.nextEntry }
-                                .filter { !it.isDirectory }
-                                .forEach { entry ->
-                                    val file = staging.resolve(entry.name).normalize()
-                                    // A bundle is fetched over the network; an entry named `../..`
-                                    // would write outside the cache directory entirely.
-                                    require(file.startsWith(staging)) {
-                                        "bundle entry escapes: ${entry.name}"
-                                    }
-                                    Files.createDirectories(file.parent)
-                                    Files.newOutputStream(file).use { tar.copyTo(it) }
-                                }
-                        }
+            val digest = MessageDigest.getInstance("SHA-256")
+            response.body().use { body ->
+                require(response.statusCode() == 200) {
+                    "Map bundle answered HTTP ${response.statusCode()}"
                 }
+                DigestInputStream(BufferedInputStream(body), digest).use { input ->
+                    BufferedOutputStream(Files.newOutputStream(compressed)).use { output ->
+                        input.copyTo(output)
+                    }
+                }
+            }
+            val observed = HexFormat.of().formatHex(digest.digest())
+            require(observed == pinned.bundleSha256) { "Map bundle digest mismatch" }
+
+            staging = Files.createTempDirectory(verifiedCache, "unpacking-")
+            extract(compressed, staging)
+            Files.writeString(staging.resolve(VERIFICATION_MARKER), pinned.bundleSha256)
             Files.move(staging, target, StandardCopyOption.ATOMIC_MOVE)
+            staging = null
         } catch (failure: Exception) {
-            staging.toFile().deleteRecursively()
             throw failure
+        } finally {
+            Files.deleteIfExists(compressed)
+            staging?.let(::deleteOwnedTree)
         }
     }
 
-    private fun short(digest: String) = digest.take(12)
+    private fun extract(compressed: Path, staging: Path) {
+        val entries = mutableSetOf<Path>()
+        Files.newInputStream(compressed).use { input ->
+            TarArchiveInputStream(ZstdCompressorInputStream(BufferedInputStream(input))).use { tar
+                ->
+                generateSequence { tar.nextEntry }
+                    .forEach { entry ->
+                        require(!entry.isSparse) { "unsafe sparse bundle entry: ${entry.name}" }
+                        val relative = safeEntryPath(entry.name)
+                        require(entries.add(relative)) { "duplicate bundle entry: ${entry.name}" }
+                        val file = staging.resolve(relative)
+                        require(file.startsWith(staging)) { "bundle entry escapes: ${entry.name}" }
+                        when (entry.linkFlag) {
+                            TarConstants.LF_DIR -> Files.createDirectories(file)
+                            TarConstants.LF_NORMAL,
+                            TarConstants.LF_OLDNORM -> {
+                                Files.createDirectories(file.parent)
+                                Files.newOutputStream(file).use { tar.copyTo(it) }
+                            }
+                            else ->
+                                throw IllegalArgumentException("unsafe bundle entry: ${entry.name}")
+                        }
+                    }
+            }
+        }
+    }
+
+    private fun safeEntryPath(name: String): Path {
+        require(name.isNotBlank() && !name.startsWith('/') && !name.startsWith('\\')) {
+            "unsafe bundle entry: $name"
+        }
+        require('\\' !in name) { "unsafe bundle entry: $name" }
+        val segments = name.removeSuffix("/").split('/')
+        require(segments.all { it.isNotEmpty() && it != "." && it != ".." }) {
+            "unsafe bundle entry: $name"
+        }
+        val path = Path.of(name).normalize()
+        require(!path.isAbsolute && path.toString() != "." && !path.startsWith("..")) {
+            "bundle entry escapes: $name"
+        }
+        return path
+    }
+
+    private fun verified(root: Path, digest: String): Boolean =
+        Files.isDirectory(root) &&
+            Files.isRegularFile(root.resolve(VERIFICATION_MARKER)) &&
+            Files.readString(root.resolve(VERIFICATION_MARKER)) == digest
+
+    private fun validate(pinned: Pinned) {
+        require(pinned.version > 0) { "Map version must be positive" }
+        require(SHA256.matches(pinned.bundleSha256)) {
+            "Map bundle digest must be lowercase SHA-256"
+        }
+        val uri = URI.create(pinned.bundleUrl)
+        require(uri.scheme == "http" || uri.scheme == "https") { "Map bundle URL must use HTTP(S)" }
+    }
+
+    private fun deleteOwnedTree(root: Path) {
+        Files.walk(root).use { paths ->
+            paths.sorted(Comparator.reverseOrder()).forEach(Files::deleteIfExists)
+        }
+    }
 
     private companion object {
         const val DEFAULT_CDN_BASE = "https://maps.grounds.gg"
         const val DEFAULT_ENVIRONMENT = "stage"
         const val DEFAULT_CACHE_DIR = "/tmp/grounds-maps"
+        const val VERIFIED_CACHE_VERSION = "verified-v1"
+        const val VERIFICATION_MARKER = ".verified"
+        val SHA256 = Regex("[0-9a-f]{64}")
     }
 }

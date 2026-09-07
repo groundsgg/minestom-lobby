@@ -4,6 +4,7 @@ import gg.grounds.runtime.ServerType
 import gg.grounds.runtime.core.GroundsServer
 import gg.grounds.runtime.core.MapBlockRenderingModule
 import gg.grounds.runtime.core.RuntimeConfig
+import net.minestom.server.ServerFlag
 
 object LobbyServer {
 
@@ -13,18 +14,26 @@ object LobbyServer {
 }
 
 internal fun buildLobbyServer(env: Map<String, String> = System.getenv()): GroundsServer {
+    // This must precede configuration/provider discovery: either may initialize ServerFlag.
+    // Grounds owns the single JVM shutdown sequence: scene, providers, then Minestom/ticks.
+    System.setProperty("minestom.shutdown-on-signal", "false")
+    check(!ServerFlag.SHUTDOWN_ON_SIGNAL) {
+        "Lobby bootstrap must run before Minestom ServerFlag initializes signal shutdown"
+    }
     val runtimeConfig = lobbyRuntimeConfig(env)
+    lateinit var server: GroundsServer
 
     val builder =
         GroundsServer.builder()
             .config(runtimeConfig)
             .discoverProviders()
             .use(MapBlockRenderingModule())
-            .use(LobbyModule())
+            .use(LobbyModule(fatalStop = { server.stop() }))
 
     selectedRuntimeProviderIds(env).forEach { providerId -> builder.useProvider(providerId) }
 
-    return builder.build()
+    server = builder.build()
+    return server
 }
 
 internal fun lobbyRuntimeConfig(env: Map<String, String> = System.getenv()): RuntimeConfig =

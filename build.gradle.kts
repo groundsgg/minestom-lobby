@@ -7,7 +7,31 @@ plugins {
     application
 }
 
+tasks.register<JavaExec>("generateLobbySceneFixture") {
+    group = "verification"
+    description =
+        "Generate a new, test-only scene JSON under build/fixtures at explicit coordinates"
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("gg.grounds.minestom.lobby.scene.LobbySceneFixtureKt")
+    workingDir = project.projectDir
+    val filename = providers.gradleProperty("sceneFixtureName").orElse("lobby-scene.json")
+    val npc = providers.gradleProperty("sceneNpc")
+    val marker = providers.gradleProperty("sceneMarker")
+    doFirst {
+        require(npc.isPresent && marker.isPresent) {
+            "Provide explicit -PsceneNpc=x,y,z and -PsceneMarker=x,y,z coordinates"
+        }
+        args(filename.get(), npc.get(), marker.get())
+    }
+}
+
 application { mainClass.set("gg.grounds.minestom.lobby.MainKt") }
+
+tasks.test {
+    systemProperty("lobby.test.runtimeClasspath", sourceSets.test.get().runtimeClasspath.asPath)
+    systemProperty("org.slf4j.simpleLogger.cacheOutputStream", "false")
+}
 
 tasks.named<ShadowJar>("shadowJar") {
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
@@ -44,9 +68,13 @@ dependencies {
     implementation(platform("gg.grounds:grounds-dependencies:1.0.0"))
 
     implementation("gg.grounds:grounds-minestom-runtime-runtime-core:0.8.0")
+    implementation("gg.grounds:scene-minestom:0.2.1")
+    implementation("gg.grounds:resourcepacks-catalog:0.6.0")
+    implementation("gg.grounds:plugin-lobby-scene-catalog:1.14.0")
     implementation("net.minestom:minestom")
     implementation("gg.grounds:plugin-agones-minestom:0.6.0")
     implementation("gg.grounds:plugin-permissions-minestom:0.8.0")
+    implementation("gg.grounds:plugin-permissions-common:0.8.0")
     // Reaches the runtime through the SPI, like the two above, so there is no call site here —
     // but being on the classpath is not enough. Discovery only *lists* providers; a provider runs
     // only if LobbyServer names it in useProvider(), and for a long time this one was not named.
@@ -72,6 +100,7 @@ dependencies {
     implementation("org.slf4j:slf4j-api")
 
     testImplementation("org.junit.jupiter:junit-jupiter")
+    testImplementation("gg.grounds:library-jvm-modules-module-core:0.1.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     runtimeOnly("org.slf4j:slf4j-simple")
