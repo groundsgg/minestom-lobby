@@ -73,6 +73,14 @@ class LobbySceneHostTest {
             val attached = checkNotNull(display)
 
             val closed = host.closeAsync().toCompletableFuture()
+            val cleanupAtClose =
+                closed.thenRun {
+                    assertTrue(attached.isRemoved, "Host close completed before display removal")
+                    assertNull(
+                        instance.getEntityById(attached.entityId),
+                        "Host close completed before display unregistration",
+                    )
+                }
             instance.tick(0)
             assertFalse(
                 closed.isDone,
@@ -84,6 +92,7 @@ class LobbySceneHostTest {
             val cleanupDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
             while (!closed.isDone && System.nanoTime() < cleanupDeadline) instance.tick(0)
             closed.get(5, TimeUnit.SECONDS)
+            cleanupAtClose.get(5, TimeUnit.SECONDS)
             assertTrue(attached.isRemoved)
             assertNull(instance.getEntityById(attached.entityId))
             val entitiesAfterCleanup = instance.entities.map { it.entityId }.toSet()
