@@ -86,6 +86,19 @@ class LobbyShutdownProcessTest {
 internal object LobbyShutdownProcessProbe {
     @JvmStatic
     fun main(arguments: Array<String>) {
+        if (arguments.single() == "map-module-order") {
+            val server = buildLobbyServer(emptyMap())
+            val field = server.javaClass.getDeclaredField("modules").apply { isAccessible = true }
+            val ids =
+                (field.get(server) as List<*>).map { module ->
+                    val id = module!!.javaClass.getDeclaredField("id").apply { isAccessible = true }
+                    id.get(module) as String
+                }
+            check(ids.indexOf("grounds.map-rendering") >= 0)
+            check(ids.indexOf("grounds.map-rendering") < ids.indexOf("grounds.lobby"))
+            println("MAP_RENDERING_BEFORE_LOBBY")
+            return
+        }
         if (arguments.single() == "already-initialized") {
             check(ServerFlag.SHUTDOWN_ON_SIGNAL)
             val failure = runCatching { buildLobbyServer(emptyMap()) }.exceptionOrNull()
