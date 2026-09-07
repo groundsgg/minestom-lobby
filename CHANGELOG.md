@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.21.0](https://github.com/groundsgg/minestom-lobby/compare/v1.20.3...v1.21.0) (2026-09-07)
+
+
+### Features
+
+* host the versioned lobby scene ([#102](https://github.com/groundsgg/minestom-lobby/issues/102)) ([b4300d5](https://github.com/groundsgg/minestom-lobby/commit/b4300d59e348acbc35071be7e423b5c12d9e6f13))
+
 ## [1.20.3](https://github.com/groundsgg/minestom-lobby/compare/v1.20.2...v1.20.3) (2026-09-07)
 
 
