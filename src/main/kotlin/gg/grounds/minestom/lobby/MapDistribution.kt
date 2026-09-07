@@ -67,7 +67,7 @@ internal class MapDistribution(
                         "Using cached {} v{} ({})",
                         address,
                         pinned.version,
-                        short(pinned.bundleSha256),
+                        pinned.bundleSha256,
                     )
                     return LoadedLobbyMap(
                         unpacked,
@@ -75,7 +75,12 @@ internal class MapDistribution(
                     )
                 }
                 download(pinned, unpacked)
-                logger.info("Loaded {} v{} from the map service", address, pinned.version)
+                logger.info(
+                    "Loaded {} v{} from the map service ({})",
+                    address,
+                    pinned.version,
+                    pinned.bundleSha256,
+                )
                 LoadedLobbyMap(
                     unpacked,
                     LobbyMapSource.Published(address, pinned.version, pinned.bundleSha256),
@@ -214,8 +219,6 @@ internal class MapDistribution(
             paths.sorted(Comparator.reverseOrder()).forEach(Files::deleteIfExists)
         }
     }
-
-    private fun short(digest: String) = digest.take(12)
 
     private companion object {
         const val DEFAULT_CDN_BASE = "https://maps.grounds.gg"

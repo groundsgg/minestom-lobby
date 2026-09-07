@@ -30,6 +30,7 @@ application { mainClass.set("gg.grounds.minestom.lobby.MainKt") }
 
 tasks.test {
     systemProperty("lobby.test.runtimeClasspath", sourceSets.test.get().runtimeClasspath.asPath)
+    systemProperty("org.slf4j.simpleLogger.cacheOutputStream", "false")
 }
 
 tasks.named<ShadowJar>("shadowJar") {

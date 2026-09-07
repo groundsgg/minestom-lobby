@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import java.io.BufferedInputStream
 import java.io.ByteArrayOutputStream
+import java.io.PrintStream
 import java.net.InetSocketAddress
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -25,6 +26,30 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 
 class MapDistributionTest {
+
+    @Test
+    fun `successful map selection logs the complete selected bundle digest`(@TempDir cache: Path) {
+        val archive = archive("map.json" to "{}")
+        val digest = sha256(archive)
+        server(pin = { base -> pin("lobby/main", 42, digest, "$base/bundle") }, bundle = archive)
+            .use { fixture ->
+                val logs = ByteArrayOutputStream()
+                val originalError = System.err
+                try {
+                    System.setErr(PrintStream(logs, true, StandardCharsets.UTF_8))
+                    val distribution = MapDistribution(fixture.baseUrl, "test", cache)
+
+                    distribution.mapFor("lobby/main")
+                    distribution.mapFor("lobby/main")
+                } finally {
+                    System.setErr(originalError)
+                }
+
+                val output = logs.toString(StandardCharsets.UTF_8)
+                assertEquals(2, Regex(Regex.escape(digest)).findAll(output).count())
+                assertFalse(output.contains("${fixture.baseUrl}/bundle"))
+            }
+    }
 
     @Test
     fun `same cached digest preserves a newly selected address and version`(@TempDir cache: Path) {
