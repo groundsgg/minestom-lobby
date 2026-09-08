@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.21.1](https://github.com/groundsgg/minestom-lobby/compare/v1.21.0...v1.21.1) (2026-09-08)
+
+
+### Bug Fixes
+
+* **deps:** bump plugin-lobby to 1.14.2 ([#106](https://github.com/groundsgg/minestom-lobby/issues/106)) ([25f52a3](https://github.com/groundsgg/minestom-lobby/commit/25f52a3c90c9f8b23d64029a649ae1cfea49ef35))
+* **deps:** bump plugin-lobby to 1.14.4 ([#108](https://github.com/groundsgg/minestom-lobby/issues/108)) ([fffde86](https://github.com/groundsgg/minestom-lobby/commit/fffde86582a4e261a9a1965dc2288ae0a4bfdeed))
+
 ## [1.21.0](https://github.com/groundsgg/minestom-lobby/compare/v1.20.3...v1.21.0) (2026-09-07)
 
 
