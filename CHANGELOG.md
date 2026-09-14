@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.22.0](https://github.com/groundsgg/minestom-lobby/compare/v1.21.1...v1.22.0) (2026-09-14)
+
+
+### Features
+
+* enable notifications in minestom lobby ([#109](https://github.com/groundsgg/minestom-lobby/issues/109)) ([82983db](https://github.com/groundsgg/minestom-lobby/commit/82983db5326cf2b46fcc6e853e12b7bfbcbabb80))
+
 ## [1.21.1](https://github.com/groundsgg/minestom-lobby/compare/v1.21.0...v1.21.1) (2026-09-08)
 
 
