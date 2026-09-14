@@ -1,8 +1,10 @@
 package gg.grounds.minestom.lobby
 
+import gg.grounds.runtime.GroundsModuleProvider
 import gg.grounds.runtime.ServerType
 import gg.grounds.runtime.core.ProxyMode
 import java.nio.file.Path
+import java.util.ServiceLoader
 import java.util.concurrent.TimeUnit
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -11,6 +13,15 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class LobbyRuntimeTest {
+    @Test
+    fun `packaged runtime discovers notifications provider`() {
+        assertTrue(
+            ServiceLoader.load(GroundsModuleProvider::class.java)
+                .map { it.id }
+                .contains("grounds.notifications")
+        )
+    }
+
     @Test
     fun `map rendering is installed before the lobby world`() {
         assertTrue(runProbe("map-module-order").contains("MAP_RENDERING_BEFORE_LOBBY"))
@@ -133,6 +144,66 @@ class LobbyRuntimeTest {
     }
 
     @Test
+    fun `lobby selects notifications only with its complete runtime configuration`() {
+        assertFalse(selectedRuntimeProviderIds(emptyMap()).contains("grounds.notifications"))
+
+        val providers =
+            selectedRuntimeProviderIds(
+                permissionsEnvironment() +
+                    mapOf(
+                        "NOTIFICATIONS_SERVICE_URL" to "http://service-notifications:8080",
+                        "NOTIFICATIONS_CHANNEL_TOKEN" to "channel-token",
+                        "NOTIFICATIONS_SERVER_ID" to "lobby-eu-1",
+                        "PORTAL_BASE_URL" to "https://portal.grounds.gg",
+                    )
+            )
+
+        assertTrue(providers.contains("grounds.notifications"))
+        assertTrue(
+            providers.indexOf("grounds.permissions") < providers.indexOf("grounds.notifications")
+        )
+    }
+
+    @Test
+    fun `lobby rejects partial notification configuration`() {
+        assertThrows(IllegalStateException::class.java) {
+            selectedRuntimeProviderIds(
+                permissionsEnvironment() +
+                    mapOf("NOTIFICATIONS_SERVICE_URL" to "http://service-notifications:8080")
+            )
+        }
+    }
+
+    @Test
+    fun `lobby leaves notifications disabled while optional channel token is absent`() {
+        val providers =
+            selectedRuntimeProviderIds(
+                permissionsEnvironment() +
+                    mapOf(
+                        "NOTIFICATIONS_SERVICE_URL" to "http://service-notifications:8080",
+                        "NOTIFICATIONS_SERVER_ID" to "lobby-eu-1",
+                        "PORTAL_BASE_URL" to "https://portal.grounds.gg",
+                    )
+            )
+
+        assertFalse(providers.contains("grounds.notifications"))
+    }
+
+    @Test
+    fun `lobby rejects notification configuration without permissions runtime`() {
+        assertThrows(IllegalStateException::class.java) {
+            selectedRuntimeProviderIds(
+                mapOf(
+                    "NOTIFICATIONS_SERVICE_URL" to "http://service-notifications:8080",
+                    "NOTIFICATIONS_CHANNEL_TOKEN" to "channel-token",
+                    "NOTIFICATIONS_SERVER_ID" to "lobby-eu-1",
+                    "PORTAL_BASE_URL" to "https://portal.grounds.gg",
+                )
+            )
+        }
+    }
+
+    @Test
     fun `lobby selects agones and permissions providers together`() {
         val providers =
             selectedRuntimeProviderIds(
@@ -158,4 +229,10 @@ class LobbyRuntimeTest {
     fun `lobby always selects the navigator`() {
         assertTrue(selectedRuntimeProviderIds(emptyMap()).contains("grounds.lobby.navigator"))
     }
+
+    private fun permissionsEnvironment(): Map<String, String> =
+        mapOf(
+            "PERMISSIONS_SERVICE_URL" to "http://service-permissions-runtime:8080",
+            "PERMISSIONS_TOKEN_FILE" to "/var/run/secrets/grounds/permissions-token",
+        )
 }

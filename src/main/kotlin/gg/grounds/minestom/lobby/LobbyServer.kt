@@ -41,6 +41,11 @@ internal fun lobbyRuntimeConfig(env: Map<String, String> = System.getenv()): Run
 
 internal fun selectedRuntimeProviderIds(env: Map<String, String> = System.getenv()): List<String> =
     buildList {
+        val permissionsConfigured = hasPermissionsRuntime(env)
+        val notificationsConfigured = hasNotificationsRuntime(env)
+        check(!notificationsConfigured || permissionsConfigured) {
+            "Notifications runtime requires the permissions runtime"
+        }
         // Unconditional: the navigator talks to the proxy over the player's own connection, so
         // there is no service to be configured and nothing to degrade to. Every other entry here
         // is gated because it would fail without its backend; this one would only be missing.
@@ -54,8 +59,11 @@ internal fun selectedRuntimeProviderIds(env: Map<String, String> = System.getenv
         if (hasAgonesSidecar(env)) {
             add("grounds.agones")
         }
-        if (hasPermissionsRuntime(env)) {
+        if (permissionsConfigured) {
             add("grounds.permissions")
+        }
+        if (notificationsConfigured) {
+            add("grounds.notifications")
         }
     }
 
@@ -69,4 +77,18 @@ private fun hasPermissionsRuntime(env: Map<String, String>): Boolean {
         "PERMISSIONS_SERVICE_URL and PERMISSIONS_TOKEN_FILE must be configured together"
     }
     return serviceUrl != null
+}
+
+private fun hasNotificationsRuntime(env: Map<String, String>): Boolean {
+    val configurationKeys =
+        listOf("NOTIFICATIONS_SERVICE_URL", "NOTIFICATIONS_SERVER_ID", "PORTAL_BASE_URL")
+    val configuredKeys = configurationKeys.filter { !env[it].isNullOrBlank() }
+    check(configuredKeys.isEmpty() || configuredKeys.size == configurationKeys.size) {
+        "${configurationKeys.joinToString()} must be configured together"
+    }
+    val channelToken = env["NOTIFICATIONS_CHANNEL_TOKEN"]?.takeIf { it.isNotBlank() }
+    check(channelToken == null || configuredKeys.size == configurationKeys.size) {
+        "NOTIFICATIONS_CHANNEL_TOKEN requires ${configurationKeys.joinToString()}"
+    }
+    return channelToken != null && configuredKeys.size == configurationKeys.size
 }
