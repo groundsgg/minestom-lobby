@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.23.0](https://github.com/groundsgg/minestom-lobby/compare/v1.22.0...v1.23.0) (2026-09-21)
+
+
+### Features
+
+* publish analytics events from the lobby ([#111](https://github.com/groundsgg/minestom-lobby/issues/111)) ([a152244](https://github.com/groundsgg/minestom-lobby/commit/a152244ea94fcfaa98c275ac764ceafb4a78930e))
+
 ## [1.22.0](https://github.com/groundsgg/minestom-lobby/compare/v1.21.1...v1.22.0) (2026-09-14)
 
 
