@@ -39,6 +39,15 @@ REST permissions provider. In Kubernetes, Forge and the `grounds-gamemode`
 chart supply these values together with the projected workload token. Leaving
 both unset disables the provider; partial configuration fails startup.
 
+### Analytics
+
+The lobby publishes what players do on it (arrivals, deaths, chat volume, commands) with
+`plugin-analytics-minestom`, stamped `minigame_id=lobby`. It is on by default and needs no
+backend: it publishes to `NATS_URL` (default `nats://nats.nats.svc.cluster.local:4222`) and
+becomes a no-op if NATS is unreachable. The event's environment comes from
+`GROUNDS_ENVIRONMENT` or `GROUNDS_PERMISSION_ENVIRONMENT`, the region from `REGION`, the server
+from `HOSTNAME`. `ANALYTICS_ENABLED=false` keeps the module out entirely.
+
 ### As standalone
 
 Use `GROUNDS_PROXY_MODE=auto` with `GROUNDS_ONLINE_MODE=true` to run a standalone online-mode lobby.

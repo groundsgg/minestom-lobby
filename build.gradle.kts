@@ -75,6 +75,9 @@ dependencies {
     implementation("gg.grounds:plugin-agones-minestom:0.6.0")
     implementation("gg.grounds:plugin-permissions-minestom:0.8.0")
     implementation("gg.grounds:plugin-permissions-common:0.8.0")
+    // What players do on this server: arrivals, deaths, chat volume, commands. A library, not a
+    // provider — unlike the modules around it nothing discovers it, so AnalyticsModule calls it.
+    implementation("gg.grounds:plugin-analytics-minestom:0.2.0")
     // Reaches the runtime through the SPI, like the two above, so there is no call site here —
     // but being on the classpath is not enough. Discovery only *lists* providers; a provider runs
     // only if LobbyServer names it in useProvider(), and for a long time this one was not named.
