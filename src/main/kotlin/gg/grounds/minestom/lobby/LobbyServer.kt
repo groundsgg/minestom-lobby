@@ -30,6 +30,10 @@ internal fun buildLobbyServer(env: Map<String, String> = System.getenv()): Groun
             .use(MapBlockRenderingModule())
             .use(LobbyModule(fatalStop = { server.stop() }))
 
+    // On unless switched off: analytics is a fire-and-forget publisher that becomes a no-op
+    // when NATS is unreachable, so there is no backend whose absence should keep it out.
+    if (analyticsEnabled(env)) builder.use(AnalyticsModule(minigameId = "lobby"))
+
     selectedRuntimeProviderIds(env).forEach { providerId -> builder.useProvider(providerId) }
 
     server = builder.build()

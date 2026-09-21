@@ -119,6 +119,8 @@ internal object LobbyShutdownProcessProbe {
                 "GROUNDS_ONLINE_MODE" to "false",
                 "GROUNDS_PROXY_MODE" to "offline",
                 "GROUNDS_METRICS_ENABLED" to "false",
+                // No NATS in a shutdown test: it would only retry in the background.
+                "ANALYTICS_ENABLED" to "false",
             )
         // This is the same bootstrap called by MainKt -> LobbyServer.start. Provider discovery
         // must not initialize ServerFlag before it has disabled Minestom's competing JVM hook.
