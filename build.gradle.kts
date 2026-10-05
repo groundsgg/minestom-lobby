@@ -41,6 +41,16 @@ tasks.named<ShadowJar>("shadowJar") {
 repositories {
     mavenLocal()
     mavenCentral()
+    // Minestom for Minecraft 26.3: upstream has not released 26.3 yet, so the build comes from
+    // our fork's GitHub Packages. Named explicitly, like the other repositories here.
+    maven {
+        url = uri("https://maven.pkg.github.com/groundsgg/minestom")
+        credentials {
+            username = providers.gradleProperty("github.user").get()
+            password = providers.gradleProperty("github.token").get()
+        }
+        content { includeGroup("net.minestom") }
+    }
     maven {
         url = uri("https://maven.pkg.github.com/groundsgg/plugin-permissions")
         credentials {
@@ -71,7 +81,10 @@ dependencies {
     implementation("gg.grounds:scene-minestom:0.2.1")
     implementation("gg.grounds:resourcepacks-catalog:0.6.0")
     implementation("gg.grounds:plugin-lobby-scene-catalog:1.14.0")
-    implementation("net.minestom:minestom")
+    // Minecraft 26.3. Overrides the 26.2 Minestom in grounds-dependencies 1.0.0 until that
+    // platform carries an upstream 26.3 release. Keep in step with grounds-vanilla's 26.3 line,
+    // which is built on this exact version.
+    implementation("net.minestom:minestom:2026.10.02-26.3-grounds.1")
     implementation("gg.grounds:plugin-agones-minestom:0.6.0")
     implementation("gg.grounds:plugin-permissions-minestom:0.8.0")
     implementation("gg.grounds:plugin-permissions-common:0.8.0")

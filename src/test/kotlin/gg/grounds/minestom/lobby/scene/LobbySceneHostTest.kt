@@ -31,7 +31,9 @@ class LobbySceneHostTest {
         try {
             instance.viewDistance(0)
             TestPlayer().setInstance(instance, Pos.ZERO).join()
-            instance.unloadChunk(3, 0)
+            // Minestom 26.3 spawns with the target instance's view distance, so at 0 the chunk
+            // is never loaded; on 26.2 it was. Either way the gate needs it unloaded.
+            instance.getChunk(3, 0)?.let(instance::unloadChunk)
             gate.install(instance, 3)
             val authored =
                 lobbySceneFixture(GroundsAssetCatalog.catalog, ORIGIN, Vec3(48.0, 0.0, 0.0))
