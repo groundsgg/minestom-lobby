@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/groundsgg/minestom-lobby/compare/v1.23.0...v2.0.0) (2026-10-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* the lobby accepts Minecraft 26.3 clients only.
+
+### Features
+
+* move the lobby to minecraft 26.3 ([#113](https://github.com/groundsgg/minestom-lobby/issues/113)) ([da5d5d1](https://github.com/groundsgg/minestom-lobby/commit/da5d5d14be404bd0e4105689eb5dfad3e7a7e5e4))
+
 ## [1.23.0](https://github.com/groundsgg/minestom-lobby/compare/v1.22.0...v1.23.0) (2026-09-21)
 
 
