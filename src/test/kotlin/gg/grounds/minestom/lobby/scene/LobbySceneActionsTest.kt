@@ -131,6 +131,17 @@ class LobbySceneActionsTest {
                         scope: PermissionCheckScope,
                     ) = false
 
+                    // Abstract since plugin-permissions 1.0.0; agree with hasPermission above.
+                    override fun permissionDecision(playerId: UUID, permission: String) =
+                        if (permission == "lobby.guide") PermissionDecision.ALLOW
+                        else PermissionDecision.DENY
+
+                    override fun permissionDecision(
+                        playerId: UUID,
+                        permission: String,
+                        scope: PermissionCheckScope,
+                    ) = PermissionDecision.DENY
+
                     override fun snapshot(playerId: UUID): PermissionSnapshot? = null
                 }
             val policy = LobbyScenePlayerPolicy(fixture.instance, permissions)

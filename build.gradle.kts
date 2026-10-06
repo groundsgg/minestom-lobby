@@ -41,6 +41,16 @@ tasks.named<ShadowJar>("shadowJar") {
 repositories {
     mavenLocal()
     mavenCentral()
+    // Minestom for Minecraft 26.3: upstream has not released 26.3 yet, so the build comes from
+    // our fork's GitHub Packages. Named explicitly, like the other repositories here.
+    maven {
+        url = uri("https://maven.pkg.github.com/groundsgg/minestom")
+        credentials {
+            username = providers.gradleProperty("github.user").get()
+            password = providers.gradleProperty("github.token").get()
+        }
+        content { includeGroup("net.minestom") }
+    }
     maven {
         url = uri("https://maven.pkg.github.com/groundsgg/plugin-permissions")
         credentials {
@@ -70,11 +80,14 @@ dependencies {
     implementation("gg.grounds:grounds-minestom-runtime-runtime-core:0.8.0")
     implementation("gg.grounds:scene-minestom:0.2.1")
     implementation("gg.grounds:resourcepacks-catalog:0.6.0")
-    implementation("gg.grounds:plugin-lobby-scene-catalog:1.14.0")
-    implementation("net.minestom:minestom")
-    implementation("gg.grounds:plugin-agones-minestom:0.6.0")
-    implementation("gg.grounds:plugin-permissions-minestom:0.8.0")
-    implementation("gg.grounds:plugin-permissions-common:0.8.0")
+    implementation("gg.grounds:plugin-lobby-scene-catalog:2.0.0")
+    // Minecraft 26.3. Overrides the 26.2 Minestom in grounds-dependencies 1.0.0 until that
+    // platform carries an upstream 26.3 release. Keep in step with grounds-vanilla's 26.3 line,
+    // which is built on this exact version.
+    implementation("net.minestom:minestom:2026.10.02-26.3-grounds.1")
+    implementation("gg.grounds:plugin-agones-minestom:2.0.0")
+    implementation("gg.grounds:plugin-permissions-minestom:1.0.0")
+    implementation("gg.grounds:plugin-permissions-common:1.0.0")
     // What players do on this server: arrivals, deaths, chat volume, commands. A library, not a
     // provider — unlike the modules around it nothing discovers it, so AnalyticsModule calls it.
     implementation("gg.grounds:plugin-analytics-minestom:0.2.0")
@@ -83,7 +96,7 @@ dependencies {
     // only if LobbyServer names it in useProvider(), and for a long time this one was not named.
     // 0.2.0 is also the first version with the shared chat line, so a message looks the same
     // whether it crossed the proxy or was broadcast inside this lobby.
-    implementation("gg.grounds:plugin-chat-minestom:1.1.0")
+    implementation("gg.grounds:plugin-chat-minestom:2.0.0")
     implementation("gg.grounds:plugin-notifications-minestom:0.2.0")
     // The locked inventory and the slot-9 navigator. Selected unconditionally in
     // LobbyServer: it needs no backing service, and a lobby without it is a lobby a
@@ -93,7 +106,7 @@ dependencies {
     // so they render as a chest for a Java player and as a native form for a Bedrock one.
     // Before that a Bedrock player reached the lobby and found missing-glyph text where
     // the menu should be — which made this the one dependency a Bedrock rollout waits on.
-    implementation("gg.grounds:plugin-lobby-minestom:1.14.4")
+    implementation("gg.grounds:plugin-lobby-minestom:2.0.0")
     // Reads the map's map.json sidecar (the spawn). Minestom pulls gson in transitively;
     // declare it because we use it directly.
     implementation("com.google.code.gson:gson:2.13.2")
