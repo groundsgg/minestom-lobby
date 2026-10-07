@@ -84,7 +84,7 @@ dependencies {
     // Minecraft 26.3. Overrides the 26.2 Minestom in grounds-dependencies 1.0.0 until that
     // platform carries an upstream 26.3 release. Keep in step with grounds-vanilla's 26.3 line,
     // which is built on this exact version.
-    implementation("net.minestom:minestom:2026.10.02-26.3-grounds.1")
+    implementation("net.minestom:minestom:2026.10.07-26.3-grounds")
     implementation("gg.grounds:plugin-agones-minestom:2.0.0")
     implementation("gg.grounds:plugin-permissions-minestom:1.0.0")
     implementation("gg.grounds:plugin-permissions-common:1.0.0")
