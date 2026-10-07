@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1](https://github.com/groundsgg/minestom-lobby/compare/v2.0.0...v2.0.1) (2026-10-07)
+
+
+### Bug Fixes
+
+* load 26.3 worlds whose block palettes hold bare ids ([#115](https://github.com/groundsgg/minestom-lobby/issues/115)) ([9904caa](https://github.com/groundsgg/minestom-lobby/commit/9904caa7a59dec9d09289658bf1e2ac612f40d36))
+
 ## [2.0.0](https://github.com/groundsgg/minestom-lobby/compare/v1.23.0...v2.0.0) (2026-10-06)
 
 
