@@ -65,6 +65,35 @@ class LobbySceneLoaderTest {
     }
 
     @Test
+    fun `stable PackSet scene loads with its exact asset pin and navigator action`() {
+        val scene = fixture()
+        write(
+            scene.with(
+                catalogs =
+                    scene.catalogs.copy(
+                        assets = CatalogReference(CatalogId("grounds:assets"), "1.0.0")
+                    )
+            )
+        )
+        val prepared = assertNotNullScene(LobbySceneLoader().load(map()))
+        assertEquals("1.0.0", prepared.assets.version)
+        assertTrue(
+            prepared.scene.boundActions().any {
+                it is ApplicationAction && it.key == LobbySceneCatalogs.OPEN_NAVIGATOR
+            }
+        )
+        write(
+            scene.with(
+                catalogs =
+                    scene.catalogs.copy(
+                        assets = CatalogReference(CatalogId("grounds:assets"), "0.6.0")
+                    )
+            )
+        )
+        assertTrue(rejected().contains("catalog", ignoreCase = true))
+    }
+
+    @Test
     fun `valid exact pins preserve selected published map identity`() {
         write()
         val prepared =
@@ -80,7 +109,7 @@ class LobbySceneLoaderTest {
         assertEquals("lobby/mainlobby", prepared.identity.mapId)
         assertEquals(42, prepared.identity.mapVersion)
         assertEquals("grounds:lobby-stage", prepared.identity.sceneId.value)
-        assertEquals("0.6.0", prepared.assets.version)
+        assertEquals("1.0.0", prepared.assets.version)
         assertEquals("2", prepared.actions.version)
         assertEquals(
             fixture().elements.associateBy { it.id },
