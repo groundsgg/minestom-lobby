@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.4](https://github.com/groundsgg/minestom-lobby/compare/v2.0.3...v2.0.4) (2026-10-12)
+
+
+### Bug Fixes
+
+* align scene asset catalog with stable PackSet ([#121](https://github.com/groundsgg/minestom-lobby/issues/121)) ([feb6e46](https://github.com/groundsgg/minestom-lobby/commit/feb6e46916078cdf8818007e23065eec226364cc))
+
 ## [2.0.3](https://github.com/groundsgg/minestom-lobby/compare/v2.0.2...v2.0.3) (2026-10-12)
 
 
