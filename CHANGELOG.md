@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/groundsgg/minestom-lobby/compare/v2.0.4...v2.1.0) (2026-10-13)
+
+
+### Features
+
+* support optional NPC collision scenes ([#123](https://github.com/groundsgg/minestom-lobby/issues/123)) ([727412b](https://github.com/groundsgg/minestom-lobby/commit/727412bb9e5c203eaa5d69e74ca6c78b8c4bd84f))
+
 ## [2.0.4](https://github.com/groundsgg/minestom-lobby/compare/v2.0.3...v2.0.4) (2026-10-12)
 
 
