@@ -118,6 +118,32 @@ class LobbySceneLoaderTest {
     }
 
     @Test
+    fun `literal collision settings load through production readiness and survive preparation`() {
+        write()
+        assertNotNullScene(LobbySceneLoader().load(map()))
+        val path = root.resolve("scene.json")
+        val authored =
+            Files.readString(path)
+                .replace(
+                    "\"body\": \"grounds:editor/guide\"",
+                    "\"collision\": {\"mode\":\"bounce\",\"bounceStrength\":12.5}," +
+                        "\"body\": \"grounds:editor/guide\"",
+                )
+        assertTrue(authored.contains("\"collision\""))
+        Files.writeString(path, authored)
+        val prepared = assertNotNullScene(LobbySceneLoader().load(map()))
+        val encoded =
+            assertInstanceOf(
+                    SceneEncodeResult.Success::class.java,
+                    SceneJson.encode(prepared.scene),
+                )
+                .bytes
+                .decodeToString()
+        assertTrue(encoded.contains("\"mode\": \"bounce\""))
+        assertTrue(encoded.contains("\"bounceStrength\": 12.5"))
+    }
+
+    @Test
     fun `local scene has explicit normalized identity`() {
         write()
         val prepared = assertNotNullScene(LobbySceneLoader().load(map()))
