@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.3](https://github.com/groundsgg/minestom-lobby/compare/v2.2.2...v2.2.3) (2026-10-13)
+
+
+### Bug Fixes
+
+* keep airborne NPC contacts from slamming players down ([#133](https://github.com/groundsgg/minestom-lobby/issues/133)) ([35f6df0](https://github.com/groundsgg/minestom-lobby/commit/35f6df061a3de9ff06f226d0dbad0f1b2603b51f))
+
 ## [2.2.2](https://github.com/groundsgg/minestom-lobby/compare/v2.2.1...v2.2.2) (2026-10-13)
 
 
