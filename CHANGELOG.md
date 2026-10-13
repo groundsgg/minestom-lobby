@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.1](https://github.com/groundsgg/minestom-lobby/compare/v2.2.0...v2.2.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* deliver NPC bounce within the same player tick ([#129](https://github.com/groundsgg/minestom-lobby/issues/129)) ([a8a558c](https://github.com/groundsgg/minestom-lobby/commit/a8a558cf33aa1b04115a41bf846fa93c0f5bebd0))
+
 ## [2.2.0](https://github.com/groundsgg/minestom-lobby/compare/v2.1.1...v2.2.0) (2026-10-13)
 
 
