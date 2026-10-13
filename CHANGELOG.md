@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.0](https://github.com/groundsgg/minestom-lobby/compare/v2.1.1...v2.2.0) (2026-10-13)
+
+
+### Features
+
+* read fractional NPC bounce distance ([#127](https://github.com/groundsgg/minestom-lobby/issues/127)) ([adb9e15](https://github.com/groundsgg/minestom-lobby/commit/adb9e15c53ce714a72aeed7c91786f8d2770bf6d))
+
 ## [2.1.1](https://github.com/groundsgg/minestom-lobby/compare/v2.1.0...v2.1.1) (2026-10-13)
 
 
