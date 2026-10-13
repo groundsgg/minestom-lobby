@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.2](https://github.com/groundsgg/minestom-lobby/compare/v2.2.1...v2.2.2) (2026-10-13)
+
+
+### Bug Fixes
+
+* add gentle NPC bounce lift and stationary labels ([#131](https://github.com/groundsgg/minestom-lobby/issues/131)) ([f9deb27](https://github.com/groundsgg/minestom-lobby/commit/f9deb27b4ff184fa689cfd6cda9cb457764b16f4))
+
 ## [2.2.1](https://github.com/groundsgg/minestom-lobby/compare/v2.2.0...v2.2.1) (2026-10-13)
 
 
