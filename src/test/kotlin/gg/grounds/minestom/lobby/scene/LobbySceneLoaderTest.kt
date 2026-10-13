@@ -119,6 +119,11 @@ class LobbySceneLoaderTest {
 
     @Test
     fun `literal collision settings load through production readiness and survive preparation`() {
+        assertCollisionLoads("bounceStrength", 12.5)
+        assertCollisionLoads("bounceDistance", 0.5)
+    }
+
+    private fun assertCollisionLoads(field: String, value: Double) {
         write()
         assertNotNullScene(LobbySceneLoader().load(map()))
         val path = root.resolve("scene.json")
@@ -126,7 +131,7 @@ class LobbySceneLoaderTest {
             Files.readString(path)
                 .replace(
                     "\"body\": \"grounds:editor/guide\"",
-                    "\"collision\": {\"mode\":\"bounce\",\"bounceStrength\":12.5}," +
+                    "\"collision\": {\"mode\":\"bounce\",\"$field\":$value}," +
                         "\"body\": \"grounds:editor/guide\"",
                 )
         assertTrue(authored.contains("\"collision\""))
@@ -140,7 +145,7 @@ class LobbySceneLoaderTest {
                 .bytes
                 .decodeToString()
         assertTrue(encoded.contains("\"mode\": \"bounce\""))
-        assertTrue(encoded.contains("\"bounceStrength\": 12.5"))
+        assertTrue(encoded.contains("\"$field\": $value"))
     }
 
     @Test
