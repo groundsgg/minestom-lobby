@@ -14,11 +14,22 @@ import org.junit.jupiter.api.Test
 
 class LobbyRuntimeTest {
     @Test
-    fun `packaged runtime discovers notifications provider`() {
-        assertTrue(
-            ServiceLoader.load(GroundsModuleProvider::class.java)
-                .map { it.id }
-                .contains("grounds.notifications")
+    fun `packaged runtime discovers every provider selectable by the lobby`() {
+        val discoveredProviderIds =
+            ServiceLoader.load(GroundsModuleProvider::class.java).map { it.id }.toSet()
+        val selectableProviderIds =
+            setOf(
+                "grounds.lobby.navigator",
+                "grounds.chat",
+                "grounds.agones",
+                "grounds.permissions",
+                "grounds.notifications",
+            )
+
+        assertEquals(
+            emptySet<String>(),
+            selectableProviderIds - discoveredProviderIds,
+            "Every provider selected by LobbyServer must be packaged for runtime discovery",
         )
     }
 
