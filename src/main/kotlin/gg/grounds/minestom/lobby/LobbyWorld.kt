@@ -1,13 +1,12 @@
 package gg.grounds.minestom.lobby
 
+import gg.grounds.runtime.core.world.GroundsWorld
+import gg.grounds.runtime.core.world.WorldIdentity
 import java.nio.file.Files
 import java.nio.file.Path
-import net.minestom.server.MinecraftServer
 import net.minestom.server.coordinate.Pos
 import net.minestom.server.instance.InstanceContainer
-import net.minestom.server.instance.LightingChunk
 import net.minestom.server.instance.anvil.AnvilLoader
-import net.minestom.server.utils.chunk.ChunkSupplier
 
 private const val SUNRISE_TIME: Long = 6000
 
@@ -69,18 +68,28 @@ internal data class LobbyMap(
     val loaded: LoadedLobbyMap,
 )
 
+/**
+ * What clients tell this world apart by, so LOD mods keep its cache separate from every game map. A
+ * published map is keyed by its address and version, so a new version gets a fresh cache; the
+ * baked-in world has neither and shares one fixed identity.
+ */
+internal fun worldIdentity(source: LobbyMapSource): WorldIdentity =
+    when (source) {
+        is LobbyMapSource.Published -> WorldIdentity.of(source.address, source.version.toInt())
+        is LobbyMapSource.Local -> WorldIdentity.of(LOCAL_MAP_ADDRESS)
+    }
+
+private const val LOCAL_MAP_ADDRESS = "lobby/local"
+
 internal object LobbyWorld {
-    fun createInstance(): LobbyMap {
-        val loaded = resolveMap()
+    fun createInstance(): LobbyMap = open(resolveMap())
+
+    fun open(loaded: LoadedLobbyMap): LobbyMap {
         val mapPath = loaded.root
 
-        val instanceContainer = MinecraftServer.getInstanceManager().createInstanceContainer()
-        instanceContainer.chunkLoader = AnvilLoader(regionRoot(mapPath))
-        // The authored map ships no light data we can trust after Minestom rewrites blocks,
-        // so let it compute lighting per chunk.
-        instanceContainer.chunkSupplier = ChunkSupplier { instance, x, z ->
-            LightingChunk(instance, x, z)
-        }
+        // Opened under its own identity, with every loaded chunk relit: the authored map ships no
+        // light data we can trust after Minestom rewrites blocks.
+        val instanceContainer = GroundsWorld.open(regionRoot(mapPath), worldIdentity(loaded.source))
 
         val clock = instanceContainer.defaultClock()!!
         clock.rate(0f)
