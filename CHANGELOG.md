@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.2.11](https://github.com/groundsgg/minestom-lobby/compare/v2.2.10...v2.2.11) (2026-10-17)
+
+
+### Bug Fixes
+
+* **build:** resolve dependencies through the runner mirror in Docker builds ([#154](https://github.com/groundsgg/minestom-lobby/issues/154)) ([5938fbb](https://github.com/groundsgg/minestom-lobby/commit/5938fbb22953a3136ba98bf56c3f276bf3b6dab9))
+* **chat:** integrate published unified chat modules ([#146](https://github.com/groundsgg/minestom-lobby/issues/146)) ([7c42056](https://github.com/groundsgg/minestom-lobby/commit/7c42056ce07548321b22349ce424a5e682898a15))
+* **deps:** bump plugin-chat-minestom to 2.5.0 ([#151](https://github.com/groundsgg/minestom-lobby/issues/151)) ([94527fe](https://github.com/groundsgg/minestom-lobby/commit/94527febe1b403b71cfc6a858adc584e2b3e282c))
+
 ## [2.2.10](https://github.com/groundsgg/minestom-lobby/compare/v2.2.9...v2.2.10) (2026-10-15)
 
 
