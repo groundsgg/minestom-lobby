@@ -85,9 +85,9 @@ dependencies {
     // platform carries an upstream 26.3 release. Keep in step with grounds-vanilla's 26.3 line,
     // which is built on this exact version.
     implementation("net.minestom:minestom:2026.10.07-26.3-grounds")
-    implementation("gg.grounds:plugin-agones-minestom:2.0.0")
-    implementation("gg.grounds:plugin-permissions-minestom:1.0.0")
-    implementation("gg.grounds:plugin-permissions-common:1.0.0")
+    implementation("gg.grounds:plugin-agones-minestom:2.3.0")
+    implementation("gg.grounds:plugin-permissions-minestom:1.1.1")
+    implementation("gg.grounds:plugin-permissions-common:1.1.1")
     // What players do on this server: arrivals, deaths, chat volume, commands. A library, not a
     // provider — unlike the modules around it nothing discovers it, so AnalyticsModule calls it.
     implementation("gg.grounds:plugin-analytics-minestom:0.2.0")
@@ -96,9 +96,9 @@ dependencies {
     // only if LobbyServer names it in useProvider(), and for a long time this one was not named.
     // 0.2.0 is also the first version with the shared chat line, so a message looks the same
     // whether it crossed the proxy or was broadcast inside this lobby.
-    // 2.5.0 brings the Grounds chat look: `[rank] name › message` in palette colours.
-    implementation("gg.grounds:plugin-chat-minestom:2.5.0")
-    implementation("gg.grounds:plugin-notifications-minestom:0.2.0")
+    // 2.6.0 applies sender permissions to chat formatting and emoji aliases.
+    implementation("gg.grounds:plugin-chat-minestom:2.6.0")
+    implementation("gg.grounds:plugin-notifications-minestom:0.3.0")
     // The locked inventory and the slot-9 navigator. Selected unconditionally in
     // LobbyServer: it needs no backing service, and a lobby without it is a lobby a
     // player cannot leave except by disconnecting.
@@ -107,7 +107,7 @@ dependencies {
     // so they render as a chest for a Java player and as a native form for a Bedrock one.
     // Before that a Bedrock player reached the lobby and found missing-glyph text where
     // the menu should be — which made this the one dependency a Bedrock rollout waits on.
-    implementation("gg.grounds:plugin-lobby-minestom:2.12.0")
+    implementation("gg.grounds:plugin-lobby-minestom:2.13.1")
     // Reads the map's map.json sidecar (the spawn). Minestom pulls gson in transitively;
     // declare it because we use it directly.
     implementation("com.google.code.gson:gson:2.13.2")

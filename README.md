@@ -32,12 +32,39 @@ Launch the lobby group with shared chat enabled:
 CHAT_GLOBAL_ENABLED=true CHAT_GROUP=lobby ./gradlew run
 ```
 
+### Chat, reporting, and mute enforcement
+
+The chat provider is always selected. `CHAT_GLOBAL_ENABLED=true` forwards chat to Velocity;
+`CHAT_GROUP` optionally scopes that global chat to a named group and requires global chat to be
+enabled. The Minestom report menu and local-delivery observations use the player's existing proxy
+connection, so the lobby and Velocity must run compatible `plugin-chat` releases for reporting.
+
+Global and grouped chat already cross the proxy's mute gate. If a Velocity-backed lobby deliberately
+uses local chat, also set `MODERATION_ENFORCEMENT_ENABLED=true`; this forwards server-scoped chat to
+Velocity so active mutes cannot be bypassed. Leave that setting disabled for a standalone lobby,
+which has no proxy to receive forwarded messages.
+
+Native player heads require the trusted forwarded Java-edition marker and a compatible protocol.
+Font graphics additionally require the proxy to confirm an approved chat-font pack and send that
+capability to the current backend connection. Missing, stale, or invalid state stays text-only, so
+the lobby does not require graphics to remain readable.
+
 ### Permissions runtime
 
 Set both `PERMISSIONS_SERVICE_URL` and `PERMISSIONS_TOKEN_FILE` to enable the
 REST permissions provider. In Kubernetes, Forge and the `grounds-gamemode`
 chart supply these values together with the projected workload token. Leaving
 both unset disables the provider; partial configuration fails startup.
+
+### Notifications runtime
+
+Notifications require the permissions provider above. Set `NOTIFICATIONS_SERVICE_URL`,
+`NOTIFICATIONS_CHANNEL_TOKEN`, `NOTIFICATIONS_SERVER_ID`, and an HTTPS `PORTAL_BASE_URL` together to
+enable them. The URL/server configuration must be complete; a missing channel token keeps the
+provider disabled. `NOTIFICATIONS_MODERATION_PERMISSION` defaults to
+`grounds.moderation.notifications.receive`, and `NOTIFICATIONS_MODERATION_ENVIRONMENT` may restrict
+moderation notifications to `stage` or `prod`. The host uses Notifications 0.3.0 and the shared
+recipient-aware system renderer.
 
 ### Analytics
 
