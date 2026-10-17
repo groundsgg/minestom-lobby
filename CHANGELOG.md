@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.4.1](https://github.com/groundsgg/minestom-lobby/compare/v2.4.0...v2.4.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **deps:** bump plugin-chat to 2.6.2 ([#164](https://github.com/groundsgg/minestom-lobby/issues/164)) ([e9136ed](https://github.com/groundsgg/minestom-lobby/commit/e9136ed7607110f206412a237f49e0fa4604bc16))
+* keep lobby clock stable in custom map worlds ([#163](https://github.com/groundsgg/minestom-lobby/issues/163)) ([9c700e7](https://github.com/groundsgg/minestom-lobby/commit/9c700e7d967017a39311ee29fe7419f5a59c7833))
+* **players:** match overhead rank badges to the tab list ([#162](https://github.com/groundsgg/minestom-lobby/issues/162)) ([fcfbed9](https://github.com/groundsgg/minestom-lobby/commit/fcfbed99e3ba3c2cfdb0136e5a8afcf8eb01aa82))
+
 ## [2.4.0](https://github.com/groundsgg/minestom-lobby/compare/v2.3.0...v2.4.0) (2026-10-17)
 
 
