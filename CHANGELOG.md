@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.3.1](https://github.com/groundsgg/minestom-lobby/compare/v2.3.0...v2.3.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **chat:** align context and message-level colors ([#157](https://github.com/groundsgg/minestom-lobby/issues/157)) ([ed5cea8](https://github.com/groundsgg/minestom-lobby/commit/ed5cea807907aac69b3f38cb29182a92c6779fb1))
+* **deps:** bump plugin-permissions to 1.2.0 ([#159](https://github.com/groundsgg/minestom-lobby/issues/159)) ([294e19a](https://github.com/groundsgg/minestom-lobby/commit/294e19a95f2e60ec3c1d5fdf5386f3b056c453b7))
+
 ## [2.3.0](https://github.com/groundsgg/minestom-lobby/compare/v2.2.11...v2.3.0) (2026-10-17)
 
 
