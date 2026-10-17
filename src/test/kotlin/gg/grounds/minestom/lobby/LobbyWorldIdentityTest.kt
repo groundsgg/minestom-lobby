@@ -54,7 +54,7 @@ class LobbyWorldIdentityTest {
         val map = LobbyWorld.open(LoadedLobbyMap(root, source))
 
         val identity = worldIdentity(source)
-        assertEquals(identity.key, map.instance.dimensionName)
+        assertEquals(identity.key.asString(), map.instance.dimensionName)
         assertEquals(identity.hashedSeed, map.instance.hashedSeed)
         assertTrue(MinecraftServer.getInstanceManager().instances.contains(map.instance))
         MinecraftServer.getInstanceManager().unregisterInstance(map.instance)
