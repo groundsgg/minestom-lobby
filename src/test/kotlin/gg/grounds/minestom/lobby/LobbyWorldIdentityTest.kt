@@ -6,6 +6,7 @@ import kotlin.io.path.createDirectories
 import kotlin.io.path.writeText
 import net.kyori.adventure.key.Key
 import net.minestom.server.MinecraftServer
+import net.minestom.server.world.clock.WorldClock
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -14,8 +15,8 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 
 /**
- * The lobby is sent to clients under its own world identity, not as `minecraft:overworld` with seed
- * 0, so LOD mods do not mix it with a game map.
+ * The lobby keeps a map-specific seed for LOD caches and the vanilla Overworld dimension name
+ * required by the clock's client-side item model.
  */
 class LobbyWorldIdentityTest {
 
@@ -45,7 +46,7 @@ class LobbyWorldIdentityTest {
     }
 
     @Test
-    fun `the opened instance carries the identity`(@TempDir tmp: Path) {
+    fun `the opened instance supports the clock while retaining the map seed`(@TempDir tmp: Path) {
         val root = tmp.resolve("bundle")
         root.resolve("region").createDirectories()
         root.resolve("map.json").writeText("""{"spawns":[{"x":1.5,"y":64,"z":-2.5}]}""")
@@ -54,8 +55,11 @@ class LobbyWorldIdentityTest {
         val map = LobbyWorld.open(LoadedLobbyMap(root, source))
 
         val identity = worldIdentity(source)
-        assertEquals(identity.key.asString(), map.instance.dimensionName)
+        assertEquals("minecraft:overworld", map.instance.dimensionName)
         assertEquals(identity.hashedSeed, map.instance.hashedSeed)
+        val clock = map.instance.createTimePacket().clocks()[WorldClock.OVERWORLD]!!
+        assertEquals(6000L, clock.totalTicks())
+        assertEquals(0f, clock.rate())
         assertTrue(MinecraftServer.getInstanceManager().instances.contains(map.instance))
         MinecraftServer.getInstanceManager().unregisterInstance(map.instance)
     }
