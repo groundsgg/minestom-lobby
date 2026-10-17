@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.5.0](https://github.com/groundsgg/minestom-lobby/compare/v2.4.1...v2.5.0) (2026-10-17)
+
+
+### Features
+
+* **catalog:** retain and register embedded permission manifests ([#166](https://github.com/groundsgg/minestom-lobby/issues/166)) ([1e7da90](https://github.com/groundsgg/minestom-lobby/commit/1e7da9007a573fd0c384bcf807d94a6acda6906a))
+
+
+### Bug Fixes
+
+* **players:** enable initial rank entries and the MOD badge ([#167](https://github.com/groundsgg/minestom-lobby/issues/167)) ([df8b478](https://github.com/groundsgg/minestom-lobby/commit/df8b478c7cf17c930cc0ba8cf6bc89a00c7f9fba))
+
 ## [2.4.1](https://github.com/groundsgg/minestom-lobby/compare/v2.4.0...v2.4.1) (2026-10-17)
 
 
