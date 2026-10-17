@@ -64,7 +64,7 @@ enable them. The URL/server configuration must be complete; a missing channel to
 provider disabled. `NOTIFICATIONS_MODERATION_PERMISSION` defaults to
 `grounds.moderation.notifications.receive`, and `NOTIFICATIONS_MODERATION_ENVIRONMENT` may restrict
 moderation notifications to `stage` or `prod`. The unified notification renderer requires the
-notification-plugin release after its CI package-access gate; until publication, this host retains
+notification-plugin release after its remaining CI checks; until publication, this host retains
 the previously published notification version.
 
 ### Analytics
