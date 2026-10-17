@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.4.0](https://github.com/groundsgg/minestom-lobby/compare/v2.3.0...v2.4.0) (2026-10-17)
+
+
+### Features
+
+* **players:** consume native rank nameplates ([#161](https://github.com/groundsgg/minestom-lobby/issues/161)) ([4a9fa81](https://github.com/groundsgg/minestom-lobby/commit/4a9fa81f4e2f1e93f84c8563e41976b70817e4b5))
+
+
+### Bug Fixes
+
+* **chat:** align context and message-level colors ([#157](https://github.com/groundsgg/minestom-lobby/issues/157)) ([ed5cea8](https://github.com/groundsgg/minestom-lobby/commit/ed5cea807907aac69b3f38cb29182a92c6779fb1))
+* **chat:** consume rank-coloured names without role tags ([#160](https://github.com/groundsgg/minestom-lobby/issues/160)) ([035cee5](https://github.com/groundsgg/minestom-lobby/commit/035cee5cfc07acb17806f72044c159a625b6c9bf))
+* **deps:** bump plugin-permissions to 1.2.0 ([#159](https://github.com/groundsgg/minestom-lobby/issues/159)) ([294e19a](https://github.com/groundsgg/minestom-lobby/commit/294e19a95f2e60ec3c1d5fdf5386f3b056c453b7))
+
 ## [2.3.0](https://github.com/groundsgg/minestom-lobby/compare/v2.2.11...v2.3.0) (2026-10-17)
 
 
