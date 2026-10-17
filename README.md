@@ -63,9 +63,8 @@ Notifications require the permissions provider above. Set `NOTIFICATIONS_SERVICE
 enable them. The URL/server configuration must be complete; a missing channel token keeps the
 provider disabled. `NOTIFICATIONS_MODERATION_PERMISSION` defaults to
 `grounds.moderation.notifications.receive`, and `NOTIFICATIONS_MODERATION_ENVIRONMENT` may restrict
-moderation notifications to `stage` or `prod`. The unified notification renderer requires the
-notification-plugin release after its remaining CI checks; until publication, this host retains
-the previously published notification version.
+moderation notifications to `stage` or `prod`. The host uses Notifications 0.3.0 and the shared
+recipient-aware system renderer.
 
 ### Analytics
 
