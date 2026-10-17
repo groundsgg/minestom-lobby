@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.0](https://github.com/groundsgg/minestom-lobby/compare/v2.2.11...v2.3.0) (2026-10-17)
+
+
+### Features
+
+* **world:** open the lobby under its own world identity ([#155](https://github.com/groundsgg/minestom-lobby/issues/155)) ([0b3d007](https://github.com/groundsgg/minestom-lobby/commit/0b3d007e1a41ef352eb4c6e9b819f31482d1d2ca))
+
 ## [2.2.11](https://github.com/groundsgg/minestom-lobby/compare/v2.2.10...v2.2.11) (2026-10-17)
 
 
