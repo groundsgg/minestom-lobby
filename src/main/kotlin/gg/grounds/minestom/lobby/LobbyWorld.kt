@@ -7,6 +7,7 @@ import java.nio.file.Path
 import net.minestom.server.coordinate.Pos
 import net.minestom.server.instance.InstanceContainer
 import net.minestom.server.instance.anvil.AnvilLoader
+import net.minestom.server.world.DimensionType
 
 private const val SUNRISE_TIME: Long = 6000
 
@@ -89,7 +90,11 @@ internal object LobbyWorld {
 
         // Opened under its own identity, with every loaded chunk relit: the authored map ships no
         // light data we can trust after Minestom rewrites blocks.
-        val instanceContainer = GroundsWorld.open(regionRoot(mapPath), worldIdentity(loaded.source))
+        // The vanilla clock model selects its daytime animation by dimension name, not type.
+        // Custom names use the random Nether animation even with a frozen Overworld clock.
+        // Keep the map-specific seed so LOD caches still distinguish maps and their versions.
+        val identity = worldIdentity(loaded.source).copy(key = DimensionType.OVERWORLD.key())
+        val instanceContainer = GroundsWorld.open(regionRoot(mapPath), identity)
 
         val clock = instanceContainer.defaultClock()!!
         clock.rate(0f)
