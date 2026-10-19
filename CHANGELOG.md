@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.5.1](https://github.com/groundsgg/minestom-lobby/compare/v2.5.0...v2.5.1) (2026-10-19)
+
+
+### Bug Fixes
+
+* **players:** use the petrol MOD badge catalog ([#169](https://github.com/groundsgg/minestom-lobby/issues/169)) ([d143527](https://github.com/groundsgg/minestom-lobby/commit/d1435272ceb450a5cbd0e02aa1c991bee7e65116))
+
+
+### Performance Improvements
+
+* **world:** light the lobby spawn before the first player arrives ([#171](https://github.com/groundsgg/minestom-lobby/issues/171)) ([784a2cc](https://github.com/groundsgg/minestom-lobby/commit/784a2ccf8392dfe199e3e4600032638cb8766901))
+
 ## [2.5.0](https://github.com/groundsgg/minestom-lobby/compare/v2.4.1...v2.5.0) (2026-10-17)
 
 
