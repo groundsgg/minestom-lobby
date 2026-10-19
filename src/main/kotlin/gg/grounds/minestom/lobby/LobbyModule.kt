@@ -5,12 +5,14 @@ import gg.grounds.minestom.lobby.scene.LobbySceneLoader
 import gg.grounds.minestom.lobby.scene.runtimeRequest
 import gg.grounds.runtime.GroundsModule
 import gg.grounds.runtime.GroundsServerContext
+import gg.grounds.runtime.core.world.GroundsWorld
 import gg.grounds.scene.minestom.SceneRuntimeCreationResult
 import gg.grounds.scene.minestom.SceneRuntimeFactory
 import gg.grounds.scene.minestom.SceneRuntimeRequest
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.TimeUnit
 import net.minestom.server.MinecraftServer
+import net.minestom.server.ServerFlag
 import net.minestom.server.event.Event
 import net.minestom.server.event.EventNode
 import net.minestom.server.thread.MinestomThread
@@ -27,11 +29,14 @@ internal class LobbyModule(
     private var eventNode: EventNode<Event>? = null
     private var spawnCommand: SpawnCommand? = null
     private var sceneHost: LobbySceneHost? = null
+    private var world: LobbyMap? = null
 
     override val id: String = "grounds.lobby"
 
     override fun install(ctx: GroundsServerContext) {
-        val (instanceContainer, spawn, loaded) = createWorld()
+        val created = createWorld()
+        world = created
+        val (instanceContainer, spawn, loaded) = created
         val prepared =
             try {
                 LobbySceneLoader().load(loaded)?.runtimeRequest(instanceContainer, ctx.services)
@@ -72,6 +77,20 @@ internal class LobbyModule(
     override fun start() {
         // GroundsServer invokes module start only after MinecraftServer.start has enabled ticks.
         sceneHost?.start()
+        // Load and light what the first player sees before anyone is there: otherwise the first
+        // join after a restart lights it on the tick and waits seconds on "Loading terrain".
+        world?.let { (instance, spawn) ->
+            val started = System.nanoTime()
+            GroundsWorld.preload(instance, spawn, ServerFlag.CHUNK_VIEW_DISTANCE + 1)
+                .whenComplete { _, error ->
+                    if (error != null) logger.warn("Could not preload the lobby spawn", error)
+                    else
+                        logger.info(
+                            "Preloaded the lobby spawn in {} ms",
+                            (System.nanoTime() - started) / 1_000_000,
+                        )
+                }
+        }
     }
 
     override fun stop() {
