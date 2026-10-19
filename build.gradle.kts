@@ -78,7 +78,7 @@ repositories {
 dependencies {
     implementation(platform("gg.grounds:grounds-dependencies:1.0.0"))
 
-    implementation("gg.grounds:grounds-minestom-runtime-runtime-core:0.11.0")
+    implementation("gg.grounds:grounds-minestom-runtime-runtime-core:0.13.0")
     implementation("gg.grounds:scene-minestom:0.4.3")
     implementation("gg.grounds:resourcepacks-catalog:1.0.0")
     implementation("gg.grounds:plugin-lobby-scene-catalog:2.0.0")
