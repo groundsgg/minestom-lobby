@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.0](https://github.com/groundsgg/minestom-lobby/compare/v2.5.3...v2.6.0) (2026-10-23)
+
+
+### Features
+
+* **lobby:** restart onto a newly pinned lobby map ([#176](https://github.com/groundsgg/minestom-lobby/issues/176)) ([c10ed44](https://github.com/groundsgg/minestom-lobby/commit/c10ed44da6363baf96c5469b37fa469d33538e9d))
+
 ## [2.5.3](https://github.com/groundsgg/minestom-lobby/compare/v2.5.2...v2.5.3) (2026-10-23)
 
 
