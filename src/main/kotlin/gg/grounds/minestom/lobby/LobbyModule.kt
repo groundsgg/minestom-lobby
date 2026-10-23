@@ -1,15 +1,21 @@
 package gg.grounds.minestom.lobby
 
+import gg.grounds.GameServerRetirement
 import gg.grounds.minestom.lobby.scene.LobbySceneHost
 import gg.grounds.minestom.lobby.scene.LobbySceneLoader
 import gg.grounds.minestom.lobby.scene.runtimeRequest
+import gg.grounds.modules.get
 import gg.grounds.runtime.GroundsModule
 import gg.grounds.runtime.GroundsServerContext
 import gg.grounds.runtime.core.world.GroundsWorld
 import gg.grounds.scene.minestom.SceneRuntimeCreationResult
 import gg.grounds.scene.minestom.SceneRuntimeFactory
 import gg.grounds.scene.minestom.SceneRuntimeRequest
+import io.nats.client.Connection
+import io.nats.client.Nats
+import io.nats.client.Options
 import java.util.concurrent.CompletionStage
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import net.minestom.server.MinecraftServer
 import net.minestom.server.ServerFlag
@@ -30,6 +36,7 @@ internal class LobbyModule(
     private var spawnCommand: SpawnCommand? = null
     private var sceneHost: LobbySceneHost? = null
     private var world: LobbyMap? = null
+    private var pinEvents: Connection? = null
 
     override val id: String = "grounds.lobby"
 
@@ -66,6 +73,7 @@ internal class LobbyModule(
         else LobbyEvents.register(node, instanceContainer, spawn, host.ready) { host.isClosed }
         MinecraftServer.getGlobalEventHandler().addChild(node)
         eventNode = node
+        watchPins(loaded, ctx)
 
         logger.info(
             "Installed lobby module successfully (serverType={}, environment={})",
@@ -93,7 +101,46 @@ internal class LobbyModule(
         }
     }
 
+    /**
+     * Retires this lobby when its map is re-pinned; see [LobbyRepin]. Only a published map can be
+     * re-pinned: a lobby on the image's baked-in world got there because the map service was
+     * unreachable, and retiring it would only start another one that cannot reach it either.
+     */
+    private fun watchPins(loaded: LoadedLobbyMap, ctx: GroundsServerContext) {
+        val source = loaded.source as? LobbyMapSource.Published ?: return
+        val natsUrl = System.getenv("NATS_URL")
+        if (natsUrl.isNullOrBlank()) {
+            logger.info("NATS_URL is unset; this lobby keeps its map until restarted")
+            return
+        }
+        val distribution = MapDistribution()
+        val repin =
+            LobbyRepin(
+                source,
+                pinnedOnCdn = { distribution.pinnedDigest(source.address) },
+                // Looked up when needed: the Agones module may install after this one.
+                retire = {
+                    ctx.services.get<GameServerRetirement>()?.retire()
+                        ?: logger.warn("Lobby map re-pinned, but nothing here can retire it")
+                },
+                scheduler =
+                    Executors.newSingleThreadScheduledExecutor { task ->
+                        Thread(task, "grounds-lobby-repin").apply { isDaemon = true }
+                    },
+            )
+        val connection =
+            Nats.connectReconnectOnConnect(
+                Options.Builder().server(natsUrl).connectionName("lobby-pins").build()
+            )
+        connection
+            .createDispatcher { repin.onPinFile(it.data.decodeToString()) }
+            .subscribe("maps.pins.${distribution.environment}")
+        pinEvents = connection
+    }
+
     override fun stop() {
+        pinEvents?.close()
+        pinEvents = null
         // Close the admission gate first, even if an event already captured our listener node.
         val cleanup = sceneHost?.closeAsync()?.toCompletableFuture()
         eventNode?.let(MinecraftServer.getGlobalEventHandler()::removeChild)

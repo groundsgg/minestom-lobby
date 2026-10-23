@@ -86,7 +86,8 @@ dependencies {
     // platform carries an upstream 26.3 release. Keep in step with grounds-vanilla's 26.3 line,
     // which is built on this exact version.
     implementation("net.minestom:minestom:2026.10.07-26.3-grounds")
-    implementation("gg.grounds:plugin-agones-minestom:2.3.0")
+    implementation("gg.grounds:plugin-agones-minestom:3.2.0")
+    implementation("io.nats:jnats")
     implementation("gg.grounds:plugin-permissions-minestom:1.4.2")
     implementation("gg.grounds:plugin-permissions-common:1.4.2")
     // What players do on this server: arrivals, deaths, chat volume, commands. A library, not a
