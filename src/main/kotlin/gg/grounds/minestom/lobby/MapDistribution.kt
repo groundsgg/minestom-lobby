@@ -39,7 +39,7 @@ import org.slf4j.LoggerFactory
  */
 internal class MapDistribution(
     private val cdnBase: String = System.getenv("MAPS_CDN_BASE") ?: DEFAULT_CDN_BASE,
-    private val environment: String = System.getenv("MAPS_ENVIRONMENT") ?: DEFAULT_ENVIRONMENT,
+    val environment: String = System.getenv("MAPS_ENVIRONMENT") ?: DEFAULT_ENVIRONMENT,
     private val cacheDir: Path = Path.of(System.getenv("MAPS_CACHE_DIR") ?: DEFAULT_CACHE_DIR),
 ) {
 
@@ -88,6 +88,9 @@ internal class MapDistribution(
             }
             .onFailure { logger.warn("Could not get {} from the map service", address, it) }
             .getOrNull()
+
+    /** The digest the CDN's pin file names for [address] right now; null when it names none. */
+    fun pinnedDigest(address: String): String? = pin(address)?.bundleSha256
 
     private fun pin(address: String): Pinned? {
         val url = "${cdnBase.trimEnd('/')}/pins/$environment.json"
