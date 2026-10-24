@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.7.2](https://github.com/groundsgg/minestom-lobby/compare/v2.7.1...v2.7.2) (2026-10-24)
+
+
+### Bug Fixes
+
+* plugin-voice 1.0.1, voice secrets for clients that ask before spawning ([#186](https://github.com/groundsgg/minestom-lobby/issues/186)) ([c3416fd](https://github.com/groundsgg/minestom-lobby/commit/c3416fd9ce2f12275d919743180229ae81b86226))
+
 ## [2.7.1](https://github.com/groundsgg/minestom-lobby/compare/v2.7.0...v2.7.1) (2026-10-24)
 
 
