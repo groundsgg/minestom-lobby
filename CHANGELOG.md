@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.7.0](https://github.com/groundsgg/minestom-lobby/compare/v2.6.2...v2.7.0) (2026-10-24)
+
+
+### Features
+
+* select the voice chat provider when VOICE_HOST is set ([#180](https://github.com/groundsgg/minestom-lobby/issues/180)) ([5e12a61](https://github.com/groundsgg/minestom-lobby/commit/5e12a610e7417dfe81846f5f23d003324f347904))
+
 ## [2.6.2](https://github.com/groundsgg/minestom-lobby/compare/v2.6.1...v2.6.2) (2026-10-24)
 
 
