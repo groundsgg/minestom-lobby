@@ -117,6 +117,15 @@ class LobbyRuntimeTest {
     }
 
     @Test
+    fun `lobby selects voice only when the chart configured a voice host`() {
+        assertFalse(selectedRuntimeProviderIds(emptyMap()).contains("grounds.voice"))
+        assertTrue(
+            selectedRuntimeProviderIds(mapOf("VOICE_HOST" to "de-nbg1.voice.stage.grounds.gg:24455"))
+                .contains("grounds.voice")
+        )
+    }
+
+    @Test
     fun `lobby selects agones provider only when sidecar is detected`() {
         val standalone = selectedRuntimeProviderIds(emptyMap())
         val withAgones = selectedRuntimeProviderIds(mapOf("AGONES_SDK_HTTP_PORT" to "9358"))
