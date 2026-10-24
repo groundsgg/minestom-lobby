@@ -105,7 +105,7 @@ dependencies {
     implementation("gg.grounds:plugin-notifications-minestom:0.4.0")
     // Simple Voice Chat for players with the client mod. Selected in LobbyServer only when the
     // chart's voice block sets VOICE_HOST; without it the provider stays out.
-    implementation("gg.grounds:plugin-voice-minestom:0.1.0")
+    implementation("gg.grounds:plugin-voice-minestom:1.0.0")
     // The locked inventory and the slot-9 navigator. Selected unconditionally in
     // LobbyServer: it needs no backing service, and a lobby without it is a lobby a
     // player cannot leave except by disconnecting.
