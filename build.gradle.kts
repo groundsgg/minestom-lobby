@@ -88,8 +88,8 @@ dependencies {
     implementation("net.minestom:minestom:2026.10.07-26.3-grounds")
     implementation("gg.grounds:plugin-agones-minestom:3.2.0")
     implementation("io.nats:jnats")
-    implementation("gg.grounds:plugin-permissions-minestom:1.4.2")
-    implementation("gg.grounds:plugin-permissions-common:1.4.2")
+    implementation("gg.grounds:plugin-permissions-minestom:1.5.0")
+    implementation("gg.grounds:plugin-permissions-common:1.5.0")
     // What players do on this server: arrivals, deaths, chat volume, commands. A library, not a
     // provider — unlike the modules around it nothing discovers it, so AnalyticsModule calls it.
     implementation("gg.grounds:plugin-analytics-minestom:0.2.0")
@@ -111,7 +111,7 @@ dependencies {
     // so they render as a chest for a Java player and as a native form for a Bedrock one.
     // Before that a Bedrock player reached the lobby and found missing-glyph text where
     // the menu should be — which made this the one dependency a Bedrock rollout waits on.
-    implementation("gg.grounds:plugin-lobby-minestom:2.15.0")
+    implementation("gg.grounds:plugin-lobby-minestom:2.16.0")
     // Reads the map's map.json sidecar (the spawn). Minestom pulls gson in transitively;
     // declare it because we use it directly.
     implementation("com.google.code.gson:gson:2.13.2")
