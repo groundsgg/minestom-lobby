@@ -120,7 +120,9 @@ class LobbyRuntimeTest {
     fun `lobby selects voice only when the chart configured a voice host`() {
         assertFalse(selectedRuntimeProviderIds(emptyMap()).contains("grounds.voice"))
         assertTrue(
-            selectedRuntimeProviderIds(mapOf("VOICE_HOST" to "de-nbg1.voice.stage.grounds.gg:24455"))
+            selectedRuntimeProviderIds(
+                    mapOf("VOICE_HOST" to "de-nbg1.voice.stage.grounds.gg:24455")
+                )
                 .contains("grounds.voice")
         )
     }
