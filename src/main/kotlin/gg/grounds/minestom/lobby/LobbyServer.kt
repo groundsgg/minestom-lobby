@@ -69,6 +69,10 @@ internal fun selectedRuntimeProviderIds(env: Map<String, String> = System.getenv
         if (notificationsConfigured) {
             add("grounds.notifications")
         }
+        // Set by the gamemode chart's voice block, together with the relay key and POD_IP.
+        if (!env["VOICE_HOST"].isNullOrBlank()) {
+            add("grounds.voice")
+        }
     }
 
 private fun hasAgonesSidecar(env: Map<String, String>): Boolean =
