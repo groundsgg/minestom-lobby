@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.10.0](https://github.com/groundsgg/minestom-lobby/compare/v2.9.0...v2.10.0) (2026-10-25)
+
+
+### Features
+
+* **settings:** /settings from plugin-player ([#198](https://github.com/groundsgg/minestom-lobby/issues/198)) ([e3b9164](https://github.com/groundsgg/minestom-lobby/commit/e3b9164d8d38c0dca77eaa1becdb4381e0ae6be5))
+
 ## [2.9.0](https://github.com/groundsgg/minestom-lobby/compare/v2.8.2...v2.9.0) (2026-10-25)
 
 
