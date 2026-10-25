@@ -21,6 +21,7 @@ class LobbyRuntimeTest {
             setOf(
                 "grounds.lobby.navigator",
                 "grounds.chat",
+                "grounds.settings",
                 "grounds.agones",
                 "grounds.permissions",
                 "grounds.notifications",
@@ -111,7 +112,7 @@ class LobbyRuntimeTest {
     @Test
     fun `lobby selects navigator before chat without backend configuration`() {
         assertEquals(
-            listOf("grounds.lobby.navigator", "grounds.chat"),
+            listOf("grounds.lobby.navigator", "grounds.chat", "grounds.settings"),
             selectedRuntimeProviderIds(emptyMap()),
         )
     }
@@ -240,6 +241,7 @@ class LobbyRuntimeTest {
             listOf(
                 "grounds.lobby.navigator",
                 "grounds.chat",
+                "grounds.settings",
                 "grounds.agones",
                 "grounds.permissions",
             ),
