@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.10.1](https://github.com/groundsgg/minestom-lobby/compare/v2.10.0...v2.10.1) (2026-10-25)
+
+
+### Bug Fixes
+
+* **deps:** update plugin-player to 1.6.1 ([#200](https://github.com/groundsgg/minestom-lobby/issues/200)) ([3a2aec5](https://github.com/groundsgg/minestom-lobby/commit/3a2aec5402c7446a60aa85b8d20518bf8379da7a))
+
 ## [2.10.0](https://github.com/groundsgg/minestom-lobby/compare/v2.9.0...v2.10.0) (2026-10-25)
 
 
