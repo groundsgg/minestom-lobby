@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.9.0](https://github.com/groundsgg/minestom-lobby/compare/v2.8.2...v2.9.0) (2026-10-25)
+
+
+### Features
+
+* **deps:** update plugin-voice to 1.2.0 ([#196](https://github.com/groundsgg/minestom-lobby/issues/196)) ([a8fca6c](https://github.com/groundsgg/minestom-lobby/commit/a8fca6cfe7041e96fb73ec8157c594852b9d96dc))
+
 ## [2.8.2](https://github.com/groundsgg/minestom-lobby/compare/v2.8.1...v2.8.2) (2026-10-25)
 
 
