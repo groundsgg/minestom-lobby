@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.12.0](https://github.com/groundsgg/minestom-lobby/compare/v2.11.0...v2.12.0) (2026-10-25)
+
+
+### Features
+
+* **deps:** Chat & Voice in /settings (plugin-player 1.7.0, plugin-voice 1.4.0) ([#204](https://github.com/groundsgg/minestom-lobby/issues/204)) ([dfc7317](https://github.com/groundsgg/minestom-lobby/commit/dfc7317cc327444681d321cd2bbba38a01d833d0))
+
 ## [2.11.0](https://github.com/groundsgg/minestom-lobby/compare/v2.10.1...v2.11.0) (2026-10-25)
 
 
