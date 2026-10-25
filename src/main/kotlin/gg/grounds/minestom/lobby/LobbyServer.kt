@@ -60,6 +60,8 @@ internal fun selectedRuntimeProviderIds(env: Map<String, String> = System.getenv
         // Like the navigator it needs no backend — with CHAT_GLOBAL_ENABLED unset it broadcasts
         // inside this lobby instead of failing.
         add("grounds.chat")
+        // `/settings`: without a backend it says the settings cannot be loaded, it does not fail.
+        add("grounds.settings")
         if (hasAgonesSidecar(env)) {
             add("grounds.agones")
         }
