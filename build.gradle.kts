@@ -88,8 +88,8 @@ dependencies {
     implementation("net.minestom:minestom:2026.10.07-26.3-grounds")
     implementation("gg.grounds:plugin-agones-minestom:3.2.0")
     implementation("io.nats:jnats")
-    implementation("gg.grounds:plugin-permissions-minestom:1.5.1")
-    implementation("gg.grounds:plugin-permissions-common:1.5.1")
+    implementation("gg.grounds:plugin-permissions-minestom:1.6.1")
+    implementation("gg.grounds:plugin-permissions-common:1.6.1")
     // What players do on this server: arrivals, deaths, chat volume, commands. A library, not a
     // provider — unlike the modules around it nothing discovers it, so AnalyticsModule calls it.
     implementation("gg.grounds:plugin-analytics-minestom:0.2.0")
@@ -105,7 +105,7 @@ dependencies {
     implementation("gg.grounds:plugin-notifications-minestom:0.4.0")
     // Simple Voice Chat for players with the client mod. Selected in LobbyServer only when the
     // chart's voice block sets VOICE_HOST; without it the provider stays out.
-    implementation("gg.grounds:plugin-voice-minestom:1.4.0")
+    implementation("gg.grounds:plugin-voice-minestom:1.4.1")
     // The locked inventory and the slot-9 navigator. Selected unconditionally in
     // LobbyServer: it needs no backing service, and a lobby without it is a lobby a
     // player cannot leave except by disconnecting.
