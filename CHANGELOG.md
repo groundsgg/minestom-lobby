@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.12.1](https://github.com/groundsgg/minestom-lobby/compare/v2.12.0...v2.12.1) (2026-10-29)
+
+
+### Bug Fixes
+
+* consume shared native status and gray player names ([#206](https://github.com/groundsgg/minestom-lobby/issues/206)) ([b6f1c7e](https://github.com/groundsgg/minestom-lobby/commit/b6f1c7e95f411c193277aee37c6b8a604a7ab085))
+
 ## [2.12.0](https://github.com/groundsgg/minestom-lobby/compare/v2.11.0...v2.12.0) (2026-10-25)
 
 
