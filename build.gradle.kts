@@ -88,8 +88,8 @@ dependencies {
     implementation("net.minestom:minestom:2026.10.07-26.3-grounds")
     implementation("gg.grounds:plugin-agones-minestom:3.2.0")
     implementation("io.nats:jnats")
-    implementation("gg.grounds:plugin-permissions-minestom:1.5.0")
-    implementation("gg.grounds:plugin-permissions-common:1.5.0")
+    implementation("gg.grounds:plugin-permissions-minestom:1.5.1")
+    implementation("gg.grounds:plugin-permissions-common:1.5.1")
     // What players do on this server: arrivals, deaths, chat volume, commands. A library, not a
     // provider — unlike the modules around it nothing discovers it, so AnalyticsModule calls it.
     implementation("gg.grounds:plugin-analytics-minestom:0.2.0")
