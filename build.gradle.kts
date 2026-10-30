@@ -40,7 +40,6 @@ tasks.named<ShadowJar>("shadowJar") {
 }
 
 repositories {
-    mavenLocal()
     mavenCentral()
     // Minestom for Minecraft 26.3: upstream has not released 26.3 yet, so the build comes from
     // our fork's GitHub Packages. Named explicitly, like the other repositories here.
@@ -114,7 +113,7 @@ dependencies {
     // so they render as a chest for a Java player and as a native form for a Bedrock one.
     // Before that a Bedrock player reached the lobby and found missing-glyph text where
     // the menu should be — which made this the one dependency a Bedrock rollout waits on.
-    implementation("gg.grounds:plugin-lobby-minestom:2.20.0")
+    implementation("gg.grounds:plugin-lobby-minestom:2.21.0")
     // `/settings` (and a bare `/region`) on this lobby, the same menu every server shows.
     // Selected unconditionally in LobbyServer; since plugin-lobby 2.20.0 the lobby has no menu
     // of its own.
