@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.13.0](https://github.com/groundsgg/minestom-lobby/compare/v2.12.3...v2.13.0) (2026-10-30)
+
+
+### Features
+
+* **sidebar:** use published compact lobby scoreboard ([#212](https://github.com/groundsgg/minestom-lobby/issues/212)) ([f9f7c53](https://github.com/groundsgg/minestom-lobby/commit/f9f7c53e6469ee6bd0b8dbcba7f94528d128e341))
+
+
+### Bug Fixes
+
+* **deps:** bundle signed player chat 2.16.0 ([#214](https://github.com/groundsgg/minestom-lobby/issues/214)) ([47e5a21](https://github.com/groundsgg/minestom-lobby/commit/47e5a21b8fd3cb56eb2111343f04820104ed36d7))
+
 ## [2.12.3](https://github.com/groundsgg/minestom-lobby/compare/v2.12.2...v2.12.3) (2026-10-30)
 
 
