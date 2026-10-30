@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.12.2](https://github.com/groundsgg/minestom-lobby/compare/v2.12.1...v2.12.2) (2026-10-30)
+
+
+### Performance Improvements
+
+* build on Minestom 2026.10.25b-26.3-grounds ([#208](https://github.com/groundsgg/minestom-lobby/issues/208)) ([9b51826](https://github.com/groundsgg/minestom-lobby/commit/9b51826f7b63345cae00728a35610c9e8367554d))
+
 ## [2.12.1](https://github.com/groundsgg/minestom-lobby/compare/v2.12.0...v2.12.1) (2026-10-29)
 
 
