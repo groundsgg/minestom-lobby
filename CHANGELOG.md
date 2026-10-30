@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.14.0](https://github.com/groundsgg/minestom-lobby/compare/v2.13.0...v2.14.0) (2026-10-30)
+
+
+### Features
+
+* **chat:** enable mention sounds and persistent settings ([#215](https://github.com/groundsgg/minestom-lobby/issues/215)) ([560103d](https://github.com/groundsgg/minestom-lobby/commit/560103d80b92de6c5ca9e8cf065880f08acd4c5f))
+* enable saved scoreboard visibility in settings ([#217](https://github.com/groundsgg/minestom-lobby/issues/217)) ([772b1aa](https://github.com/groundsgg/minestom-lobby/commit/772b1aae2a0b51e2ca8484f15457b2bc5fe121b5))
+
+
+### Bug Fixes
+
+* **deps:** bundle signed conversation chat 2.18.0 ([#218](https://github.com/groundsgg/minestom-lobby/issues/218)) ([3d340fc](https://github.com/groundsgg/minestom-lobby/commit/3d340fc4a1270da93e317bb9a7ffb20633351b30))
+
 ## [2.13.0](https://github.com/groundsgg/minestom-lobby/compare/v2.12.3...v2.13.0) (2026-10-30)
 
 
