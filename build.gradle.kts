@@ -98,7 +98,7 @@ dependencies {
     // 0.2.0 is also the first version with the shared chat line, so a message looks the same
     // whether it crossed the proxy or was broadcast inside this lobby.
     // 2.6.0 applies sender permissions to chat formatting and emoji aliases.
-    implementation("gg.grounds:plugin-chat-minestom:2.16.0")
+    implementation("gg.grounds:plugin-chat-minestom:2.17.0")
     // Shared Mini-CD context and message-level colours for every loaded module.
     implementation("gg.grounds:library-i18n:0.4.4")
     implementation("gg.grounds:plugin-notifications-minestom:0.4.0")
@@ -117,7 +117,7 @@ dependencies {
     // `/settings` (and a bare `/region`) on this lobby, the same menu every server shows.
     // Selected unconditionally in LobbyServer; since plugin-lobby 2.20.0 the lobby has no menu
     // of its own.
-    implementation("gg.grounds:plugin-player-minestom:1.7.1")
+    implementation("gg.grounds:plugin-player-minestom:1.8.0")
     // Reads the map's map.json sidecar (the spawn). Minestom pulls gson in transitively;
     // declare it because we use it directly.
     implementation("com.google.code.gson:gson:2.13.2")
