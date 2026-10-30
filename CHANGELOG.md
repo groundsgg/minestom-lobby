@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.12.3](https://github.com/groundsgg/minestom-lobby/compare/v2.12.2...v2.12.3) (2026-10-30)
+
+
+### Bug Fixes
+
+* **deps:** update plugin-player to 1.7.1 ([#210](https://github.com/groundsgg/minestom-lobby/issues/210)) ([264a856](https://github.com/groundsgg/minestom-lobby/commit/264a856dffdb495af2883f9b446408142fcf9ab3))
+
+## [2.12.2](https://github.com/groundsgg/minestom-lobby/compare/v2.12.1...v2.12.2) (2026-10-30)
+
+
+### Performance Improvements
+
+* build on Minestom 2026.10.25b-26.3-grounds ([#208](https://github.com/groundsgg/minestom-lobby/issues/208)) ([9b51826](https://github.com/groundsgg/minestom-lobby/commit/9b51826f7b63345cae00728a35610c9e8367554d))
+
+## [2.12.1](https://github.com/groundsgg/minestom-lobby/compare/v2.12.0...v2.12.1) (2026-10-29)
+
+
+### Bug Fixes
+
+* consume shared native status and gray player names ([#206](https://github.com/groundsgg/minestom-lobby/issues/206)) ([b6f1c7e](https://github.com/groundsgg/minestom-lobby/commit/b6f1c7e95f411c193277aee37c6b8a604a7ab085))
+
 ## [2.12.0](https://github.com/groundsgg/minestom-lobby/compare/v2.11.0...v2.12.0) (2026-10-25)
 
 

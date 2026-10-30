@@ -85,11 +85,11 @@ dependencies {
     // Minecraft 26.3. Overrides the 26.2 Minestom in grounds-dependencies 1.0.0 until that
     // platform carries an upstream 26.3 release. Keep in step with grounds-vanilla's 26.3 line,
     // which is built on this exact version.
-    implementation("net.minestom:minestom:2026.10.07-26.3-grounds")
+    implementation("net.minestom:minestom:2026.10.25b-26.3-grounds")
     implementation("gg.grounds:plugin-agones-minestom:3.2.0")
     implementation("io.nats:jnats")
-    implementation("gg.grounds:plugin-permissions-minestom:1.5.0")
-    implementation("gg.grounds:plugin-permissions-common:1.5.0")
+    implementation("gg.grounds:plugin-permissions-minestom:1.6.1")
+    implementation("gg.grounds:plugin-permissions-common:1.6.1")
     // What players do on this server: arrivals, deaths, chat volume, commands. A library, not a
     // provider — unlike the modules around it nothing discovers it, so AnalyticsModule calls it.
     implementation("gg.grounds:plugin-analytics-minestom:0.2.0")
@@ -105,7 +105,7 @@ dependencies {
     implementation("gg.grounds:plugin-notifications-minestom:0.4.0")
     // Simple Voice Chat for players with the client mod. Selected in LobbyServer only when the
     // chart's voice block sets VOICE_HOST; without it the provider stays out.
-    implementation("gg.grounds:plugin-voice-minestom:1.4.0")
+    implementation("gg.grounds:plugin-voice-minestom:1.4.2")
     // The locked inventory and the slot-9 navigator. Selected unconditionally in
     // LobbyServer: it needs no backing service, and a lobby without it is a lobby a
     // player cannot leave except by disconnecting.
@@ -118,7 +118,7 @@ dependencies {
     // `/settings` (and a bare `/region`) on this lobby, the same menu every server shows.
     // Selected unconditionally in LobbyServer; since plugin-lobby 2.20.0 the lobby has no menu
     // of its own.
-    implementation("gg.grounds:plugin-player-minestom:1.7.0")
+    implementation("gg.grounds:plugin-player-minestom:1.7.1")
     // Reads the map's map.json sidecar (the spawn). Minestom pulls gson in transitively;
     // declare it because we use it directly.
     implementation("com.google.code.gson:gson:2.13.2")
