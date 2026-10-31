@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.14.3](https://github.com/groundsgg/minestom-lobby/compare/v2.14.2...v2.14.3) (2026-10-31)
+
+
+### Bug Fixes
+
+* **deps:** include immediate localized scoreboard updates ([#223](https://github.com/groundsgg/minestom-lobby/issues/223)) ([10675a6](https://github.com/groundsgg/minestom-lobby/commit/10675a69ae7a2c40b9ba9058168ab42193fb0cc3))
+
 ## [2.14.2](https://github.com/groundsgg/minestom-lobby/compare/v2.14.1...v2.14.2) (2026-10-31)
 
 
