@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.14.2](https://github.com/groundsgg/minestom-lobby/compare/v2.14.1...v2.14.2) (2026-10-31)
+
+
+### Bug Fixes
+
+* **deps:** bundle functional alert settings 1.10.0 ([#221](https://github.com/groundsgg/minestom-lobby/issues/221)) ([49d543d](https://github.com/groundsgg/minestom-lobby/commit/49d543de64d457d942416c674d1901d75b984467))
+
 ## [2.14.1](https://github.com/groundsgg/minestom-lobby/compare/v2.14.0...v2.14.1) (2026-10-31)
 
 
