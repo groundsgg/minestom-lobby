@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.14.1](https://github.com/groundsgg/minestom-lobby/compare/v2.14.0...v2.14.1) (2026-10-31)
+
+
+### Bug Fixes
+
+* **deps:** bundle recipient-scoped chat mentions 2.18.2 ([#219](https://github.com/groundsgg/minestom-lobby/issues/219)) ([4540c13](https://github.com/groundsgg/minestom-lobby/commit/4540c1368b0473986a75a7533dd527549c4368a8))
+
 ## [2.14.0](https://github.com/groundsgg/minestom-lobby/compare/v2.13.0...v2.14.0) (2026-10-30)
 
 
