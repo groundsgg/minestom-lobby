@@ -10,6 +10,7 @@ import net.minestom.server.event.EventDispatcher
 import net.minestom.server.event.EventFilter
 import net.minestom.server.event.EventNode
 import net.minestom.server.event.player.PlayerEntityInteractEvent
+import net.minestom.server.network.packet.server.play.EntityPositionSyncPacket
 import net.minestom.server.network.packet.server.play.SetPassengersPacket
 import net.minestom.server.network.packet.server.play.SpawnEntityPacket
 import org.junit.jupiter.api.Assertions.*
@@ -53,6 +54,115 @@ class NativeSolidPocTest {
     }
 
     @Test
+    fun `deferred mounted pose is not sent after viewer leaves`() {
+        MinecraftServer.init()
+        RendererFixture().use { fixture ->
+            val player = fixture.player(Pos(1000.0, 173.0, 1000.0))
+            readyProbe(fixture).use {
+                val bodyIds = nativeBodies(fixture).map { it.entityId }.toSet()
+                val carrierIds = nativeBodies(fixture).map { it.vehicle!!.entityId }.toSet()
+                player.teleport(Pos(1.25, 173.0, 5.0)).join()
+                player.teleport(Pos(1000.0, 173.0, 1000.0)).join()
+                player.connection.packets.clear()
+
+                fixture.instance.tick(20_000L)
+
+                assertTrue(
+                    player.connection.packets.none {
+                        it is EntityPositionSyncPacket && it.entityId() in bodyIds ||
+                            it is SetPassengersPacket && it.vehicleEntityId() in carrierIds
+                    },
+                    "A departed viewer must not receive a deferred mount or pose",
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `deferred mounted pose is not sent after probe closes`() {
+        MinecraftServer.init()
+        RendererFixture().use { fixture ->
+            val player = fixture.player(Pos(1000.0, 173.0, 1000.0))
+            readyProbe(fixture).use { probe ->
+                val bodies = nativeBodies(fixture)
+                val bodyIds = bodies.map { it.entityId }.toSet()
+                val carrierIds = bodies.map { it.vehicle!!.entityId }.toSet()
+                player.teleport(Pos(1.25, 173.0, 5.0)).join()
+                probe.close()
+                player.connection.packets.clear()
+
+                fixture.instance.tick(20_000L)
+
+                assertTrue(bodies.all { it.isRemoved })
+                assertTrue(
+                    player.connection.packets.none {
+                        it is EntityPositionSyncPacket && it.entityId() in bodyIds ||
+                            it is SetPassengersPacket && it.vehicleEntityId() in carrierIds
+                    },
+                    "A closed probe must not reassert removed entities",
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `rapid viewer reentry coalesces pending mounted poses to the newest spawn`() {
+        MinecraftServer.init()
+        RendererFixture().use { fixture ->
+            val player = fixture.player(Pos(1000.0, 173.0, 1000.0))
+            readyProbe(fixture).use {
+                val bodies = nativeBodies(fixture)
+                player.connection.packets.clear()
+                player.teleport(Pos(1.25, 173.0, 5.0)).join()
+                player.teleport(Pos(1000.0, 173.0, 1000.0)).join()
+                player.teleport(Pos(1.25, 173.0, 5.0)).join()
+
+                fixture.instance.tick(20_000L)
+
+                val packets = player.connection.packets.toList()
+                for (body in bodies) {
+                    val carrier = body.vehicle!!
+                    val poses =
+                        packets.withIndex().filter {
+                            it.value is EntityPositionSyncPacket &&
+                                (it.value as EntityPositionSyncPacket).entityId() == body.entityId
+                        }
+                    val spawn =
+                        packets.indexOfLast {
+                            it is SpawnEntityPacket && it.entityId() == body.entityId
+                        }
+                    val mount =
+                        packets.indexOfLast {
+                            it is SetPassengersPacket &&
+                                it.vehicleEntityId() == carrier.entityId &&
+                                body.entityId in it.passengersId()
+                        }
+                    assertEquals(1, poses.size, "Stale entry callback sent another pose")
+                    assertTrue(spawn >= 0 && mount > spawn && poses.single().index > mount)
+                }
+            }
+        }
+    }
+
+    private fun nativeBodies(fixture: RendererFixture) =
+        fixture.instance.entities.filterIsInstance<LivingEntity>().filter {
+            it.entityType == EntityType.SHULKER
+        }
+
+    private fun readyProbe(fixture: RendererFixture): NativeSolidPoc {
+        val probe = NativeSolidPoc(fixture.instance, npc())
+        val ready = probe.start()
+        repeat(200) {
+            if (!ready.isDone) {
+                fixture.instance.tick(it * 50L)
+                Thread.yield()
+            }
+        }
+        ready.join()
+        return probe
+    }
+
+    @Test
     fun `native colliders are invisible scaled mounted and clean up while clicks reach the scene anchor`() {
         MinecraftServer.init()
         RendererFixture().use { fixture ->
@@ -75,6 +185,7 @@ class NativeSolidPocTest {
                 }
             }
             ready.join()
+            fixture.instance.tick(10_000L)
             val bodies =
                 fixture.instance.entities.filterIsInstance<LivingEntity>().filter {
                     it.entityType == EntityType.SHULKER
@@ -104,6 +215,14 @@ class NativeSolidPocTest {
                             it.vehicleEntityId() == carrier.entityId &&
                             body.entityId in it.passengersId()
                     }
+                val position =
+                    initialPackets.indexOfLast {
+                        it is EntityPositionSyncPacket && it.entityId() == body.entityId
+                    }
+                assertTrue(
+                    position > mount,
+                    "Mounted collider needs an explicit position after the mount: position=$position mount=$mount",
+                )
                 assertTrue(
                     bodySpawn >= 0 &&
                         carrierSpawn >= 0 &&
@@ -115,8 +234,10 @@ class NativeSolidPocTest {
             val lateViewer = fixture.player(Pos(1000.0, 173.0, 1000.0))
             // Exercise automatic tracking; Entity.addViewer is a single-entity manual API.
             lateViewer.teleport(Pos(1.25, 173.0, 5.0)).join()
+            fixture.instance.tick(10_050L)
             lateViewer.teleport(Pos(1000.0, 173.0, 1000.0)).join()
             lateViewer.teleport(Pos(1.25, 173.0, 5.0)).join()
+            fixture.instance.tick(10_100L)
             bodies.forEach { body ->
                 assertTrue(
                     body.isInvisible && body.isSilent && body.isInvulnerable && body.hasNoGravity()
@@ -137,6 +258,14 @@ class NativeSolidPocTest {
                     packets.indexOfLast {
                         it is SpawnEntityPacket && it.entityId() == vehicle.entityId
                     }
+                val position =
+                    packets.indexOfLast {
+                        it is EntityPositionSyncPacket && it.entityId() == body.entityId
+                    }
+                assertTrue(
+                    position > mount,
+                    "Retracked collider needs an explicit position after mounting: position=$position mount=$mount",
+                )
                 assertTrue(
                     mount > bodySpawn &&
                         bodySpawn >= 0 &&
