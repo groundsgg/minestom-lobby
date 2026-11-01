@@ -1,0 +1,218 @@
+package gg.grounds.minestom.lobby.scene
+
+import gg.grounds.scene.format.*
+import java.util.concurrent.CompletableFuture
+import kotlin.math.*
+import net.minestom.server.collision.BoundingBox
+import net.minestom.server.coordinate.Pos
+import net.minestom.server.coordinate.Vec
+import net.minestom.server.entity.*
+import net.minestom.server.entity.attribute.Attribute
+import net.minestom.server.entity.metadata.golem.ShulkerMeta
+import net.minestom.server.event.EventDispatcher
+import net.minestom.server.event.EventFilter
+import net.minestom.server.event.EventNode
+import net.minestom.server.event.entity.EntityAttackEvent
+import net.minestom.server.event.player.PlayerEntityInteractEvent
+import net.minestom.server.instance.Instance
+import net.minestom.server.utils.Direction
+import net.minestom.server.utils.entity.EntityUtils
+
+/** Stage spike: only the fixed demo-solid station. The Scene collision guard stays active. */
+internal class NativeSolidPoc(private val instance: Instance, private val npc: Npc) :
+    AutoCloseable {
+    val cubes = nativeSolidCubes(npc)
+
+    private data class Pairing(val anchor: Entity, val body: LivingEntity, val position: Pos)
+
+    private val pairs =
+        cubes.map { cube ->
+            val anchor =
+                Entity(EntityType.BLOCK_DISPLAY).apply {
+                    setNoGravity(true)
+                    setHasPhysics(false)
+                    setAutoViewable(false)
+                    boundingBox = BoundingBox(0.0, 0.0, 0.0)
+                }
+            val body =
+                LivingEntity(EntityType.SHULKER).apply {
+                    setNoGravity(true)
+                    setHasPhysics(false)
+                    setAutoViewable(false)
+                    isInvisible = true
+                    isSilent = true
+                    isInvulnerable = true
+                    getAttribute(Attribute.SCALE).baseValue = cube.side
+                    boundingBox = BoundingBox(cube.side, cube.side, cube.side)
+                    (entityMeta as ShulkerMeta).apply {
+                        attachFace = Direction.DOWN
+                        shieldHeight = 0
+                    }
+                }
+            Pairing(anchor, body, Pos(cube.x, cube.y, cube.z))
+        }
+    private val bodies = pairs.map { it.body.uuid }.toSet()
+    private val node = EventNode.type("native-solid-poc", EventFilter.INSTANCE)
+    @Volatile private var closed = false
+    private var started = false
+    val ready = CompletableFuture<Void>()
+
+    @Synchronized
+    fun start(): CompletableFuture<Void> {
+        check(!started && !closed)
+        started = true
+        node.addListener(PlayerEntityInteractEvent::class.java) { event ->
+            if (!closed && event.target.uuid in bodies)
+                sceneAnchor()?.let { target ->
+                    EventDispatcher.call(
+                        PlayerEntityInteractEvent(event.player, target, event.hand, Vec.ZERO)
+                    )
+                }
+        }
+        node.addListener(EntityAttackEvent::class.java) { event ->
+            if (!closed && event.target.uuid in bodies && event.entity is Player)
+                sceneAnchor()?.let { target ->
+                    EventDispatcher.call(EntityAttackEvent(event.entity, target))
+                }
+        }
+        instance.eventNode().addChild(node)
+        val attachments =
+            pairs.flatMap { pair ->
+                val offset = EntityUtils.getPassengerPositionOffset(pair.anchor, pair.body, 0)
+                listOf(
+                    attach(pair.anchor, pair.position.sub(offset)),
+                    attach(pair.body, pair.position),
+                )
+            }
+        CompletableFuture.allOf(*attachments.toTypedArray()).whenComplete { _, failure ->
+            if (closed || failure != null) {
+                ready.completeExceptionally(
+                    failure ?: IllegalStateException("Native collision probe closed")
+                )
+                close()
+                return@whenComplete
+            }
+            instance.scheduler().scheduleNextTick {
+                synchronized(this) {
+                    if (closed) {
+                        close()
+                        ready.completeExceptionally(
+                            failure ?: IllegalStateException("Native collision probe closed")
+                        )
+                    } else
+                        try {
+                            pairs.forEach { pair ->
+                                pair.anchor.addPassenger(pair.body)
+                                check(pair.body.position.distance(pair.position) < 1e-6) {
+                                    "Carrier offset differs from collider position"
+                                }
+                                pair.anchor.isAutoViewable = true
+                                pair.body.isAutoViewable = true
+                            }
+                            ready.complete(null)
+                        } catch (error: Throwable) {
+                            close()
+                            ready.completeExceptionally(error)
+                        }
+                }
+            }
+        }
+        return ready
+    }
+
+    private fun attach(entity: Entity, position: Pos): CompletableFuture<Void> {
+        val stage =
+            try {
+                entity.setInstance(instance, position)
+            } catch (error: Throwable) {
+                CompletableFuture.failedFuture<Void>(error)
+            }
+        return stage.whenComplete { _, error ->
+            if (error != null) {
+                ready.completeExceptionally(error)
+                close()
+            }
+            if (closed) entity.remove()
+        }
+    }
+
+    private fun sceneAnchor(): Entity? {
+        val expected = nativeSolidCenter(npc)
+        return instance.entities.firstOrNull {
+            it.entityType == EntityType.INTERACTION &&
+                it.position.distance(expected) < 1e-4 &&
+                it.boundingBox.height() > 0
+        }
+    }
+
+    @Synchronized
+    override fun close() {
+        closed = true
+        ready.completeExceptionally(IllegalStateException("Native collision probe closed"))
+        instance.eventNode().removeChild(node)
+        pairs.forEach {
+            it.body.remove()
+            it.anchor.remove()
+        }
+    }
+}
+
+internal data class NativeSolidCube(val x: Double, val y: Double, val z: Double, val side: Double)
+
+private fun nativeSolidBounds(npc: Npc): Pair<Vec3, Vec3> {
+    require(npc.look == LookBehavior.Fixed && npc.collision.mode == NpcCollisionMode.SOLID)
+    val t = npc.transform
+    require(t.rotation.pitch == 0.0 && t.rotation.roll == 0.0)
+    val yaw = Math.toRadians(t.rotation.yaw)
+    val c = cos(yaw)
+    val s = sin(yaw)
+    val points = buildList {
+        for (x in listOf(-0.5, 0.5)) for (y in listOf(-0.5, 0.5)) for (z in listOf(-0.5, 0.5)) {
+            val b = npc.interactionBounds
+            val px = (b.center.x + b.size.x * x) * t.scale.x
+            val py = (b.center.y + b.size.y * y) * t.scale.y
+            val pz = (b.center.z + b.size.z * z) * t.scale.z
+            add(
+                Vec3(
+                    t.position.x + c * px + s * pz,
+                    t.position.y + py,
+                    t.position.z - s * px + c * pz,
+                )
+            )
+        }
+    }
+    return Vec3(points.minOf { it.x }, points.minOf { it.y }, points.minOf { it.z }) to
+        Vec3(points.maxOf { it.x }, points.maxOf { it.y }, points.maxOf { it.z })
+}
+
+private fun nativeSolidCenter(npc: Npc): Pos {
+    val (a, b) = nativeSolidBounds(npc)
+    return Pos((a.x + b.x) / 2, a.y, (a.z + b.z) / 2)
+}
+
+internal fun nativeSolidCubes(npc: Npc): List<NativeSolidCube> {
+    val (a, b) = nativeSolidBounds(npc)
+    // A tiny contact skin keeps legitimate client sliding outside the legacy correction guard.
+    val skin = 0.004
+    val width = b.x - a.x + skin * 2
+    val height = b.y - a.y
+    val depth = b.z - a.z + skin * 2
+    val side = minOf(width, height, depth).toFloat().toDouble()
+    require(side.isFinite() && side >= 0.0625 && side <= 16.0)
+    val nx = ceil(width / side).toInt()
+    val ny = ceil(height / side).toInt()
+    val nz = ceil(depth / side).toInt()
+    require(nx.toLong() * ny * nz <= 32) { "Native collision spike supports at most 32 cubes" }
+    fun at(min: Double, length: Double, n: Int, i: Int) =
+        min + if (n == 1) 0.0 else (length - side) * i / (n - 1)
+    return buildList {
+        for (x in 0 until nx) for (y in 0 until ny) for (z in 0 until nz) add(
+            NativeSolidCube(
+                at(a.x - skin, width, nx, x) + side / 2,
+                at(a.y, height, ny, y),
+                at(a.z - skin, depth, nz, z) + side / 2,
+                side,
+            )
+        )
+    }
+}

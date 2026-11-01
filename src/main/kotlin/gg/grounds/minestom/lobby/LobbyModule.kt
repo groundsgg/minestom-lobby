@@ -41,6 +41,7 @@ internal class LobbyModule(
     private var pinEvents: Connection? = null
     private var demoAccess: StageNpcDemoAccess? = null
     private var demoCommand: StageNpcDemoCommand? = null
+    private var nativeSolidPoc: gg.grounds.minestom.lobby.scene.NativeSolidPoc? = null
 
     override val id: String = "grounds.lobby"
 
@@ -72,6 +73,14 @@ internal class LobbyModule(
             }
         val host =
             prepared?.let { request -> LobbySceneHost({ createRuntime(request) }, fatalStop) }
+        if (System.getenv("GROUNDS_NPC_NATIVE_SOLID_POC") == "true") {
+            require(demoEnabled) { "Native SOLID probe requires the Stage demo" }
+            val npc =
+                prepared!!.scene.elements.filterIsInstance<gg.grounds.scene.format.Npc>().single {
+                    it.id.value == "demo-solid"
+                }
+            nativeSolidPoc = gg.grounds.minestom.lobby.scene.NativeSolidPoc(instanceContainer, npc)
+        }
         sceneHost = host
         if (prepared != null)
             logger.info(
@@ -133,6 +142,19 @@ internal class LobbyModule(
     override fun start() {
         // GroundsServer invokes module start only after MinecraftServer.start has enabled ticks.
         sceneHost?.start()
+        nativeSolidPoc?.let { probe ->
+            sceneHost!!
+                .ready
+                .thenCompose { probe.start() }
+                .whenComplete { _, error ->
+                    if (error != null) logger.warn("Native SOLID probe could not start", error)
+                    else
+                        logger.info(
+                            "Native SOLID probe ready (station=demo-solid, cubes={})",
+                            probe.cubes.size,
+                        )
+                }
+        }
         // Load and light what the first player sees before anyone is there: otherwise the first
         // join after a restart lights it on the tick and waits seconds on "Loading terrain".
         world?.let { (instance, spawn) ->
@@ -187,6 +209,8 @@ internal class LobbyModule(
     }
 
     override fun stop() {
+        nativeSolidPoc?.close()
+        nativeSolidPoc = null
         demoCommand?.let(MinecraftServer.getCommandManager()::unregister)
         demoCommand = null
         demoAccess?.close()
