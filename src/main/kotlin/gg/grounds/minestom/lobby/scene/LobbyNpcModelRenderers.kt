@@ -111,7 +111,7 @@ private class AnimatedNpcHandle(
     private val displays: List<NpcItemDisplay>,
     private var transform: SceneRenderTransform,
     private val effects: LobbySceneEffects,
-) : RenderedAssetHandle {
+) : HeadLookRenderedAssetHandle {
     private var closed = false
     private var revision = 0L
     private var requested: String? = null
@@ -121,6 +121,25 @@ private class AnimatedNpcHandle(
     private var nextVariation = 20_000L
     private val highlighted = mutableSetOf<UUID>()
     private val viewerScales = mutableMapOf<UUID, Double>()
+    private var headLook = Vec3(0.0, 0.0, 0.0)
+
+    override val headLookOrigin: Vec3?
+        get() =
+            model.headBone?.let { bone ->
+                // Imported bones face -Z; the model-facing correction makes Scene forward +Z.
+                Vec3(-bone.origin.x, bone.origin.y + 0.15, -bone.origin.z)
+            }
+
+    override fun applyHeadLook(yawDegrees: Double, pitchDegrees: Double) {
+        synchronized(lock) {
+            if (closed) return
+            // Conjugating by the model's Y180 facing correction reverses the pitch axis.
+            val next = Vec3(-pitchDegrees, yawDegrees, 0.0)
+            if (headLook == next) return
+            headLook = next
+            advance(elapsed, true)
+        }
+    }
 
     init {
         displays.forEach { display ->
@@ -249,7 +268,7 @@ private class AnimatedNpcHandle(
 
     private fun render(name: String?, seconds: Double) {
         val facing = NpcMatrix.rotation(Vec3(0.0, 180.0, 0.0))
-        val pose = model.itemDisplayPose(name, seconds)
+        val pose = model.itemDisplayPose(name, seconds, headLook)
         displays.forEachIndexed { index, display ->
             display.editEntityMeta(ItemDisplayMeta::class.java) { meta ->
                 if (

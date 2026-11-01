@@ -58,7 +58,8 @@ internal fun migrateQueueNpcScene(
                 transform =
                     Transform(
                         Vec3(placement.x, 140.0, placement.z),
-                        EulerRotation(-placement.yaw, placement.pitch, 0.0),
+                        // Villager pitch moved its head; a model root pitch tilts its entire body.
+                        EulerRotation(-placement.yaw, 0.0, 0.0),
                         Vec3(1.0, 1.0, 1.0),
                     ),
                 body = body,
@@ -175,18 +176,17 @@ private data class QueueNpcPlacement(
     val x: Double,
     val z: Double,
     val yaw: Double,
-    val pitch: Double,
 )
 
-// Exact positions and facing from Hendrik's QueueNpcs (plugin-lobby PR 102).
+// Exact positions and horizontal facing from Hendrik's QueueNpcs (plugin-lobby PR 102).
 private val QUEUE_NPC_PLACEMENTS =
     listOf(
-        QueueNpcPlacement(null, "Duels", -7.5, 73.5, -9.89, -7.35),
-        QueueNpcPlacement("bedwars-2x1", "BedWars 2x1", -6.5, 71.5, -6.74, -6.75),
-        QueueNpcPlacement("bedwars-squads", "BedWars Squads", -4.5, 70.5, -2.24, -6.45),
-        QueueNpcPlacement("keystone-2x1", "Keystone 2x1", -2.5, 70.5, 2.56, -6.45),
-        QueueNpcPlacement("getdown", "GetDown", -0.5, 71.5, 7.21, -6.9),
-        QueueNpcPlacement("survivalgames-solo", "SurvivalGames", 0.5, 73.5, 10.06, -7.35),
+        QueueNpcPlacement(null, "Duels", -7.5, 73.5, -9.89),
+        QueueNpcPlacement("bedwars-2x1", "BedWars 2x1", -6.5, 71.5, -6.74),
+        QueueNpcPlacement("bedwars-squads", "BedWars Squads", -4.5, 70.5, -2.24),
+        QueueNpcPlacement("keystone-2x1", "Keystone 2x1", -2.5, 70.5, 2.56),
+        QueueNpcPlacement("getdown", "GetDown", -0.5, 71.5, 7.21),
+        QueueNpcPlacement("survivalgames-solo", "SurvivalGames", 0.5, 73.5, 10.06),
     )
 
 internal fun writeQueueNpcScene(

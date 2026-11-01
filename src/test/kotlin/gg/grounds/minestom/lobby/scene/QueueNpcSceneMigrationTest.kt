@@ -107,6 +107,10 @@ class QueueNpcSceneMigrationTest {
             npcs.map { it.transform.position.z },
         )
         assertTrue(npcs.all { it.transform.position.y == 140.0 })
+        assertTrue(
+            npcs.all { it.transform.rotation.pitch == 0.0 },
+            "Queue model bodies stay upright",
+        )
         // Scene yaw rotates +Z towards +X; Minestom's entity yaw uses the opposite sign.
         listOf(9.89, 6.74, 2.24, -2.56, -7.21, -10.06).zip(npcs).forEach { (yaw, npc) ->
             assertEquals(yaw, npc.transform.rotation.yaw, 1e-9)
