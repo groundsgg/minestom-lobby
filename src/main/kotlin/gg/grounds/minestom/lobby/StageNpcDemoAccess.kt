@@ -28,7 +28,11 @@ import net.minestom.server.instance.Instance
 
 internal fun stageNpcDemoEnabled(environment: Map<String, String> = System.getenv()): Boolean {
     if (environment["GROUNDS_NPC_DEMO_ENABLED"] != "true") return false
-    require(environment["MAPS_ENVIRONMENT"] == "stage") { "NPC demo may only activate on Stage" }
+    // MAPS_ENVIRONMENT selects a dataset pin and may name an isolated acceptance pin.
+    // Permissions use the deployment's actual environment identity.
+    require(environment["GROUNDS_PERMISSION_ENVIRONMENT"] == "stage") {
+        "NPC demo may only activate on Stage"
+    }
     return true
 }
 

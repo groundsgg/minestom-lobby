@@ -81,6 +81,10 @@ internal class LobbyPlaceholderRenderers(private val assets: AssetCatalog) :
 }
 
 internal class HighlightableBlockDisplay : Entity(EntityType.BLOCK_DISPLAY) {
+    init {
+        setNoGravity(true)
+    }
+
     // Never detach this monitor: tracking callbacks can already be waiting when close runs.
     val viewerLock = Any()
     var viewerState: ((net.minestom.server.entity.Player) -> Unit)? = null

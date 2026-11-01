@@ -62,15 +62,43 @@ class StageNpcDemoAccessTest {
     @Test
     fun `demo configuration cannot activate outside stage`() {
         assertFalse(stageNpcDemoEnabled(emptyMap()))
-        assertFalse(stageNpcDemoEnabled(mapOf("MAPS_ENVIRONMENT" to "stage")))
+        assertFalse(stageNpcDemoEnabled(mapOf("GROUNDS_PERMISSION_ENVIRONMENT" to "stage")))
         assertTrue(
             stageNpcDemoEnabled(
-                mapOf("MAPS_ENVIRONMENT" to "stage", "GROUNDS_NPC_DEMO_ENABLED" to "true")
+                mapOf(
+                    "GROUNDS_PERMISSION_ENVIRONMENT" to "stage",
+                    "GROUNDS_NPC_DEMO_ENABLED" to "true",
+                )
             )
         )
         assertThrows(IllegalArgumentException::class.java) {
             stageNpcDemoEnabled(
-                mapOf("MAPS_ENVIRONMENT" to "prod", "GROUNDS_NPC_DEMO_ENABLED" to "true")
+                mapOf(
+                    "GROUNDS_PERMISSION_ENVIRONMENT" to "prod",
+                    "GROUNDS_NPC_DEMO_ENABLED" to "true",
+                )
+            )
+        }
+    }
+
+    @Test
+    fun `stage identity permits an isolated map pin without accepting production identity`() {
+        assertTrue(
+            stageNpcDemoEnabled(
+                mapOf(
+                    "GROUNDS_PERMISSION_ENVIRONMENT" to "stage",
+                    "MAPS_ENVIRONMENT" to "stage-npc-poc",
+                    "GROUNDS_NPC_DEMO_ENABLED" to "true",
+                )
+            )
+        )
+        assertThrows(IllegalArgumentException::class.java) {
+            stageNpcDemoEnabled(
+                mapOf(
+                    "GROUNDS_PERMISSION_ENVIRONMENT" to "prod",
+                    "MAPS_ENVIRONMENT" to "stage",
+                    "GROUNDS_NPC_DEMO_ENABLED" to "true",
+                )
             )
         }
     }

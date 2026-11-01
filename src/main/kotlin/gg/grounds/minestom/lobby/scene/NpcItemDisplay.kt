@@ -26,6 +26,7 @@ internal class NpcItemDisplay(private val lock: Any) : Entity(EntityType.ITEM_DI
             }
         }
         entityMeta = ItemDisplayMeta(this, metadata)
+        setNoGravity(true)
     }
 
     private fun personalized(
