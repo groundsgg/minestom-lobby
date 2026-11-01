@@ -11,17 +11,21 @@ import net.minestom.server.entity.attribute.Attribute
 import net.minestom.server.entity.metadata.golem.ShulkerMeta
 import net.minestom.server.event.EventDispatcher
 import net.minestom.server.event.EventFilter
+import net.minestom.server.event.EventListener
 import net.minestom.server.event.EventNode
 import net.minestom.server.event.entity.EntityAttackEvent
 import net.minestom.server.event.player.PlayerEntityInteractEvent
+import net.minestom.server.event.player.PlayerMoveEvent
 import net.minestom.server.instance.Instance
 import net.minestom.server.utils.Direction
 import net.minestom.server.utils.entity.EntityUtils
+import org.slf4j.LoggerFactory
 
 /** Stage spike: only the fixed demo-solid station. The Scene collision guard stays active. */
 internal class NativeSolidPoc(private val instance: Instance, private val npc: Npc) :
     AutoCloseable {
     val cubes = nativeSolidCubes(npc)
+    private val diagnosticCenter = nativeSolidCenter(npc)
 
     private data class Pairing(val anchor: Entity, val body: LivingEntity, val position: Pos)
 
@@ -53,6 +57,16 @@ internal class NativeSolidPoc(private val instance: Instance, private val npc: N
         }
     private val bodies = pairs.map { it.body.uuid }.toSet()
     private val node = EventNode.type("native-solid-poc", EventFilter.INSTANCE)
+    private val beforeMove =
+        EventNode.type("native-solid-inspect-before", EventFilter.INSTANCE)
+            .setPriority(Int.MIN_VALUE)
+    private val afterMove =
+        EventNode.type("native-solid-inspect-after", EventFilter.INSTANCE)
+            .setPriority(Int.MAX_VALUE)
+    private val movements = mutableMapOf<java.util.UUID, Pair<Pos, Pos>>()
+    private val inspected = mutableSetOf<java.util.UUID>()
+    private var diagnosticBudget = 30
+    private var lastDiagnostic = 0L
     @Volatile private var closed = false
     private var started = false
     val ready = CompletableFuture<Void>()
@@ -61,6 +75,48 @@ internal class NativeSolidPoc(private val instance: Instance, private val npc: N
     fun start(): CompletableFuture<Void> {
         check(!started && !closed)
         started = true
+        beforeMove.addListener(PlayerMoveEvent::class.java) { event ->
+            if (
+                !closed &&
+                    ready.isDone &&
+                    !ready.isCompletedExceptionally &&
+                    diagnosticBudget > 0 &&
+                    event.player.position.distance(diagnosticCenter) < 8.0
+            )
+                movements[event.player.uuid] = event.player.position to event.newPosition
+        }
+        afterMove.addListener(
+            EventListener.builder(PlayerMoveEvent::class.java)
+                .ignoreCancelled(false)
+                .handler { event ->
+                    val move = movements.remove(event.player.uuid) ?: return@handler
+                    val corrected = event.isCancelled || move.second != event.newPosition
+                    val now = System.nanoTime()
+                    if (
+                        diagnosticBudget > 0 &&
+                            (event.player.uuid !in inspected ||
+                                now - lastDiagnostic >= 1_000_000_000L)
+                    ) {
+                        diagnosticBudget--
+                        inspected.add(event.player.uuid)
+                        lastDiagnostic = now
+                        LoggerFactory.getLogger(NativeSolidPoc::class.java)
+                            .info(
+                                "Native SOLID diagnostic playerEntity={} old={} requested={} eventPosition={} cancelled={} corrected={} state={}",
+                                event.player.entityId,
+                                move.first,
+                                move.second,
+                                event.newPosition,
+                                event.isCancelled,
+                                corrected,
+                                inspect(event.player),
+                            )
+                    }
+                }
+                .build()
+        )
+        instance.eventNode().addChild(beforeMove)
+        instance.eventNode().addChild(afterMove)
         node.addListener(PlayerEntityInteractEvent::class.java) { event ->
             if (!closed && event.target.uuid in bodies)
                 sceneAnchor()?.let { target ->
@@ -120,6 +176,29 @@ internal class NativeSolidPoc(private val instance: Instance, private val npc: N
         return ready
     }
 
+    internal fun inspect(player: Player): NativeSolidState =
+        NativeSolidState(
+            pairs.size,
+            pairs.count { !it.body.isRemoved && it.body.instance === instance },
+            pairs.count { !it.anchor.isRemoved && it.anchor.instance === instance },
+            pairs.count { it.body.vehicle === it.anchor },
+            pairs.count { player in it.body.viewers },
+            pairs.count { player in it.anchor.viewers },
+            pairs.maxOf { it.body.position.distance(it.position) },
+            pairs.map {
+                "body=${it.body.entityId} carrier=${it.anchor.entityId} pos=${it.body.position} " +
+                    "box=${it.body.boundingBox} scale=${it.body.getAttributeValue(Attribute.SCALE)} " +
+                    "health=${it.body.health} expected=${it.position} " +
+                    "carrierPos=${it.anchor.position} carrierBox=${it.anchor.boundingBox}"
+            },
+            "playerBox=${player.boundingBox}; guard=" +
+                instance.entities
+                    .filter { it.entityType == EntityType.INTERACTION }
+                    .filter { it.position.distance(diagnosticCenter) < 3.0 }
+                    .minByOrNull { it.position.distanceSquared(diagnosticCenter) }
+                    ?.let { "id=${it.entityId} pos=${it.position} box=${it.boundingBox}" },
+        )
+
     private fun attach(entity: Entity, position: Pos): CompletableFuture<Void> {
         val stage =
             try {
@@ -150,12 +229,28 @@ internal class NativeSolidPoc(private val instance: Instance, private val npc: N
         closed = true
         ready.completeExceptionally(IllegalStateException("Native collision probe closed"))
         instance.eventNode().removeChild(node)
+        instance.eventNode().removeChild(beforeMove)
+        instance.eventNode().removeChild(afterMove)
+        movements.clear()
+        inspected.clear()
         pairs.forEach {
             it.body.remove()
             it.anchor.remove()
         }
     }
 }
+
+internal data class NativeSolidState(
+    val expected: Int,
+    val liveBodies: Int,
+    val liveCarriers: Int,
+    val mounted: Int,
+    val bodiesVisible: Int,
+    val carriersVisible: Int,
+    val maximumPositionError: Double,
+    val details: List<String>,
+    val playerAndGuard: String,
+)
 
 internal data class NativeSolidCube(val x: Double, val y: Double, val z: Double, val side: Double)
 

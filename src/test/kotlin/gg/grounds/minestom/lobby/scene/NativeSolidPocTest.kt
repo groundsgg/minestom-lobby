@@ -80,6 +80,13 @@ class NativeSolidPocTest {
                     it.entityType == EntityType.SHULKER
                 }
             assertEquals(probe.cubes.size, bodies.size)
+            val inspection = probe.inspect(player)
+            assertEquals(probe.cubes.size, inspection.liveBodies)
+            assertEquals(probe.cubes.size, inspection.liveCarriers)
+            assertEquals(probe.cubes.size, inspection.mounted)
+            assertEquals(probe.cubes.size, inspection.bodiesVisible)
+            assertEquals(probe.cubes.size, inspection.carriersVisible)
+            assertTrue(inspection.maximumPositionError < 1e-6)
             bodies.forEach { body ->
                 val carrier = requireNotNull(body.vehicle)
                 val initialPackets = player.connection.packets.toList()
