@@ -80,10 +80,10 @@ Kontrollmessung mit 15 Modellen und einem erzwungenen Betrachter: Idle 5.866,8 �
 
 | ID | Priorität / Aufwand / Status | Ansatz und Nutzen | Abnahme und Grenzen | Quelle |
 | --- | --- | --- | --- | --- |
-| N32 | P1 nach Profil / M / Offen | Inverse Bounds-Transformationen je Elementrevision vorberechnen. | Bounds-/Root-/Local-Änderungen, Entfernen, Scherung und nichtuniforme Skalierung korrekt behandeln; zunächst N20 getrennt messen. | Eigene verbundene Profile: SceneBoundsRaycaster/AffineTransform verursachen weiterhin viele double[]-Allokationen. |
+| N32 | P1 nach Profil / M / Hover-Inverse umgesetzt | Inverse Bounds-Transformationen je Elementrevision vorberechnen. | Elementeigener unveränderlicher Cache mit Root-/Local-/Bounds-Lebenszyklus und Dreh-/Scherungsregressionen.272Scene/170Host-Tests grün. Getrenntes20Client-Paar: Allokation -20,1%, Tickzeit -1,1%, CPU +2,5%; kein CPU-Gewinn behauptet. WorldBounds-/Kollisionscache bleibt bewusst offen. | Eigene verbundene Profile: SceneBoundsRaycaster/AffineTransform verursachen weiterhin viele double[]-Allokationen. |
 | N33 | P1 / M / Auf Stage bestätigt | Bereits gespeicherte Map-Beleuchtung verwenden; für unbeleuchtete Maps relevante Chunks vor Eintritt vorbereiten. | Keine neue Bake-Pipeline: service-maps#74 existiert seit19.Oktober. Lobby ignorierte den vorhandenen lit-Pin. Auswahl, Prüfsummen, Originalidentität und Fallback korrigiert;170Tests,6kalte verbundene Läufe, Stage-Nutzertest ohne merklichen Lag. | [Nachweis](2026-11-01-npc-cold-terrain-results.md). |
 
-N20 wird als isolierter Kandidat geprüft: Interaktions-Owner bereits im Tracker-Callback auswählen, bevor die471dekorativen Displays gesammelt/sortiert werden. Ein deterministischer LocalId-Sort bleibt erhalten.268Scene-Tests und170Host-Tests bestehen; der20Client-Vergleich läuft. N21 bleibt für die getrennten171–187ms erster Entity-Erzeugung auf kalten prelitMaps offen. Der cohortbasierte Kandidat aus Host#233 bleibt wegen gemessenem CPU-Nachteil unabhängig davon Entwurf; die Traffic-Gewinne allein rechtfertigen keine Aktivierung.
+N20 ist in Scene#24 übernommen und einzeln gemessen: Interaktions-Owner bereits im Tracker-Callback auswählen, bevor die471dekorativen Displays gesammelt/sortiert werden. Ein deterministischer LocalId-Sort bleibt erhalten.268Scene-Tests und170Host-Tests bestehen. Im kontrollierten20Client-Paar sinken CPU18,2%, mittlereTickzeit38,6% undAllokation7,2%; Auf beiden Stage-Lobbys über deploy#546 zusammen mit dem separat geprüften N32-Ergebnis aktiv. N21 bleibt für die getrennten171–187ms erster Entity-Erzeugung auf kalten prelitMaps offen. Der cohortbasierte Kandidat aus Host#233 bleibt wegen gemessenem CPU-Nachteil unabhängig davon Entwurf; die Traffic-Gewinne allein rechtfertigen keine Aktivierung.
 
 ## Clientarbeit und Parallelität
 
@@ -158,3 +158,5 @@ java --class-path /absolute/path/minestom-lobby-all.jar \
 [mc-12111]: https://www.minecraft.net/en-us/article/minecraft-java-edition-1-21-11
 [mc-261]: https://www.minecraft.net/en-us/article/minecraft-java-edition-26-1
 [mc-1216]: https://www.minecraft.net/en-us/article/minecraft-java-edition-1-21-6
+
+Aktuelle Sensor-Messungen: [N20/N32-Nachweis](2026-11-01-npc-sensor-performance-results.md). Die Prozentwerte gehören zu zwei unabhängigen kontrollierten Paaren und werden nicht addiert. N13/N24/N27 aus Host#233 bleiben wegen des größeren CPU-Nachteils getrennt im Entwurf. Weitergehende Geometrieänderungen und native BOUNCE-Anpassungen werden nicht ohne eigene visuelle/Gameplay-Abnahme in diesen Performance-Rollout gemischt.
