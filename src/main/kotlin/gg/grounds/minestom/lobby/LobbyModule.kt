@@ -3,15 +3,19 @@ package gg.grounds.minestom.lobby
 import gg.grounds.GameServerRetirement
 import gg.grounds.minestom.lobby.scene.LobbySceneHost
 import gg.grounds.minestom.lobby.scene.LobbySceneLoader
+import gg.grounds.minestom.lobby.scene.LobbySceneRenderers
+import gg.grounds.minestom.lobby.scene.NpcRenderMetrics
 import gg.grounds.minestom.lobby.scene.runtimeRequest
 import gg.grounds.modules.get
 import gg.grounds.permissions.Permissions
+import gg.grounds.resourcepacks.catalog.GroundsAssetCatalog
 import gg.grounds.runtime.GroundsModule
 import gg.grounds.runtime.GroundsServerContext
 import gg.grounds.runtime.core.world.GroundsWorld
 import gg.grounds.scene.minestom.SceneRuntimeCreationResult
 import gg.grounds.scene.minestom.SceneRuntimeFactory
 import gg.grounds.scene.minestom.SceneRuntimeRequest
+import io.micrometer.core.instrument.MeterRegistry
 import io.nats.client.Connection
 import io.nats.client.Nats
 import io.nats.client.Options
@@ -53,7 +57,14 @@ internal class LobbyModule(
         val (instanceContainer, spawn, loaded) = created
         val prepared =
             try {
-                LobbySceneLoader()
+                val assets = GroundsAssetCatalog.catalog
+                LobbySceneLoader(
+                        assets,
+                        LobbySceneRenderers(
+                            assets,
+                            NpcRenderMetrics(ctx.services.get<MeterRegistry>()),
+                        ),
+                    )
                     .load(loaded)
                     ?.runtimeRequest(instanceContainer, ctx.services)
                     .also {

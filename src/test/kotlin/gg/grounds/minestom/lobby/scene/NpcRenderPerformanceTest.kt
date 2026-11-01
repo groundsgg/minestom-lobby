@@ -243,14 +243,20 @@ class NpcRenderPerformanceTest {
             player.teleport(Pos(50.0, 0.0, 0.0)).join()
             player.connection.packets.clear()
             handle.advanceAnimation(600)
+            // A cohort change immediately supplies a coherent current pose, then starts
+            // this viewer's slower deadline from that snapshot.
+            assertEquals(2, player.connection.packets.filterIsInstance<EntityMetaDataPacket>().size)
+            assertEquals(1.3, (body.entityMeta as ItemDisplayMeta).translation.y(), 1e-6)
+            player.connection.packets.clear()
+            handle.advanceAnimation(1000)
             assertTrue(player.connection.packets.filterIsInstance<EntityMetaDataPacket>().isEmpty())
-            handle.advanceAnimation(800)
+            handle.advanceAnimation(1100)
             assertEquals(2, player.connection.packets.filterIsInstance<EntityMetaDataPacket>().size)
             assertEquals(
                 10,
                 (body.entityMeta as ItemDisplayMeta).transformationInterpolationDuration,
             )
-            assertEquals(1.5, (body.entityMeta as ItemDisplayMeta).translation.y(), 1e-6)
+            assertEquals(1.8, (body.entityMeta as ItemDisplayMeta).translation.y(), 1e-6)
             handle.close()
         }
     }

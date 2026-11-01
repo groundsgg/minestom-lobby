@@ -14,6 +14,7 @@ import net.minestom.server.item.Material
 internal class LobbyNpcModelRenderers(
     private val assets: AssetCatalog,
     private val models: Map<AssetKey, NpcModel> = NpcModels.load(assets),
+    private val metrics: NpcRenderMetrics = NpcRenderMetrics(null),
 ) : AnimatedSceneRenderers {
     init {
         models.forEach { (key, model) ->
@@ -39,11 +40,13 @@ internal class LobbyNpcModelRenderers(
 
     override fun rendererFor(asset: AssetKey, kind: AssetKind): SceneAssetRendererFactory? {
         val model = models[asset]?.takeIf { kind == AssetKind.NPC_BODY } ?: return null
+        val modelMetrics = metrics.forModel(asset)
         return SceneAssetRendererFactory { context ->
             val lock = Any()
             val displays =
                 model.parts.map { part ->
                     NpcItemDisplay(lock).also { display ->
+                        display.renderMetrics = modelMetrics
                         display.updateViewableRule { player ->
                             NpcRenderPolicy.canView(
                                 player,

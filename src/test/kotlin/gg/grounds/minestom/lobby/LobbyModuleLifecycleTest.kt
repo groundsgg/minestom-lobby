@@ -289,8 +289,7 @@ class LobbyModuleLifecycleTest {
     private object TestContext : GroundsServerContext {
         override val serverType: ServerType = ServerType.LOBBY
         override val environment: RuntimeEnvironment = RuntimeEnvironment.TEST
-        override val services: ServiceRegistry
-            get() = error("LobbyModule does not use services")
+        override val services: ServiceRegistry = DefaultServiceRegistry()
 
         override fun eventNode(name: String): EventNode<Event> = EventNode.all(name)
 
