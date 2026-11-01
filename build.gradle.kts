@@ -102,8 +102,8 @@ dependencies {
     implementation("gg.grounds:grounds-minestom-runtime-runtime-core:0.13.0")
     implementation("gg.grounds:scene-minestom:0.4.4")
     implementation("gg.grounds:scene-interaction:0.4.4")
-    implementation("gg.grounds:resourcepacks-catalog:1.3.0")
-    implementation("gg.grounds:resourcepacks-npc-runtime:1.3.0")
+    implementation("gg.grounds:resourcepacks-catalog:0.0.0-edge.50.g7048b334c7bf")
+    implementation("gg.grounds:resourcepacks-npc-runtime:0.0.0-edge.50.g7048b334c7bf")
     implementation("gg.grounds:plugin-lobby-scene-catalog:2.23.0")
     // Minecraft 26.3. Overrides the 26.2 Minestom in grounds-dependencies 1.0.0 until that
     // platform carries an upstream 26.3 release. Keep in step with grounds-vanilla's 26.3 line,
