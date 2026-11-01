@@ -31,6 +31,7 @@ internal class AnimatedNpcHandle(
     private var pendingHeadLook = headLook
     private var previousPose: List<NpcMatrix>? = null
     private var previousTransform: SceneRenderTransform? = null
+    private var modelTransform = DisplayTransform.prepareModel(transform)
 
     override val headLookOrigin: Vec3?
         get() =
@@ -102,6 +103,7 @@ internal class AnimatedNpcHandle(
             val anchor = transform.root.position
             if (anchor == this.transform.root.position) {
                 this.transform = transform
+                modelTransform = DisplayTransform.prepareModel(transform)
                 if (requested == null) advance(elapsed, true)
                 return
             }
@@ -113,6 +115,7 @@ internal class AnimatedNpcHandle(
                         if (!closed && token == revision) {
                             checkNotNull(chunk)
                             this.transform = transform
+                            modelTransform = DisplayTransform.prepareModel(transform)
                             displays.forEach {
                                 it.teleport(Pos(anchor.x, anchor.y, anchor.z)).join()
                             }
@@ -240,10 +243,7 @@ internal class AnimatedNpcHandle(
             )
                 return@forEachIndexed
             display.editEntityMeta(ItemDisplayMeta::class.java) { meta ->
-                if (
-                    DisplayTransform.fromModel(transform, NPC_FACING * pose[index])
-                        .apply(meta, transform.root.position)
-                ) {
+                if (modelTransform(NPC_FACING * pose[index]).apply(meta, transform.root.position)) {
                     meta.setTransformationInterpolationDuration(duration)
                     meta.setTransformationInterpolationStartDelta(0)
                 }

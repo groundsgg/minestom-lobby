@@ -98,6 +98,41 @@ class NpcRenderPerformanceTest {
     }
 
     @Test
+    fun `prepared renderer follows scale local rotation and committed anchor changes`() {
+        RendererFixture().use { fixture ->
+            fixture.player()
+            val handle = create(fixture)
+            val body =
+                fixture.instance.entities.filterIsInstance<NpcItemDisplay>().minBy { it.entityId }
+            val meta = body.entityMeta as ItemDisplayMeta
+            val original = sceneTransform()
+            val scaled = original.copy(root = original.root.copy(scale = Vec3(1.0, 2.0, 1.0)))
+            handle.applyTransform(scaled)
+            assertEquals(1.4, meta.translation.y(), 1e-6)
+            val local =
+                Transform(Vec3(0.0, 1.0, 0.0), EulerRotation(0.0, 0.0, 0.0), Vec3(1.0, 1.0, 1.0))
+            handle.applyTransform(scaled.copy(local = local))
+            assertEquals(3.4, meta.translation.y(), 1e-6)
+            val rotated =
+                original.copy(
+                    root = original.root.copy(rotation = EulerRotation(0.0, 90.0, 0.0)),
+                    local = local,
+                )
+            handle.applyTransform(rotated)
+            assertEquals(0.0, meta.translation.y(), 1e-6)
+            assertEquals(1.7, meta.translation.z(), 1e-6)
+            fixture.instance.loadChunk(0, 0).join()
+            handle.applyTransform(
+                rotated.copy(root = rotated.root.copy(position = Vec3(4.0, 0.0, 0.0)))
+            )
+            assertEquals(4.0, body.position.x(), 1e-6)
+            assertEquals(0.0, meta.translation.x(), 1e-6)
+            assertEquals(1.7, meta.translation.z(), 1e-6)
+            handle.close()
+        }
+    }
+
+    @Test
     fun `decorative displays do not simulate physics`() {
         RendererFixture().use { fixture ->
             val handle = create(fixture)
