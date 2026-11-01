@@ -2,6 +2,8 @@ package gg.grounds.minestom.lobby.scene
 
 import gg.grounds.scene.format.*
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.*
 import net.minestom.server.collision.BoundingBox
 import net.minestom.server.coordinate.Pos
@@ -15,6 +17,9 @@ import net.minestom.server.event.EventNode
 import net.minestom.server.event.entity.EntityAttackEvent
 import net.minestom.server.event.player.PlayerEntityInteractEvent
 import net.minestom.server.instance.Instance
+import net.minestom.server.network.packet.server.play.EntityPositionSyncPacket
+import net.minestom.server.network.packet.server.play.SetPassengersPacket
+import net.minestom.server.network.packet.server.play.data.PositionPath
 import net.minestom.server.utils.Direction
 import net.minestom.server.utils.entity.EntityUtils
 
@@ -35,20 +40,67 @@ internal class NativeSolidPoc(private val instance: Instance, private val npc: N
                     boundingBox = BoundingBox(0.0, 0.0, 0.0)
                 }
             val body =
-                LivingEntity(EntityType.SHULKER).apply {
-                    setNoGravity(true)
-                    setHasPhysics(false)
-                    setAutoViewable(false)
-                    isInvisible = true
-                    isSilent = true
-                    isInvulnerable = true
-                    getAttribute(Attribute.SCALE).baseValue = cube.side
-                    boundingBox = BoundingBox(cube.side, cube.side, cube.side)
-                    (entityMeta as ShulkerMeta).apply {
-                        attachFace = Direction.DOWN
-                        shieldHeight = 0
+                object : LivingEntity(EntityType.SHULKER) {
+                        private val viewerRevisions = ConcurrentHashMap<java.util.UUID, Long>()
+                        private val revision = AtomicLong()
+
+                        override fun updateNewViewer(player: Player) {
+                            val token = revision.incrementAndGet()
+                            viewerRevisions[player.uuid] = token
+                            super.updateNewViewer(player)
+                            this@NativeSolidPoc.instance.scheduler().scheduleNextTick {
+                                synchronized(this@NativeSolidPoc) {
+                                    val target = this@NativeSolidPoc.instance
+                                    if (
+                                        !closed &&
+                                            !isRemoved &&
+                                            !anchor.isRemoved &&
+                                            this.instance === target &&
+                                            anchor.instance === target &&
+                                            vehicle === anchor &&
+                                            player.instance === target &&
+                                            player in viewers &&
+                                            player in anchor.viewers &&
+                                            viewerRevisions[player.uuid] == token
+                                    ) {
+                                        // Mounting alone leaves the spawn pose grid-snapped.
+                                        // Reassert the authored pose explicitly after the mount.
+                                        player.sendPacket(
+                                            SetPassengersPacket(anchor.entityId, listOf(entityId))
+                                        )
+                                        player.sendPacket(
+                                            EntityPositionSyncPacket(
+                                                entityId,
+                                                PositionPath.Linear(position),
+                                                position.yaw(),
+                                                position.pitch(),
+                                                isOnGround,
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        override fun updateOldViewer(player: Player) {
+                            viewerRevisions.remove(player.uuid)
+                            super.updateOldViewer(player)
+                        }
                     }
-                }
+                    .apply {
+                        setNoGravity(true)
+                        setHasPhysics(false)
+                        setAutoViewable(false)
+                        isInvisible = true
+                        isSilent = true
+                        isInvulnerable = true
+                        getAttribute(Attribute.SCALE).baseValue = cube.side
+                        boundingBox = BoundingBox(cube.side, cube.side, cube.side)
+                        (entityMeta as ShulkerMeta).apply {
+                            attachFace = Direction.DOWN
+                            shieldHeight = 0
+                        }
+                    }
             Pairing(anchor, body, Pos(cube.x, cube.y, cube.z))
         }
     private val bodies = pairs.map { it.body.uuid }.toSet()
