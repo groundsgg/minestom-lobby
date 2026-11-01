@@ -23,7 +23,7 @@ Files: scene/NpcItemDisplay.kt; tests/scene/NpcSharedMetadataTest.kt and Rendere
 - [x] Add and observe RED for two common viewers reusing one serialized frame; hand-check pose data for a third scaled/highlighted viewer.
 - [x] Add old-frame delayed encoding and translatable-name fallback regressions; test empty/personal-only audience where relevant.
 - [x] Implement partition and native grouped send in NpcItemDisplay only; avoid grouped work for empty audiences.
-- [ ] Run complete licensed and ordinary suites, formatting and all983addon acceptance checks; freeze candidate and review full branch independently.
+- [x] Run complete licensed and ordinary suites, formatting and all983addon acceptance checks; freeze candidate and review full branch independently.
 
 ### Task2: Connected acceptance and Stage
 
@@ -40,3 +40,5 @@ User's standing request authorizes sensible optimizations and continued executio
 Task1 checks: default licensed suite174/174 with0skips; ordinary published dependencies174tests with5expectedasset skips; translation-enabled focused4/4; spotlessCheck,983addon acceptance and723456bit-identical pose records pass. Candidate SHA256 b3a9e34e03d8c05839aab208842e98567afa15aacb0d0d0460765be7fe4ed430. Host class diff is confined to NpcItemDisplay and its file facade; no other renderer/math/Scene classes change.
 
 Ruling: automatic translation defaults false in the pinned framework. Test its configured policy explicitly and run the same focused suite in a fresh worker with translation enabled; do not mutate process-global immutable server properties or add test hooks to product code.
+
+Task1 complete: fresh independent review of0603235 found no correctness blockers. Framework socket/cancellation/translation/compression paths and replacement quaternion-array ownership checked against pinned bytecode. Capturing-connection tests are not real-socket race tests; connected acceptance remains required. Review did not judge performance or Stage readiness.
