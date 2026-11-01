@@ -15,6 +15,220 @@ Java-SOLID-Kollision auf beiden Lobbys. Die Performance-Runde bleibt als eigener
 unaktiviert. Die fehlenden Modellteile wurden vom Nutzer nach dem Ressourcen-Hotfix
 ebenfalls als behoben bestätigt.
 
+<!-- POST_SOLID_CONNECTED_START -->
+## Lasttest nach dem SOLID-Fix
+
+Der stabile Host wurde auf Stage mit echten Minecraft-26.3-Protokollverbindungen
+belastet. 1, 5, 10 und 20 unabhängige Azalea-Clients standen jeweils am normalen
+Lobby-Spawn und auf `/npctest`; danach folgten Kamerabewegung und erneutes Betreten
+der Plattform mit 20 Clients. Tatsächliche Spielerzahlen wurden am Zielserver
+geprüft. Der Spawn enthält bereits sechs Queue-NPCs und ist kein NPC-freier Kontrollfall.
+
+| Clients auf der Testplattform | Mittlere Tick-Zeit | Tatsächliche TPS | Empfangene PLAY-Pakete/s gesamt | Verbindungsabbrüche |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 2,11 ms | 19,99 | 1557 | 0 |
+| 5 | 3,06 ms | 19,99 | 7814 | 0 |
+| 10 | 4,17 ms | 20,00 | 15699 | 0 |
+| 20 | 6,10 ms | 19,99 | 31694 | 0 |
+
+Mit 20 Clients und Kamerabewegungen wurden rund 6,33 ms mittlere Tick-Zeit gemessen;
+nach dem Wiedereintritt rund 6,13 ms. Alle zehn stabilen Abschnitte hatten die
+erwartete Spielerzahl und keine Verbindungsabbrüche. In den späteren 20-Client-
+Abschnitten zeigt die rollierende Tick-Max-Gauge bis 85,16 ms. Frühere Anzeigen
+reichen bis 1713,27 ms am Spawn bzw. 1033,67 ms auf der Plattform; sie können aus
+vorheriger Initialisierung/Einblendung fortgetragen sein. Daraus lassen sich weder
+phasengenaue Einzelmaxima noch individuelle Tick-Perzentile ableiten.
+Der Node behielt mehr als 3 GB verfügbaren Speicher.
+
+Die vollständige Stage-Reihe verwendet den bestätigten SOLID-Host
+`5115d05ffea229bf91eb50f702f294de31d7fd14b7ee1b51b7394b1a63fc754e`.
+Ein temporärer interner Bare-Velocity-Proxy leitete ausschließlich auf die unbenutzte
+Testlobby. ClusterIP, verweigerter Ingress, Egress nur zum Zielpod und ein authentifizierter
+Loopback-Portforward begrenzten den Zugang. Öffentliche Authentifizierung, Wartung,
+Ressourcenpins und Proxy-Replikate blieben unverändert. Testclients, Testproxy,
+Service, ConfigMap, NetworkPolicy und Portforwards wurden entfernt. Das ist eine
+Backend-/NPC-Lastmessung ohne die globalen Plugins des öffentlichen Proxys.
+
+### Verbundener Vergleich mit der Folgeänderung
+
+Vier frische lokale JVMs liefen in der Reihenfolge Baseline, Kandidat, Kandidat,
+Baseline. Jede verwendete dieselbe kopierte Map9, den tatsächlichen Lobby-Loader,
+SceneRuntime, Renderer, den nativen SOLID-PoC, einen CPU-Affinitätskern und 512 MiB
+Heap. Der Kandidat ist der oben eingefrorene `bf22154…`-Build von Host#233;
+die fünf nativen SOLID-Klassen und eingebetteten Packverträge sind bytegleich.
+Beide Varianten verwenden dieselben 15 Modelle mit 471 Displays auf der Plattform.
+
+48 Messabschnitte und insgesamt 66.394 einzelne Tick-Zeiten wurden geprüft.
+Die Clientzahlen, Entfernungsgruppen, Spielmodi, Original-Map-Digests und fehlerfreien
+Prozessenden wurden validiert. Alle vier begrenzten JFR-Dateien haben DataLoss 0.
+Nahe, mittlere und ferne Positionen sind `(0,173,2)`, `(24,173,0)` und `(48,173,0)`;
+gemischt stehen dort 7/7/6 Clients. Das sind Layoutpositionen relativ zur Szene,
+keine pauschalen Entfernungen zu jedem einzelnen NPC. Headless-Clients behalten
+ihre Höhe; Positionsgruppen wurden während der Messung geprüft. Eine separate
+NPC-freie Kontrolle steht unterhalb der Szene bei `(0,80,0)`.
+
+| 20 Clients | PLAY-Pakete/s Baseline | PLAY-Pakete/s Kandidat | Änderung | Allokation Baseline → Kandidat |
+| --- | ---: | ---: | ---: | ---: |
+| Nah | 35664 | 35612 | -0,15 % | 34,28 → 32,34 MB/s |
+| Mittel | 23863 | 24481 | 2,59 % | 26,79 → 26,08 MB/s |
+| Fern | 16270 | 16376 | 0,65 % | 12,30 → 11,94 MB/s |
+| Gemischt | 35440 | 25398 | -28,33 % | 28,93 → 26,88 MB/s |
+
+Der Nutzen getrennter Versandkohorten ist bei gemischten Entfernungen klar sichtbar.
+Eine vollständig ferne Gruppe wurde bereits vorher gemeinsam gedrosselt. Ein
+allgemeiner CPU-Gewinn ist nicht nachgewiesen: nahe 20 Clients liegen im Mittel bei
+1,55 → 1,55 ms Tick-Zeit und 0,087 → 0,089 CPU-Kernen. Im gemischten Layout streuen
+die Kandidatenläufe deutlich: 1,37 und 2,63 ms gegenüber 1,64 und 1,41 ms Baseline.
+Die gemittelten 1,52 → 2,00 ms und die größere P99-Streuung sind daher kein Beleg
+für eine Server-CPU-Verbesserung. Die Folgeänderung bleibt auf Stage unaktiviert.
+
+### Gezielte Nachmessung des gemischten Layouts
+
+Ein separates Paar neuer JVMs prüft 20 Clients in derselben 7/7/6-Verteilung.
+Nach 40 Sekunden naher Aufwärmzeit und 60 Sekunden im gemischten Layout folgt
+ein eigener unprofilierter Messabschnitt; erst danach startet ein 60-Sekunden-Profil
+mit 2-ms-Execution-/Native-Abtastung. Whitelist, Datenbegrenzung und Ereignisprüfung
+bleiben identisch; der Recorder liegt in einem separaten Classpath-Overlay.
+Die ursprünglichen vier Messungen und ihre Klassen wurden nicht verändert.
+
+| Messgröße | Baseline | Kandidat | Änderung |
+| --- | ---: | ---: | ---: |
+| PLAY-Pakete/s | 34464 | 25197 | -26,89 % |
+| Mittlere Tick-Zeit | 1,915 ms | 2,166 ms | 13,10 % |
+| P99 Tick-Zeit | 5,837 ms | 7,325 ms | 25,49 % |
+| Prozess-CPU | 0,0920 Kerne | 0,1008 Kerne | 9,57 % |
+| Allokation | 28,57 MB/s | 26,69 MB/s | -6,56 % |
+
+Beide Läufe hatten durchgehend die erwarteten Clients, keine Verbindungsabbrüche
+und ungefähr 20 TPS. Der Zielkonflikt bleibt nach längerer Layout-Aufwärmung sichtbar:
+weniger Pakete und Allokation bei höherer CPU- und mittlerer Tick-Zeit. Die
+Folgeänderung wird daher nicht als pauschale Server-Performance-Verbesserung freigegeben.
+Der frühere Kandidaten-Ausreißer kann damit nicht nachträglich einer einzelnen Ursache
+zugeordnet werden.
+
+Die getrennten Diagnoseprofile enthalten 1211 bzw.
+1532 Java-Execution-Samples und DataLoss 0. Sie dienen
+der Pfadzuordnung, nicht als unprofilierte Durchsatzmessung. Im Baseline-Profil
+sind die Hover-Kandidatensammlung und UUID-Sortierung in deutlich mehr Java-Stacks
+sichtbar als die eigentliche Ray-Distanzberechnung; letztere bleibt bei den
+Array-Allokationen auffällig. Scheduler-Pacing und native Socket-/epoll-Wartepfade
+werden getrennt behandelt.
+
+Die gemessenen Renderer-Wall-Timer des Kandidaten betragen pro Tick rund
+0,240 ms Lieferung, 0,214 ms Transformation, 0,092 ms Pose und 0,074 ms Sichtbarkeit.
+Diese begrenzten Scopes sind keine CPU-Anteile und können sich bei Lebenszyklus-
+Übergängen überschneiden. `focused-summary.json` enthält Zähler, Zeitfenster und
+Grenzen; die beiden zusätzlichen Manifeste dokumentieren den 2-ms-Recorder.
+
+
+
+### Erster Clientbeitritt und Kaltstart
+
+Die lokalen Rohdaten bestätigen unabhängig von der Stage-Gauge eine echte einzelne
+Tick-Spitze beim ersten Clientbeitritt in allen vier frischen JVMs:
+
+| Lauf | Einzelner Tick im Abschnitt `join-1` |
+| --- | ---: |
+| Baseline A | 1751,78 ms |
+| Kandidat A | 1791,04 ms |
+| Kandidat B | 1645,59 ms |
+| Baseline B | 1920,70 ms |
+
+Diese Phase steht vor den warmen Messfenstern und gehört nicht in deren Mittel-
+oder Perzentilwerte. Der Kaltstart ist ein eigener Engpass; gute warme 20-TPS-Werte
+sind kein Nachweis ruckelfreier erster Beitritte. `cold-tick-analysis.json` ordnet
+die einzelnen Tick-Zeitstempel den Controllerphasen zu. Die zeitliche Zuordnung
+allein beweist noch nicht, ob Modellinitialisierung, allgemeine Minestom-Daten oder
+ein anderer Pfad verantwortlich sind.
+
+
+Eine zusätzliche einzelne Kaltstart-Aufzeichnung startet die begrenzte 2-ms-JFR
+vor dem ersten Client. Sie trifft einen 1878,978-ms-Tick vollständig
+im erlaubten Aufnahmefenster. Der genaue Tick-Abschnitt zeigt:
+
+- 1876,26 ms Monitor-Wartezeit des Instance-Tick-Threads auf `InstanceContainer`.
+  Der aufgezeichnete vorherige Besitzer ist der Socket-Writer; dessen Java-Stacks
+  liegen in `DynamicChunk.createChunkPacket → LightingChunk.createLightData → relightSection`.
+- 193 von 226 Java-Samples liegen im Lighting-Worker, insbesondere Sky-/Block-Light-
+  Ausbreitung und Occlusion-Prüfungen. Das sind Samplezahlen, keine CPU-Prozentwerte.
+- Der Scheduler wartet rund 1878,66 ms an der Tick-Abschlussbarriere.
+- GC-Pausen überlappen nur 23,77 ms. Die 723 nativen Samples
+  dieses Ausschnitts sind `epoll`-Warten und werden nicht als CPU-Hotspot interpretiert.
+
+Der Zusammenhang aus Lock-Besitzer, Writer-Stacks, Light-Workern und Tick-Barriere
+ordnet diese reproduzierte Spitze kalter Chunk-Lichtberechnung beim ersten Versand zu.
+`LobbyWorld.open` lädt die Map ausdrücklich mit neu zu berechnenden Lichtdaten.
+Vorbereitung/Caching relevanter Spawn- und Plattform-Chunks vor der Freigabe sowie
+aufwendige Light-Arbeit unter dem Instance-Monitor sind deshalb eigene P1-Themen
+(N33). Licht nicht pauschal deaktivieren; Lichtkorrektheit, neue Bereiche, Änderungen,
+Startzeit und Speicherbudget müssen geprüft werden.
+
+Das ist ein separater Diagnosefall, kein weiterer Baseline/Kandidaten-Vergleich.
+`cold-spike-proof.json` bestätigt das vollständige Zeitfenster, den einzelnen Client
+und den unveränderten Map-Vertrag. `cold-tick-interval-final.json` enthält nur typed
+Methoden-/Wartezeit-Aggregate aus dem genauen Tick-Intervall; DataLoss ist 0.
+
+
+### Profilbefund und nächste Prioritäten
+
+Nach der getrennten Kaltstart-Ursache ist der Sensorpfad der nächste Ansatzpunkt
+für den warmen NPC-Betrieb:
+
+1. `MinestomSensorQueries.hoverInteractions` sammelt sämtliche Entities aus einem
+   Chunk-Radius von zwei Chunks und sortiert sie nach UUID. Erst danach filtert
+   `NpcSensorEngine.hoverCandidates` auf Interaktionsanker und sortiert nochmals
+   nach Element-ID. Früh filtern und die notwendige deterministische Ordnung
+   erhalten; Mehrfachanker und `oversizedHover` müssen funktionieren (N20).
+2. `SceneBoundsRaycaster.distance` baut in diesen Abfragen wiederholt World- und
+   inverse Bounds-Transformationen. Diese je Element-/Transformationsrevision
+   vorberechnen und bei Root-, Eltern- oder Bounds-Änderungen invalidieren (N32).
+3. Verbleibende Renderer-Zerlegung und dekoratives Entity-Ticking gezielt prüfen
+   (N11/N12/N23). `PhysicsUtils`/`movementTick` ist in Samples sichtbar; die
+   Zuordnung zu konkreten Entity-Typen ist damit noch nicht bewiesen.
+
+In den ersten beiden 20-Client-Profilen zeigen die nach der ersten Sekunde gefilterten
+`double[]`-Samples ungefähr 465 → 507 MB-Gewicht unter dem Scene-Raycaster und
+277 → 162 MB-Gewicht unter den Display-Transformationen. Das sind Zuordnungen
+von Sampling-Druck, keine exakten Allokationsraten oder CPU-Prozentzahlen. Der
+unveränderte Modell-Sampler zeigt keinen klaren Unterschied. Listen-/Sortier-Stacks
+der Hover-Abfrage sind zusätzlich sichtbar. Die Liste enthält nun 33 Ansätze und
+priorisiert N20/N32 nach diesem Befund.
+
+### Messgrenzen und Reproduktion
+
+- Absolute Allokationsraten kommen aus JVM-Rohzählern. Erste JFR-Allokationsgewichte
+  enthalten teilweise Vorlaufzeit: ein 6,21-GB-Gewicht nach 6 ms wäre fälschlich als
+  Matrix-Hotspot interpretiert worden. Nach Anlaufkorrektur liegen die Samples bei
+  rund 33,7–33,8 MB-Gewicht/s; der JVM-Zähler misst 33,95 MB/s. Die gefilterten
+  Gewichte bleiben Näherungen, insbesondere bei virtuellen Threads.
+- Java-Execution-Samples und native Warte-Samples sind getrennt. `epoll.wait` ist
+  keine CPU-Attribution. Die vier 20-ms-Profile haben nur 59–66 Java-Samples je
+  Datei; präzise CPU-Anteile einzelner Funktionen werden daraus nicht behauptet.
+- Die lokale Zählung verwendet einen identischen `PlayerPacketOutEvent`-Listener
+  in beiden Varianten. Seine eigenen Event-Allokationen sind Messaufwand. CPU-
+  und Allokationswerte gelten für diese isolierte Scene-Konfiguration, nicht als
+  absolute Werte des vollständigen Stage-Hosts mit seinen Runtime-Providern.
+- Der Clientzähler zählt empfangene PLAY-Pakete; Serverzähler zählen Metadaten-
+  Dispatches. Kein Netzwerk-Bytewert wird aus dem F3-Rx-Wert abgeleitet. Pod-Egress
+  enthält Framing, Kompression, Monitoring und weiteren Traffic.
+- Kein Java-/Bedrock-FPS-Gewinn wurde gemessen. Horizon Nightly `4aa6854…` wurde
+  hashgeprüft und seine CLI geprüft; die isolierte Ressourcenaufbereitung scheiterte
+  an fehlenden Linux-Natives im vorhandenen Windows-Modrinth-Bestand. Es wurde
+  kein Horizon-Spielerbeitritt behauptet und auf keine Kontodaten zugegriffen.
+- Die JFR-Aufzeichnung verwendet eine explizite CPU-/Allokations-/GC-Whitelist;
+  keine Umgebung, JVM-Argumente, System-Properties, Heap-Inhalte, File-/Socket-
+  Payloads oder Live-Attach-Zugriffe wurden für diese Profile benötigt.
+
+Rohdaten und Reproduktion liegen in `artifacts/npc-load-profile-2026-11-01/`:
+`stage-summary.json`, `connected-summary.json`, `verification.json`, die vier
+Run-Manifeste, `samples.jsonl`, `tick-durations.csv`, private auditierte JFR-Dateien
+und begrenzte `jfr-aggregate.json`-Ausgaben. `allocation-validity.md` und
+`allocation-site-diagnosis.md` dokumentieren die Profilkorrekturen.
+`npc-performance-results.png/.svg` sowie `npc-cpu-allocation-results.png/.svg`
+zeigen Messwerte und Spannweiten. Diagramm-Spannweiten sind keine Konfidenzintervalle.
+
+<!-- POST_SOLID_CONNECTED_END -->
+
 ## Live-Beobachtung
 
 Verglichen wurden 12:00–12:10 Uhr und 12:26–12:36 Uhr **Europe/Berlin** am 1. November,

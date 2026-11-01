@@ -86,14 +86,49 @@ Kontrollmessung mit 15 Modellen und einem erzwungenen Betrachter: Idle 5.866,8 �
 | N30 | P3 nach Profil / L / Offen | Aufwendige reine Mathematik auf begrenzten Worker-Pools mit unveränderlichen Snapshots. | Entity-Zugriffe bleiben im richtigen Ownership-Kontext; Queue begrenzen, veraltete Generationen verwerfen, Stop/Reload sauber behandeln. Gesamt-CPU kann gleich bleiben oder steigen. | Engine-/Culling-Pools in [ModelEngine][me-config], Task-Trennung in [BetterModel][bm-tracker]. |
 | N31 | P1 Korrektheit / M / Offen | Native Shulker-Kollisionskörper für SOLID und BOUNCE gemeinsam verwalten. | BOUNCE benötigt eine Kontaktzone an der nativen Oberfläche, weil der Client den Spieler vor dem alten Überschneidungs-Auslöser stoppt. Rückstoßdistanz, vertikale Bewegung, diagonale Kontakte, Ownership, Sichtbarkeit und Wiedereintritt prüfen; native Hitboxen allein beseitigen keine widersprüchlichen Server-Korrekturen. Java zuerst; Bedrock ist nach Nutzerentscheidung nachrangig. | Erweiterung des bestehenden Grounds-Shulker-PoC auf Nutzerwunsch; keine behauptete fremde Plugin-Implementierung. |
 
+## Zusätzlicher Profilbefund nach dem SOLID-Fix
+
+| ID | Priorität / Aufwand / Status | Ansatz und Nutzen | Abnahme und Grenzen | Quelle |
+| --- | --- | --- | --- | --- |
+| N32 | P1 nach gemessenem Befund / M / Offen | Welt- und inverse Bounds-Transformationen für Hover-/Raycast-Prüfungen je Elementrevision vorberechnen. | Beim Ändern von Bounds, Root oder Elterntransformationen invalidieren; Weltwechsel und Entfernen berücksichtigen. Scherung, nichtuniforme Skalierung, gedrehte Bounds und Trefferdistanzen gegen den bisherigen Pfad prüfen. Betrachterposition und Strahl bleiben dynamisch. Zunächst den Sensorpfad optimieren; die bestätigte native SOLID-Initialisierung bleibt eigenständig. | Eigene verbundene Lasttests und begrenzte JFR-Profile: `NpcSensorEngine.update → BoundsRaycaster.rayDistance → SceneBoundsRaycaster.distance → AffineTransform.from/inverse`. Keine behauptete fremde Plugin-Implementierung. |
+| N33 | P1 Kaltstart / M–L / Offen | Relevante Chunk-Lichtdaten vor der Serverfreigabe vorbereiten; teure Light-Arbeit beim ersten Versand unter dem Instance-Monitor untersuchen. | Erster Spawn, erster Plattformbesuch und neue Bereiche gesondert testen. Licht nach Blockänderungen korrekt invalidieren, Readiness wirklich abwarten, Startzeit und Speicherbudget begrenzen. Licht nicht pauschal deaktivieren. Lock-/Ownership-Regeln im Minestom-Pfad erhalten. | Eigene Roh-Ticks: erster Client in vier JVMs 1,65–1,92 s. Separates 2-ms-Profil trifft 1,879-s-Tick: Writer in `createChunkPacket → createLightData → relightSection`, Instance-Tick wartet 1,876 s auf dessen Monitor, Light-Worker aktiv, nur rund 24 ms GC-Pause. Kein behaupteter NPC-Animations-Hotspot und keine fremde Plugin-Implementierung. |
+
+In den ersten beiden vollständigen 20-Client-Profilen entfällt nach Ausschluss der
+ersten Aufzeichnungssekunde ein großer Anteil des gesampelten `double[]`-Drucks auf
+diesen Sensorpfad. Die Gewichte sind eine Näherung zur Zuordnung, keine exakte
+Allokationsrate oder CPU-Prozentzahl. Absolute Raten kommen aus JVM-Rohzählern;
+native `epoll`-Warte-Samples werden nicht als CPU-Hotspot gewertet. Der verbundene
+Vergleich ergänzt den früheren Offline-Serializer-Benchmark.
+
+N20 ist ebenfalls durch dieses Profil konkretisiert: `MinestomSensorQueries.hoverInteractions`
+sammelt aktuell sämtliche Entities aus einem Chunk-Radius von zwei Chunks und sortiert
+sie nach UUID. Erst `NpcSensorEngine.hoverCandidates` schränkt auf registrierte
+Interaktionsanker ein und sortiert anschließend nochmals nach Element-ID. Auf der
+Testplattform sind darunter Hunderte dekorative Display-Entities. Relevante Anker
+früh auswählen und erst die verbleibenden Kandidaten ordnen; deterministische
+Trefferreihenfolge, mehrere Anker pro Element und die `oversizedHover`-Ergänzung
+müssen erhalten bleiben. Die beobachteten Listen-/Sortier-Stacks stützen diese
+Priorisierung zusätzlich zum Bounds-Transformationscache.
+
+Die gezielte verbundene Nachmessung von N13 zeigt einen Zielkonflikt: rund 27 %
+weniger PLAY-Pakete bei rund 10 % mehr Prozess-CPU im gemischten Layout. N13/N24
+prüfen deshalb als nächste lokale Verbesserung vorab gruppierte Kohortenempfänger:
+der aktuelle Delta-Versand durchläuft je Display und fälliger Kohorte alle Viewer,
+bevor er fremde Kohorten ausnimmt. N27 muss die Kosten zweier Counter-Inkremente
+pro tatsächlich versandtem Paket und der Histogramme separat prüfen. Beide Pfade
+sind im Profil sichtbar; ihr individueller Anteil am CPU-Unterschied ist noch
+nicht nachgewiesen. Diese Folgeänderung bleibt vorerst auf Stage unaktiviert.
+
 ## Empfohlene Reihenfolge
 
-1. N27: Neue Phasenmetriken nach dem nächsten Rollout auswerten; [bisheriger Messnachweis](2026-11-01-npc-performance-impact.md).
-2. N21: Lastspitzen verteilen; N13 ist in der Folgerunde umgesetzt und muss auf Stage bewertet werden.
-3. N01: Composite-Compiler-Spike mit vollständigem Geometrie-/Texturvergleich; danach erst passenden Host und Pack gemeinsam aktivieren.
-4. N07, N09, N10 und N12 gemäß Pose-/Allokationsprofil.
-5. N14/N17/N18; danach N16 nur bei positivem Kostenvergleich.
-6. N23 und N30 erst, wenn nach diesen Schritten ein messbarer Engpass bleibt.
+1. N33: Die reproduzierten Kaltstart-/Erstbeitrittspitzen durch korrekte Chunk-Lichtvorbereitung und überprüfte Lock-Grenzen angehen.
+2. N20 zuerst, danach N32 für den warmen Betrieb: Interaktionsanker vor Sammlung/Sortierung auswählen und Sensor-Bounds cachen; durch verbundene Profile gestützt.
+3. N27: Modell-/Phasenmetriken und reale Paket-/CPU-Kosten gemeinsam auswerten; [Messnachweis](2026-11-01-npc-performance-impact.md). JFR-Anlaufgewichte und native Warte-Stacks getrennt behandeln.
+4. N21: Lastspitzen verteilen; N13 ist in der Folgerunde umgesetzt und wird mit echten Protokollverbindungen gemessen.
+5. N01: Composite-Compiler-Spike mit vollständigem Geometrie-/Texturvergleich; danach erst passenden Host und Pack gemeinsam aktivieren.
+6. N07, N09, N10 und N12 gemäß Pose-/Allokationsprofil.
+7. N14/N17/N18; danach N16 nur bei positivem Kostenvergleich.
+8. N23 und N30 erst, wenn nach diesen Schritten ein messbarer Engpass bleibt.
 
 ## Nicht als Gewinn verbuchen
 
