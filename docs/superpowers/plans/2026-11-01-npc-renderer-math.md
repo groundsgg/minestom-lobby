@@ -39,8 +39,8 @@ Files: owned private artifact scripts/manifests; repository results report/backl
 
 - [x] Hash-pin baseline/candidate and run matched20-client settled comparison with separate safeJFR.
 - [x] Run20/40/60actual clients in bounded20-client workers, including look/movement and reentry bursts; validate zones/counts.
-- [ ] Record CPU/MSPT/allocation/traffic/tail/spawn metrics and tradeoffs; retain only an evidence-backed change.
-- [ ] Commit/publish reviewed source and results, activate private Stage image, verify both lobby pins/readiness/SOLID and cleanup.
+- [x] Record CPU/MSPT/allocation/traffic/tail/spawn metrics and tradeoffs. Decision: do not retain/deploy the candidate yet; repeated-reentry costs remain inconsistent.
+- [x] Publish the reviewed source and full results as draft Host#236; preserve the existing Stage image and clean up all owned test processes. Stage activation is deliberately excluded because performance acceptance was not met.
 
 ## Execution ledger
 
@@ -49,3 +49,5 @@ BASE6702b89. User explicitly approved the proposed renderer-first sequence. Exec
 Task1 validation:172licensedHosttests,0failures/skips; spotlessCheck and all983addon-file acceptance pass. Actual15models produce723456serialized pose/dirty-state records with identical SHA25627daa3691026f1a7a958113dcda036b9365f56708ded853bbc60e1429295083e in frozenStagec3e662a9 and candidate8dfbb05b. Fresh independent review: no blockers. Ruling: scene root/local scales must be positive by format; golden fixture probes signed/collapsed scales through model matrices instead. No production change was needed for that harness correction.
 
 Task2 measurement ledger: corrected controller completed the matched 20/40/60 pair plus strict 60-client JFR; all variants stayed near 20 TPS with zero disconnects/DataLoss. A separate reversed-order three-cycle 60-client reentry test exposed unfavorable candidate tails/CPU in later cycles. Acceptance and Stage rollout remain pending root-cause investigation. Full favorable and unfavorable numbers are retained in the renderer results report; do not activate this candidate based only on settled windows.
+
+Final assessment: one full scaling/JFR pair, one reversed-order three-cycle reentry pair, and one bounded candidate diagnostic were completed. The additional diagnostic did not reproduce the unfavorable tails, so root cause remains unresolved. Reject activation rather than claiming a blanket gain. Source PR stays draft; the previously accepted Stage image is unchanged.

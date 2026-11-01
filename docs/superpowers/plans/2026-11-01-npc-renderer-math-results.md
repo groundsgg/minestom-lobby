@@ -36,7 +36,7 @@ Steady-state measurements are favorable, but reentry measurements do not yet cle
 
 Steady mixed CPU falls 8.3% / 24.0% / 4.5% at 20 / 40 / 60 clients; mean ticks fall 17.6% / 45.0% / 12.4%; allocation falls 7.7% / 4.3% / 5.5%. The 40-client reference is slower than its own later 60-client window, illustrating warmup/noise rather than proving a monotonic capacity model. With 60 moving clients the mean improvement is smaller (CPU −1.1%, tick −4.2%, allocation −5.1%), while p99 rises 8.09 → 8.61 ms. Both variants remain approximately 20 TPS with 0 client disconnects and 0 JFR DataLoss.
 
-Reentry is not a uniform win: its whole-phase peak is 51.99 → 71.65 ms and its subsequent short measured window is worse (see table). Exit also shows higher CPU with the candidate even though NPC metadata dispatch is zero there. A reversed-order follow-up with three 60-client exit/reentry cycles and no JFR investigates whether the tail disadvantage repeats. No rollout decision is based solely on the favorable steady rows.
+Reentry is not a uniform win: its whole-phase peak is 51.99 → 71.65 ms and its subsequent short measured window is worse (see table). Exit also shows higher CPU with the candidate even though NPC metadata dispatch is zero there. The reversed-order follow-up below repeats three 60-client exit/reentry cycles without JFR and also exposes unfavorable later candidate windows. No rollout decision is based solely on the favorable steady rows.
 
 First near-view phase (baseline): maximum 217.17 ms, including command delivery and first display/entity work.
 First near-view phase (candidate): maximum 127.33 ms, including command delivery and first display/entity work.
@@ -58,10 +58,29 @@ The follow-up completed with 60 actual near clients, three exit/reentry cycles, 
 | Reentry 2 | 2.111 → 4.612 | 0.1931 → 0.2914 | 6.699 → 22.946 | 55.275 → 45.027 |
 | Reentry 3 | 2.120 → 5.877 | 0.1876 → 0.2833 | 5.690 → 27.785 | 23.541 → 74.081 |
 
-This establishes an unfavorable candidate run, not its root cause. Background JIT/GC work and renderer work are being separated in a new bounded owned diagnostic capture. No production code is changed speculatively, no Stage image is activated, and Host#236 remains draft until this is understood. Raw follow-up: private `renderer-reentry-*-a` manifests and `renderer-reentry-summary.json`.
+This establishes an unfavorable candidate run, not its root cause. The additional bounded owned diagnostic below adds JIT/GC counters but does not establish the cause of this unfavorable run. No speculative production fix or Stage activation is made, and Host#236 remains draft. Raw follow-up: private `renderer-reentry-*-a` manifests and `renderer-reentry-summary.json`.
+
+### Additional diagnostic capture
+
+A candidate-only repetition adds standard compilation/GC-time counters and the existing strict 60-second JFR around later cycles. All 60 clients, constant 619 displays and map immutability are verified; 0 disconnects and 0 JFR DataLoss. The high-tail behavior did not reproduce:
+
+| Window | Mean tick (ms) | CPU (core) | Compilation delta (ms) | GC-time delta (ms) |
+| --- | --- | --- | --- | --- |
+| near-steady-60 | 1.519 | 0.1480 | 168 | 39 |
+| reentry-0 | 1.381 | 0.1433 | 132 | 33 |
+| reentry-1 | 1.461 | 0.1545 | 136 | 35 |
+| reentry-2 | 1.346 | 0.1389 | 37 | 39 |
+
+This candidate-only diagnostic is not a matched additional A/B result. It does not prove that JIT, GC, host contention or application work caused the earlier unfavorable run. A lifecycle/geometry regression is not established, but the tail uncertainty remains. There is no speculative product fix and no claim that the problematic reentry case is resolved.
+
+## Acceptance decision
+
+**Keep Host#236 as draft; do not merge or activate its image on Stage.** The exact geometry and settled allocation savings are established, but the inconsistent repeated-reentry costs do not yet satisfy the full performance acceptance. Preserve the previously accepted prelit/hover/bounds Stage image. This is a completed assessment of this candidate, not a completed rollout or a claim that all NPC performance work is finished. Future work should capture the unfavorable window with matching control instrumentation before accepting or changing the renderer, then address N21 first-visibility spikes.
 
 ## Remaining work
 
-This completes the shared affine/primitive-temporary portion of N12. N07 clip prebaking, N09 keyframe cursors and broader scratch-matrix reuse remain separate changes. Draft Host#233's viewer-cohort delivery changes remain excluded because their earlier CPU regression has not been resolved.
+This implements the shared affine/primitive-temporary candidate for N12; acceptance remains open and it is not deployed. N07 clip prebaking, N09 keyframe cursors and broader scratch-matrix reuse remain separate changes. Draft Host#233's viewer-cohort delivery changes remain excluded because their earlier CPU regression has not been resolved.
 
 N21 first-visibility and first-entity work remains the next measured target. Avoid partial bodies while spreading work: prepare an NPC's complete initial state before exposing it, preserve interaction ownership, and bound preparation per tick. The present headless movement test does not replace the user's earlier Java SOLID collision acceptance or a fresh GUI animation/scale smoke test.
+
+Final verification: both existing Stage lobbies remain Ready on the accepted `hover-bounds-c3e662a91ac3@sha256:29a6a6b2096f2c91ba8d13b58971a57ea92a0acfbb91d723b5034b1cadbefb1a` image, with zero restarts. All owned renderer client containers were removed, owned JVM runners exited successfully and loopback test/forward ports are closed. No renderer image was built/pushed or activated.
