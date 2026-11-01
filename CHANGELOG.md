@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.15.1](https://github.com/groundsgg/minestom-lobby/compare/v2.15.0...v2.15.1) (2026-11-01)
+
+
+### Bug Fixes
+
+* **lobby:** consume prelit maps and prepare NPC terrain before admission ([#234](https://github.com/groundsgg/minestom-lobby/issues/234)) ([a0eea16](https://github.com/groundsgg/minestom-lobby/commit/a0eea169eea6e43164abe80f6d50b9adf44d0dba))
+* **npc:** initialize mounted collider poses for each viewer ([#232](https://github.com/groundsgg/minestom-lobby/issues/232)) ([aac1a30](https://github.com/groundsgg/minestom-lobby/commit/aac1a30e618d645c2f82beefb06ee69a184da99e))
+* **npc:** synchronize personal scale interpolation across parts ([#230](https://github.com/groundsgg/minestom-lobby/issues/230)) ([4a517f8](https://github.com/groundsgg/minestom-lobby/commit/4a517f8ee397d703168c3299d52b802f309d1676))
+
+
+### Performance Improvements
+
+* **npc:** serialize common metadata once for viewers ([#237](https://github.com/groundsgg/minestom-lobby/issues/237)) ([83e1fba](https://github.com/groundsgg/minestom-lobby/commit/83e1fbaad23142c24dc0dee6c728bc453851b672))
+
 ## [2.15.0](https://github.com/groundsgg/minestom-lobby/compare/v2.14.3...v2.15.0) (2026-11-01)
 
 
