@@ -9,6 +9,8 @@ import net.minestom.server.entity.Player
 import net.minestom.server.entity.metadata.display.ItemDisplayMeta
 import net.minestom.server.network.packet.server.play.EntityMetaDataPacket
 
+internal val DEFAULT_NPC_VISUAL = 1.0 to false
+
 /** All pose updates pass through this per-viewer path, including animation and tracking. */
 internal class NpcItemDisplay(private val lock: Any) : Entity(EntityType.ITEM_DISPLAY) {
     var viewerState: ((Player) -> Unit)? = null
@@ -17,32 +19,45 @@ internal class NpcItemDisplay(private val lock: Any) : Entity(EntityType.ITEM_DI
     init {
         metadata = MetadataHolder { changes ->
             synchronized(lock) {
-                if (!isRemoved)
+                if (!isRemoved) {
+                    val common = EntityMetaDataPacket(entityId, changes)
                     viewers.forEach { player ->
+                        val entries = personalized(player, changes)
                         player.sendPacket(
-                            EntityMetaDataPacket(entityId, personalized(player, changes))
+                            if (entries === changes) common
+                            else EntityMetaDataPacket(entityId, entries)
                         )
                     }
+                }
             }
         }
         entityMeta = ItemDisplayMeta(this, metadata)
         setNoGravity(true)
+        setHasPhysics(false)
+        // Explicit anchor moves still synchronize immediately; stationary visuals need no
+        // heartbeat.
+        setSynchronizationTicks(Long.MAX_VALUE / 2)
     }
 
     private fun personalized(
         player: Player,
         changes: Map<Int, Metadata.Entry<*>>,
     ): Map<Int, Metadata.Entry<*>> {
-        val state = visualState?.invoke(player) ?: (1.0 to false)
-        val entries = changes.toMutableMap()
-        if (0 in changes) {
-            val flags = (changes[0]?.value() as? Byte ?: 0).toInt()
-            entries[0] =
-                Metadata.Byte((if (state.second) flags or 0x40 else flags and 0xBF).toByte())
-        }
-        val meta = entityMeta as ItemDisplayMeta
+        val state = visualState?.invoke(player) ?: DEFAULT_NPC_VISUAL
+        val flags = (changes[0]?.value() as? Byte ?: 0).toInt()
+        val desiredFlags = if (state.second) flags or 0x40 else flags and 0xBF
         val translation = MetadataDef.Display.TRANSLATION.index()
         val scale = MetadataDef.Display.SCALE.index()
+        if (
+            (0 !in changes || flags == desiredFlags) &&
+                (state.first == 1.0 || (translation !in changes && scale !in changes))
+        )
+            return changes
+        val entries = changes.toMutableMap()
+        if (0 in changes) {
+            entries[0] = Metadata.Byte(desiredFlags.toByte())
+        }
+        val meta = entityMeta as ItemDisplayMeta
         if (translation in changes)
             entries[translation] = Metadata.Vector3(meta.translation.mul(state.first))
         if (scale in changes) entries[scale] = Metadata.Vector3(meta.scale.mul(state.first))

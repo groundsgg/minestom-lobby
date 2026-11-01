@@ -30,6 +30,7 @@ class LicensedNpcBundleTest {
         for (npc in
             scene.elements.filterIsInstance<Npc>().filter { it.id.value.startsWith("queue-") }) {
             RendererFixture().use { fixture ->
+                fixture.player()
                 val handle =
                     renderers
                         .rendererFor(npc.body, AssetKind.NPC_BODY)!!
