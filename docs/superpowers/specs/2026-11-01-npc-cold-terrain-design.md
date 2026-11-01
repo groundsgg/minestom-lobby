@@ -1,0 +1,13 @@
+# Lobby terrain cold-start preparation
+
+The measured first platform join blocks the tick barrier for 1.65–1.92 seconds. The socket writer owns the InstanceContainer monitor while LightingChunk computes previously dirty sky/block light. Production only preloads around spawn asynchronously after ticks start; Map9 spawn (-3.5,142,117.5) and NPC platform around (0,173,0) expose different chunks.
+
+Prepare a bounded area around spawn and authored NPC locations during module installation, before listeners and ticking. Load the union (including a one-chunk lighting halo beyond server view distance) completely before computing light, so subsequent preparation loads cannot dirty already prepared neighbours. Reuse GroundsWorld.preload to preserve Minestom lighting and packet cache semantics. Deduplicate overlapping centres by chunk coordinate. Failure prevents admission and releases the world. Remove the post-start competing spawn preload. Dynamic block lighting continues normally. No all-map preload (21,774 authored chunks), no fullbright, no reduction in view distance, geometry or SOLID changes.
+
+Measure fresh-JVM join and first platform visit using the frozen Map9 and protocol777 clients, recording startup cost, memory and longest ticks. Old local cold harness preloads chunks but bypasses production spawn lighting; compare identical updated harnesses and explicitly separate those results from historical measurements. Deploy a reviewed, verified private image on Stage with all existing map/pack/native-SOLID pins preserved. Then assess N20 hover candidate filtering and N32 inverse bounds caching independently; retain only measured improvements.
+
+## Existing persisted-light pipeline: downloader regression
+
+User correctly recalled service-maps#74 (merged2026-10-19). The current CDN pin for Map9 already advertises format1 prelit bundle0834f7953b00e843d35d39a934fff8a551b55c962767bf4de5456a64c2e04467 for sourcea1bec43f75a701fc9011a07093a47573d5cc1036b9f876e68997786dcf3f50f9. Lobby MapDistribution ignores the `lit` object completely. Fix this before N20/N32.
+
+Select the compatible MapLight.FORMAT lit transport when available, cache and verify using its compressed digest, and require its MapLight marker. Keep the original source digest as LobbyMapSource.Published identity and pinnedDigest output, so Stage map allowlisting and repin announcements remain correct. An absent/unsupported lighting format uses the original raw transport with the new safe startup preparation. A selected but tampered/invalid lit archive fails existing verification rather than silently trusting unlit bytes. Original map version, scene, assets and pins do not change.

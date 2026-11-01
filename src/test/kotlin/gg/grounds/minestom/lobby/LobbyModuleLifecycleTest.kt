@@ -239,6 +239,35 @@ class LobbyModuleLifecycleTest {
         }
     }
 
+    @Test
+    fun `terrain preparation failure leaves no registered world or admission listener`() {
+        val fixture = scene()
+        writeScene(fixture.with(elements = fixture.elements.filterIsInstance<Prop>()))
+        val created = world()
+        created.instance.setChunkLoader(
+            object : net.minestom.server.instance.ChunkLoader {
+                override fun loadChunk(
+                    instance: net.minestom.server.instance.Instance,
+                    x: Int,
+                    z: Int,
+                ): net.minestom.server.instance.Chunk? =
+                    throw IllegalStateException("broken terrain fixture")
+
+                override fun saveChunk(chunk: net.minestom.server.instance.Chunk) = Unit
+            }
+        )
+        val context = SceneContext()
+        val module = LobbyModule(fatalStop = {}, createWorld = { created })
+        try {
+            assertThrows(Exception::class.java) { module.install(context) }
+            assertFalse(MinecraftServer.getInstanceManager().instances.contains(created.instance))
+            assertTrue(context.nodes.isEmpty())
+            assertNull(MinecraftServer.getCommandManager().getCommand("spawn"))
+        } finally {
+            module.stop()
+        }
+    }
+
     private fun scene() =
         lobbySceneFixture(GroundsAssetCatalog.catalog, Vec3(10.0, 64.0, 8.0), Vec3(5.0, 64.0, 2.0))
 
