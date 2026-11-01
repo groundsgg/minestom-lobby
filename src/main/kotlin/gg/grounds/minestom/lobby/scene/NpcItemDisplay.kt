@@ -1,5 +1,6 @@
 package gg.grounds.minestom.lobby.scene
 
+import java.util.UUID
 import net.minestom.server.entity.Entity
 import net.minestom.server.entity.EntityType
 import net.minestom.server.entity.Metadata
@@ -15,19 +16,15 @@ internal val DEFAULT_NPC_VISUAL = 1.0 to false
 internal class NpcItemDisplay(private val lock: Any) : Entity(EntityType.ITEM_DISPLAY) {
     var viewerState: ((Player) -> Unit)? = null
     var visualState: ((Player) -> Pair<Double, Boolean>)? = null
+    var renderMetrics: NpcModelMetrics? = null
+    private var pendingUpdates: NpcPendingMetadata? = null
 
     init {
         metadata = MetadataHolder { changes ->
             synchronized(lock) {
                 if (!isRemoved) {
-                    val common = EntityMetaDataPacket(entityId, changes)
-                    viewers.forEach { player ->
-                        val entries = personalized(player, changes)
-                        player.sendPacket(
-                            if (entries === changes) common
-                            else EntityMetaDataPacket(entityId, entries)
-                        )
-                    }
+                    val pending = pendingUpdates
+                    if (pending == null) sendMetadata(changes, viewers) else pending.merge(changes)
                 }
             }
         }
@@ -37,6 +34,38 @@ internal class NpcItemDisplay(private val lock: Any) : Entity(EntityType.ITEM_DI
         // Explicit anchor moves still synchronize immediately; stationary visuals need no
         // heartbeat.
         setSynchronizationTicks(Long.MAX_VALUE / 2)
+    }
+
+    fun configureUpdates(intervals: Set<Long>) {
+        val pending = pendingUpdates ?: NpcPendingMetadata().also { pendingUpdates = it }
+        pending.configure(intervals)
+    }
+
+    fun flushUpdates(interval: Long, intervals: Map<UUID, Long>) {
+        pendingUpdates?.drain(interval)?.let { sendMetadata(it, viewers, interval, intervals) }
+    }
+
+    fun clearUpdates() {
+        pendingUpdates?.clear()
+    }
+
+    private fun sendMetadata(
+        changes: Map<Int, Metadata.Entry<*>>,
+        recipients: Collection<Player>,
+        interval: Long? = null,
+        intervals: Map<UUID, Long>? = null,
+        kind: NpcMetadataKind = NpcMetadataKind.DELTA,
+    ) {
+        if (recipients.isEmpty()) return
+        val common = EntityMetaDataPacket(entityId, changes)
+        recipients.forEach { player ->
+            if (interval != null && intervals?.get(player.uuid) != interval) return@forEach
+            val entries = personalized(player, changes)
+            player.sendPacket(
+                if (entries === changes) common else EntityMetaDataPacket(entityId, entries)
+            )
+            renderMetrics?.metadata(kind, entries.size)
+        }
     }
 
     private fun personalized(
@@ -66,10 +95,10 @@ internal class NpcItemDisplay(private val lock: Any) : Entity(EntityType.ITEM_DI
 
     fun sendVisualFlags(player: Player) {
         val flags = metadataPacket.entries()[0] ?: Metadata.Byte(0)
-        player.sendPacket(EntityMetaDataPacket(entityId, personalized(player, mapOf(0 to flags))))
+        sendMetadata(mapOf(0 to flags), listOf(player), kind = NpcMetadataKind.VISUAL)
     }
 
-    fun sendPoseState(player: Player, interpolationDuration: Int) {
+    fun sendPoseState(player: Player, interval: Long) {
         val meta = entityMeta as ItemDisplayMeta
         val flags = metadataPacket.entries()[0] ?: Metadata.Byte(0)
         val fields =
@@ -81,10 +110,10 @@ internal class NpcItemDisplay(private val lock: Any) : Entity(EntityType.ITEM_DI
                 MetadataDef.Display.ROTATION_RIGHT.index() to
                     Metadata.Quaternion(meta.rightRotation),
                 MetadataDef.Display.TRANSFORMATION_INTERPOLATION_DURATION.index() to
-                    Metadata.VarInt(interpolationDuration),
-                MetadataDef.Display.INTERPOLATION_DELAY.index() to Metadata.VarInt(0),
+                    Metadata.VarInt((interval / 50).toInt()),
             )
-        player.sendPacket(EntityMetaDataPacket(entityId, personalized(player, fields)))
+        fields[MetadataDef.Display.INTERPOLATION_DELAY.index()] = Metadata.VarInt(0)
+        sendMetadata(fields, listOf(player), kind = NpcMetadataKind.SNAPSHOT)
     }
 
     override fun updateNewViewer(player: Player) {

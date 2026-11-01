@@ -28,6 +28,14 @@ internal object NpcRenderPolicy {
             else -> 500L
         }
 
+    fun viewerIntervalMillis(distanceSquared: Double, previous: Long?): Long =
+        when {
+            previous == 200L && distanceSquared <= 18.0 * 18.0 -> 200L
+            distanceSquared <= 16.0 * 16.0 -> 200L
+            previous == 250L && distanceSquared <= 36.0 * 36.0 -> 250L
+            else -> updateIntervalMillis(distanceSquared)
+        }
+
     fun distanceSquared(player: Player, instance: Instance, anchor: Vec3): Double {
         if (player.instance !== instance) return Double.POSITIVE_INFINITY
         val p = player.position

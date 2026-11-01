@@ -20,6 +20,61 @@ import org.junit.jupiter.api.Test
 
 class DisplayTransformTest {
     @Test
+    fun `prepared affine mappers retain independent roots and preserve sheared signed collapsed geometry`() {
+        fun scene(x: Double) =
+            SceneRenderTransform(
+                transform(position = Vec3(x, 0.0, 0.0), scale = Vec3(2.0, 1.0, 1.0)),
+                transform(position = Vec3(1.0, 0.0, 0.0), rotation = EulerRotation(45.0, 0.0, 0.0)),
+            )
+        val first = DisplayTransform.prepareModel(scene(10.0))
+        val other = DisplayTransform.prepareModel(scene(30.0))
+        RendererFixture().use { fixture ->
+            fixture.create().get(5, TimeUnit.SECONDS).use {
+                val meta =
+                    fixture.display.entityMeta
+                        as net.minestom.server.entity.metadata.display.AbstractDisplayMeta
+                for ((mapper, root) in listOf(first to 10.0, other to 30.0, first to 10.0)) {
+                    for ((step, scale) in
+                        listOf(Vec3(-2.0, 3.0, 0.5), Vec3(0.0, 1.0, 0.0), Vec3(1.0, 0.0, -3.0))
+                            .withIndex()) {
+                        val offset = Vec3(step.toDouble(), 2.0 * step, -step.toDouble())
+                        mapper(NpcMatrix.translation(offset) * NpcMatrix.scale(scale))
+                            .apply(meta, Vec3(root, 0.0, 0.0))
+                        for (x in listOf(0.0, 1.0)) for (y in listOf(0.0, 1.0)) for (z in
+                            listOf(0.0, 1.0)) {
+                            val right = vecMul(quat(meta.rightRotation), doubleArrayOf(x, y, z))
+                            val actual =
+                                vecMul(
+                                    quat(meta.leftRotation),
+                                    doubleArrayOf(
+                                        right[0] * meta.scale.x(),
+                                        right[1] * meta.scale.y(),
+                                        right[2] * meta.scale.z(),
+                                    ),
+                                )
+                            val px = offset.x + x * scale.x
+                            val py = offset.y + y * scale.y
+                            val pz = offset.z + z * scale.z
+                            val c = kotlin.math.sqrt(0.5)
+                            assertNear(
+                                root + 2.0 * (1.0 + c * (px + pz)),
+                                root + meta.translation.x() + actual[0],
+                                "prepared x",
+                            )
+                            assertNear(py, meta.translation.y() + actual[1], "prepared y")
+                            assertNear(
+                                c * (pz - px),
+                                meta.translation.z() + actual[2],
+                                "prepared z",
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     fun `subfloat translation and scale changes do not restart client interpolation`() {
         RendererFixture().use { fixture ->
             fixture.create(sceneTransform()).get(5, TimeUnit.SECONDS).use {

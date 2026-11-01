@@ -10,9 +10,12 @@ internal interface AnimatedSceneRenderers : SceneAssetRendererRegistry {
 }
 
 /** Exact registered renderers: legacy editor placeholders plus compiled purchased NPCs. */
-internal class LobbySceneRenderers(assets: AssetCatalog) : AnimatedSceneRenderers {
+internal class LobbySceneRenderers(
+    assets: AssetCatalog,
+    metrics: NpcRenderMetrics = NpcRenderMetrics(null),
+) : AnimatedSceneRenderers {
     private val placeholders = LobbyPlaceholderRenderers(assets)
-    private val models = LobbyNpcModelRenderers(assets)
+    private val models = LobbyNpcModelRenderers(assets, metrics = metrics)
 
     override fun rendererFor(asset: AssetKey, kind: AssetKind) =
         models.rendererFor(asset, kind) ?: placeholders.rendererFor(asset, kind)

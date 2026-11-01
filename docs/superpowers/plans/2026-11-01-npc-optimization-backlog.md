@@ -27,6 +27,7 @@ Stand: 1. November 2026. Ziel sind weniger Serverarbeit, weniger tatsächlich ü
 | Stationäre Anker bei Körperdrehung nicht teleportieren | Umgesetzt. | Direkter Grounds-Befund. |
 | Dekorative Physik und periodische Positionspakete vermeiden | Umgesetzt; explizite Ankerbewegungen synchronisieren weiterhin. | Trennung zwischen Darstellung und autoritativen Hitboxen, wie bei [Oraxen][oraxen] und [ModelEngine][me-base]. |
 | Bind-Matrizen und Bone-Indizes vorhalten | Umgesetzt; Originalkurven bleiben erhalten. | Eigene Grounds-Optimierung, nicht als universelles Plugin-Internum behauptet. |
+| Gemeinsame Root-/Local-Affine vorbereiten | Umgesetzt in der Folgerunde; alle Teile verwenden dieselbe unveränderliche Vorbereitung bis zum nächsten Scene-Transform. Primitive Quaternion-/Skalen-Zwischendaten vermeiden Boxing. | Lokales JFR-Profil: Matrix-/Display-Mathematik dominiert die verbleibende Rendererarbeit. |
 | Eine gemeinsame Pose pro NPC berechnen | Bereits vorhanden; die Pose wird nicht für jeden Betrachter erneut ausgewertet. | Vergleichspunkt zu globalen/persönlichen Renderpfaden in [BetterModel][bm-pipeline]. |
 | Standard-Paketobjekte zwischen Betrachtern teilen | Umgesetzt; persönliche Größe/Highlights werden gesondert berücksichtigt. | Rechenarbeit und temporäre Objekte im Versandpfad reduzieren. |
 | Konvergierte Matrixzerlegung beenden | Umgesetzt; allgemeiner Pfad für Scherung, Null- und negative Skalierung bleibt bestehen. | Direkter Grounds-Befund; `return@repeat` war kein Schleifenabbruch. |
@@ -55,7 +56,7 @@ Kontrollmessung mit 15 Modellen und einem erzwungenen Betrachter: Idle 5.866,8 �
 
 | ID | Priorität / Aufwand / Status | Ansatz und Nutzen | Abnahme und Grenzen | Quelle |
 | --- | --- | --- | --- | --- |
-| N13 | P1 / M / Teilweise | Wirklich getrennte Animationsraten pro Betrachter. | Heute bestimmt der nächste Betrachter den gemeinsamen Takt. Entfernte Betrachter sollen eigene Deltas und Interpolationsdauer erhalten; ein naher Spieler darf nicht alle beschleunigen. | Betrachterbezogene Entfernungsraten in [ModelEngine][me-config]. |
+| N13 | P1 / M / Umgesetzt in Folgerunde | Wirklich getrennte Versandraten pro Betrachter. | Eine geteilte Pose, eigene akkumulierte Deltas je 200/250/500-ms-Kohorte. Eigene Interpolationsdauer bei Einstieg/Bandwechsel, Hysterese und vollständige Stop-/Seek-/Personalzustände. Der nächste Betrachter bestimmt weiterhin die geteilte Pose-Abtastrate, aber nicht mehr den Versand an alle anderen. | Betrachterbezogene Entfernungsraten in [ModelEngine][me-config]. |
 | N14 | P1–P2 / M / Offen | Hinter dem Betrachter nur notwendige Bewegung, keine Gelenkanimation übertragen. | Nahbereich ausnehmen; beim Umdrehen sofort aktuelle Pose wiederherstellen. Third-Person/Spectator berücksichtigen. | `MOVEMENT_ONLY` in [CullConfig][me-cull] und [CullType][me-terms]. |
 | N15 | P2 / M / Offen | Großzügiger horizontaler/vertikaler Sichtkegel vor teurerer Arbeit. | Keine exakte Frustum-Erkennung behaupten: FOV, Seitenverhältnis und Kameraposition sind nicht vollständig bekannt. Animierte Modellgröße als Randzugabe. | Winkel-/Entfernungsprüfung in [EntityUtil.canSee][bm-visibility]. |
 | N16 | P2 / M / Offen | Verdeckung durch undurchsichtige Blöcke prüfen. | Entfernung/Kegel zuerst; Glas, Zäune, Türen, bewegte Blöcke und ungeladene Chunks konservativ behandeln. Raycasts dürfen nicht mehr kosten als sie sparen. | Blocked-model culling in [ModelEngine][me-config]. |
@@ -71,10 +72,10 @@ Kontrollmessung mit 15 Modellen und einem erzwungenen Betrachter: Idle 5.866,8 �
 | N21 | P1 / S–M / Offen | Animationsdeadlines und Spawn-Arbeit gleichmäßig über Ticks verteilen. | Deterministische Phasen; Animationszeit bleibt an Echtzeit gebunden. Interaktionen nicht verzögern; Einblendungen stückweise oder sauber atomar. | Periodische Tracker in [BetterModel][bm-tracker]; unser Scheduler-Vorschlag. |
 | N22 | P2 / M / Offen | Gewichtetes Renderbudget aus Displayzahl, Bytes, Nähe und Bedeutung. | Maximale Wartezeit garantieren; nahe Interaktionsziele bevorzugen. Keine starre NPC-Obergrenze ohne Bezug zur Modellkomplexität. | Per-Chunk-Limits in [ItemsAdder][ia-settings]; adaptives Budget ist unser Vorschlag. |
 | N23 | P2–P3 / L / Offen | Rein paketbasierte dekorative Displays bei serverseitigen Gameplay-Hitboxen. | IDs, Spawn/Despawn, Weltwechsel, Respawn, Cleanup und Zuordnung korrekt verwalten. Client-Entities und notwendige Metadaten bleiben bestehen; deaktivierte Physik reduziert den Zusatzgewinn bereits. | Nicht-Entity-Basen in [ModelEngine][me-base], Paket-Displays in [MythicMobs][mm-packet]. |
-| N24 | P1–P2 / M / Teilweise | Gemeinsame animierte Paketnutzdaten je Viewer-Kohorte einmal erzeugen. | Standard-Paketobjekte sind geteilt. Weitere Wiederverwendung braucht gleiche Delta-Basis, LOD, Protokoll und persönliche Zustände. Rohbytes/Kompressionszustände nicht blind teilen. | Globale/persönliche Pakete in [BetterModel Tracker][bm-tracker], Dispatch-Optimierungen in [MythicMobs][mm-changelog]. |
+| N24 | P1–P2 / M / Teilweise | Gemeinsame animierte Paketnutzdaten je Viewer-Kohorte einmal erzeugen. | Standard-Paketobjekte und unveränderliche Einzel-Deltas werden je Kohorte geteilt; Zusammenführungen übertragen ihren Map-Besitz sicher an die Versandwarteschlange. Persönliche Zustände erhalten eigene Felder. Rohbytes/Kompressionszustände bleiben eine separate, protokollabhängige Optimierung. | Globale/persönliche Pakete in [BetterModel Tracker][bm-tracker], Dispatch-Optimierungen in [MythicMobs][mm-changelog]. |
 | N25 | P2 / S–M / Offen | Begrenzte atomare Bundles für zusammengehörige Updates. | Innere Paketanzahl, echte Bytes und Client-Frametimes messen. Zu große Bundles erzwingen viel Arbeit in einem Clienttick. | Bundle-Grenzen in [ModelEngine][me-config]. |
 | N26 | P1 Voraussetzung / M / Teilweise | Explizite Initialisierung und Resynchronisation bei echten Lebenszykluswechseln. | Vollständiger Sichtbarkeitseintritt ist vorhanden. Für LOD/Reconnect/Reload Delta-Basen explizit zurücksetzen; keine pauschalen Vollupdates als Dauerlösung. | RenderInit in [Model-Optionen][me-options], Resync in [Befehlen][me-commands], Initial-load-Pfade in [RenderPipeline][bm-pipeline]. |
-| N27 | P1 zuerst / M / Teilweise | Modellbezogene Kostenmessung für Pose, Zerlegung, Versand und Sichtbarkeit. | Lokaler Benchmark vorhanden; zusätzlich begrenzte Laufzeit-Histogramme, p95/p99, echte Bytes, innere Pakete, Allokationen, Cull-Gründe und Alter des letzten Updates. Kein Tick-für-Tick-Logging. | Updater-/Tracker-Timings von `/meg health` in [ModelEngine][me-commands]. |
+| N27 | P1 zuerst / M / Teilweise | Modellbezogene Kostenmessung für Pose, Zerlegung, Versand und Sichtbarkeit. | Lokaler Benchmark/JFR und Live-Vergleich vorhanden. Folgerunde exportiert begrenzte Modell-/Phasen-Histogramme und eigene Metadaten-Paket-/Feldzähler über die bestehende Registry. Tatsächliche Byte-Messung bleibt im Offline-Serializer bzw. ganzen Pod; kein doppeltes Serialisieren für Metriken. Cull-Gründe, Update-Alter und modellbezogene Live-Allokation bleiben offen. | Updater-/Tracker-Timings von `/meg health` in [ModelEngine][me-commands]. |
 
 ## Clientarbeit und Parallelität
 
@@ -83,15 +84,51 @@ Kontrollmessung mit 15 Modellen und einem erzwungenen Betrachter: Idle 5.866,8 �
 | N28 | P2 / M / Offen | Dauerhaft innere Flächen entfernen und unnötige Transluzenz vermeiden. | Über alle relativen Bewegungen beweisen; zwischen bewegten Bones sichtbare Flächen erhalten. Beabsichtigte transparente Kunst nicht verändern. | Generatorverbesserungen in [BetterModel-Releases][bm-releases], Render-Pässe in [Mojang 26.1][mc-261]. |
 | N29 | P3 / M / Assetabhängig | Reine Oberflächeneffekte durch Texturanimation statt zusätzlicher Gelenk-Entities. | Nur visuell gleichwertige Effekte; keine Silhouettenbewegung ersetzen. Clientarbeit und Texturspeicher ebenfalls messen. | MC-META-Generierung in [ModelEngine][me-config], Sprite-Animation in [Mojang 1.21.11][mc-12111]. |
 | N30 | P3 nach Profil / L / Offen | Aufwendige reine Mathematik auf begrenzten Worker-Pools mit unveränderlichen Snapshots. | Entity-Zugriffe bleiben im richtigen Ownership-Kontext; Queue begrenzen, veraltete Generationen verwerfen, Stop/Reload sauber behandeln. Gesamt-CPU kann gleich bleiben oder steigen. | Engine-/Culling-Pools in [ModelEngine][me-config], Task-Trennung in [BetterModel][bm-tracker]. |
+| N31 | P1 Korrektheit / M / Offen | Native Shulker-Kollisionskörper für SOLID und BOUNCE gemeinsam verwalten. | BOUNCE benötigt eine Kontaktzone an der nativen Oberfläche, weil der Client den Spieler vor dem alten Überschneidungs-Auslöser stoppt. Rückstoßdistanz, vertikale Bewegung, diagonale Kontakte, Ownership, Sichtbarkeit und Wiedereintritt prüfen; native Hitboxen allein beseitigen keine widersprüchlichen Server-Korrekturen. Java zuerst; Bedrock ist nach Nutzerentscheidung nachrangig. | Erweiterung des bestehenden Grounds-Shulker-PoC auf Nutzerwunsch; keine behauptete fremde Plugin-Implementierung. |
+
+## Zusätzlicher Profilbefund nach dem SOLID-Fix
+
+| ID | Priorität / Aufwand / Status | Ansatz und Nutzen | Abnahme und Grenzen | Quelle |
+| --- | --- | --- | --- | --- |
+| N32 | P1 nach gemessenem Befund / M / Offen | Welt- und inverse Bounds-Transformationen für Hover-/Raycast-Prüfungen je Elementrevision vorberechnen. | Beim Ändern von Bounds, Root oder Elterntransformationen invalidieren; Weltwechsel und Entfernen berücksichtigen. Scherung, nichtuniforme Skalierung, gedrehte Bounds und Trefferdistanzen gegen den bisherigen Pfad prüfen. Betrachterposition und Strahl bleiben dynamisch. Zunächst den Sensorpfad optimieren; die bestätigte native SOLID-Initialisierung bleibt eigenständig. | Eigene verbundene Lasttests und begrenzte JFR-Profile: `NpcSensorEngine.update → BoundsRaycaster.rayDistance → SceneBoundsRaycaster.distance → AffineTransform.from/inverse`. Keine behauptete fremde Plugin-Implementierung. |
+| N33 | P1 Kaltstart / M–L / Offen | Relevante Chunk-Lichtdaten vor der Serverfreigabe vorbereiten; teure Light-Arbeit beim ersten Versand unter dem Instance-Monitor untersuchen. | Erster Spawn, erster Plattformbesuch und neue Bereiche gesondert testen. Licht nach Blockänderungen korrekt invalidieren, Readiness wirklich abwarten, Startzeit und Speicherbudget begrenzen. Licht nicht pauschal deaktivieren. Lock-/Ownership-Regeln im Minestom-Pfad erhalten. | Eigene Roh-Ticks: erster Client in vier JVMs 1,65–1,92 s. Separates 2-ms-Profil trifft 1,879-s-Tick: Writer in `createChunkPacket → createLightData → relightSection`, Instance-Tick wartet 1,876 s auf dessen Monitor, Light-Worker aktiv, nur rund 24 ms GC-Pause. Kein behaupteter NPC-Animations-Hotspot und keine fremde Plugin-Implementierung. |
+
+In den ersten beiden vollständigen 20-Client-Profilen entfällt nach Ausschluss der
+ersten Aufzeichnungssekunde ein großer Anteil des gesampelten `double[]`-Drucks auf
+diesen Sensorpfad. Die Gewichte sind eine Näherung zur Zuordnung, keine exakte
+Allokationsrate oder CPU-Prozentzahl. Absolute Raten kommen aus JVM-Rohzählern;
+native `epoll`-Warte-Samples werden nicht als CPU-Hotspot gewertet. Der verbundene
+Vergleich ergänzt den früheren Offline-Serializer-Benchmark.
+
+N20 ist ebenfalls durch dieses Profil konkretisiert: `MinestomSensorQueries.hoverInteractions`
+sammelt aktuell sämtliche Entities aus einem Chunk-Radius von zwei Chunks und sortiert
+sie nach UUID. Erst `NpcSensorEngine.hoverCandidates` schränkt auf registrierte
+Interaktionsanker ein und sortiert anschließend nochmals nach Element-ID. Auf der
+Testplattform sind darunter Hunderte dekorative Display-Entities. Relevante Anker
+früh auswählen und erst die verbleibenden Kandidaten ordnen; deterministische
+Trefferreihenfolge, mehrere Anker pro Element und die `oversizedHover`-Ergänzung
+müssen erhalten bleiben. Die beobachteten Listen-/Sortier-Stacks stützen diese
+Priorisierung zusätzlich zum Bounds-Transformationscache.
+
+Die gezielte verbundene Nachmessung von N13 zeigt einen Zielkonflikt: rund 27 %
+weniger PLAY-Pakete bei rund 10 % mehr Prozess-CPU im gemischten Layout. N13/N24
+prüfen deshalb als nächste lokale Verbesserung vorab gruppierte Kohortenempfänger:
+der aktuelle Delta-Versand durchläuft je Display und fälliger Kohorte alle Viewer,
+bevor er fremde Kohorten ausnimmt. N27 muss die Kosten zweier Counter-Inkremente
+pro tatsächlich versandtem Paket und der Histogramme separat prüfen. Beide Pfade
+sind im Profil sichtbar; ihr individueller Anteil am CPU-Unterschied ist noch
+nicht nachgewiesen. Diese Folgeänderung bleibt vorerst auf Stage unaktiviert.
 
 ## Empfohlene Reihenfolge
 
-1. N27: Live-Messung nach dem Rollout als belastbare Grundlage.
-2. N21 und N13: Lastspitzen verteilen und Viewer-Multiplikation begrenzen.
-3. N01: Composite-Compiler-Spike mit vollständigem Geometrie-/Texturvergleich; danach erst passenden Host und Pack gemeinsam aktivieren.
-4. N07, N09, N10 und N12 gemäß Pose-/Allokationsprofil.
-5. N14/N17/N18; danach N16 nur bei positivem Kostenvergleich.
-6. N23 und N30 erst, wenn nach diesen Schritten ein messbarer Engpass bleibt.
+1. N33: Die reproduzierten Kaltstart-/Erstbeitrittspitzen durch korrekte Chunk-Lichtvorbereitung und überprüfte Lock-Grenzen angehen.
+2. N20 zuerst, danach N32 für den warmen Betrieb: Interaktionsanker vor Sammlung/Sortierung auswählen und Sensor-Bounds cachen; durch verbundene Profile gestützt.
+3. N27: Modell-/Phasenmetriken und reale Paket-/CPU-Kosten gemeinsam auswerten; [Messnachweis](2026-11-01-npc-performance-impact.md). JFR-Anlaufgewichte und native Warte-Stacks getrennt behandeln.
+4. N21: Lastspitzen verteilen; N13 ist in der Folgerunde umgesetzt und wird mit echten Protokollverbindungen gemessen.
+5. N01: Composite-Compiler-Spike mit vollständigem Geometrie-/Texturvergleich; danach erst passenden Host und Pack gemeinsam aktivieren.
+6. N07, N09, N10 und N12 gemäß Pose-/Allokationsprofil.
+7. N14/N17/N18; danach N16 nur bei positivem Kostenvergleich.
+8. N23 und N30 erst, wenn nach diesen Schritten ein messbarer Engpass bleibt.
 
 ## Nicht als Gewinn verbuchen
 
@@ -106,7 +143,16 @@ Kontrollmessung mit 15 Modellen und einem erzwungenen Betrachter: Idle 5.866,8 �
 
 Die aktuellen lokalen Nachweise und das gemeinsam zu aktivierende Host-/NPC-Pack-Paar stehen unter `/home/lukas/grounds/artifacts/npc-performance-2026-11-01/`. Live-Aktivierung und serverseitige Akzeptanz werden in `stage-live-proof.json` vermerkt. Ein tatsächlicher Clienttest für Animationsgefühl, Highlight/Größe und SOLID-Kollision bleibt als eigene Prüfung kenntlich.
 
-Vor jeder privaten Host-/Editor-Aktivierung muss die fertige Variante gegen die echte veröffentlichte Scene geprüft werden. Map 9 bindet den Asset-Katalog `0.0.0-edge.1793492850.ge7a80f9731a7`; eine neuere öffentliche Maven-Version ist kein Ersatz für diese Scene-Bindung. `tools/NpcStageBundleAcceptance.java` ruft den produktiven `LobbySceneLoader` auf und vergleicht alle NPC-Addon-Dateien mit dem im Host eingebetteten Digest-Vertrag. Der erste Performance-Build mit der falschen Katalogversion wurde damit reproduzierbar abgelehnt; der korrigierte Build akzeptiert dieselbe Scene und dasselbe Addon. Dies ersetzt weder Agones-Ready-Prüfung noch Clientabnahme. Quellen gehen in den gemeinsamen Release mit der Queue-/Scene-Änderung; zusätzliche getrennte Versionsreleases werden nicht angestoßen.
+Aktueller Korrekturstand: Die fehlenden Modellteile sind durch resourcepacks#60/deploy#521
+behoben und vom Nutzer bestätigt. Host#230 korrigiert die Skalierungsdauer aller Teile.
+Host#232/deploy#526 initialisieren die gemounteten Shulker explizit; der Nutzer bestätigt
+Java-SOLID auf beiden Stage-Lobbys als stabil. Deploy#527 entfernt die temporäre Diagnose.
+Nachweise liegen unter `/home/lukas/grounds/artifacts/npc-model-missing-parts-2026-11-01/`,
+einschließlich `java-client-acceptance.json` und `live-final-mounted-proof.json`.
+Die weitere Performance-Runde ist separat in Host#233 als Entwurf vorbereitet und enthält
+die bestätigten Korrekturen. N31 bleibt eine eigene offene Erweiterung.
+
+Vor jeder privaten Host-/Editor-Aktivierung muss die fertige Variante gegen die echte veröffentlichte Scene geprüft werden. Map 9 bindet den Asset-Katalog `0.0.0-edge.1793492850.ge7a80f9731a7`; eine neuere öffentliche Maven-Version ist kein Ersatz für diese Scene-Bindung. `tools/NpcStageBundleAcceptance.java` ruft den produktiven `LobbySceneLoader` auf und vergleicht alle NPC-Addon-Dateien mit dem im Host eingebetteten Digest-Vertrag. Der erste Performance-Build mit der falschen Katalogversion wurde damit reproduzierbar abgelehnt; der korrigierte Build akzeptiert dieselbe Scene und dasselbe Addon. Dies ersetzt weder Agones-Ready-Prüfung noch Clientabnahme. Die erste Quellrunde ging in den gemeinsamen Release mit der Queue-/Scene-Änderung ein. Die Folgerunde wird separat geprüft; der Entwurf startet keinen weiteren Release.
 
 Aufruf mit JDK 25, dem tatsächlich zu deployenden Fat-JAR, dem entpackten Map-9-Verzeichnis und dem tatsächlich auszuliefernden NPC-Addon. SHA-256 und Minecraft-SHA-1 müssen aus dem geprüften Deployment-/Artefaktmanifest stammen; die vollständige ZIP-Prüfung schließt `pack.mcmeta` ein:
 

@@ -150,9 +150,12 @@ dependencies {
     implementation("com.github.luben:zstd-jni:1.5.7-6")
     implementation("com.google.code.gson:gson:2.13.2")
     implementation("org.slf4j:slf4j-api")
+    // Match the existing runtime0.13.0 metrics registry; NPC meters use that endpoint.
+    implementation("io.micrometer:micrometer-core:1.16.6")
 
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("gg.grounds:library-jvm-modules-module-core:0.1.0")
+    testImplementation("io.micrometer:micrometer-registry-prometheus:1.16.6")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     runtimeOnly("org.slf4j:slf4j-simple")
