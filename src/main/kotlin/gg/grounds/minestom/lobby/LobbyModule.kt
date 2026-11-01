@@ -5,6 +5,7 @@ import gg.grounds.minestom.lobby.scene.LobbySceneHost
 import gg.grounds.minestom.lobby.scene.LobbySceneLoader
 import gg.grounds.minestom.lobby.scene.runtimeRequest
 import gg.grounds.modules.get
+import gg.grounds.permissions.Permissions
 import gg.grounds.runtime.GroundsModule
 import gg.grounds.runtime.GroundsServerContext
 import gg.grounds.runtime.core.world.GroundsWorld
@@ -21,6 +22,7 @@ import net.minestom.server.MinecraftServer
 import net.minestom.server.ServerFlag
 import net.minestom.server.event.Event
 import net.minestom.server.event.EventNode
+import net.minestom.server.event.player.AsyncPlayerConfigurationEvent
 import net.minestom.server.thread.MinestomThread
 import org.slf4j.LoggerFactory
 
@@ -37,16 +39,33 @@ internal class LobbyModule(
     private var sceneHost: LobbySceneHost? = null
     private var world: LobbyMap? = null
     private var pinEvents: Connection? = null
+    private var demoAccess: StageNpcDemoAccess? = null
+    private var demoCommand: StageNpcDemoCommand? = null
+    private var nativeSolidPoc: gg.grounds.minestom.lobby.scene.NativeSolidPoc? = null
 
     override val id: String = "grounds.lobby"
 
     override fun install(ctx: GroundsServerContext) {
+        val demoEnabled = stageNpcDemoEnabled()
+        val demoPack = if (demoEnabled) NpcDemoPack.configured() else null
         val created = createWorld()
         world = created
         val (instanceContainer, spawn, loaded) = created
         val prepared =
             try {
-                LobbySceneLoader().load(loaded)?.runtimeRequest(instanceContainer, ctx.services)
+                LobbySceneLoader()
+                    .load(loaded)
+                    ?.runtimeRequest(instanceContainer, ctx.services)
+                    .also {
+                        if (demoEnabled)
+                            requireStageNpcDemoMap(
+                                loaded.source,
+                                it?.scene,
+                                requireNotNull(System.getenv("GROUNDS_NPC_DEMO_MAP_SHA256")) {
+                                    "NPC demo map digest missing"
+                                },
+                            )
+                    }
             } catch (failure: Exception) {
                 // No lobby command/listener has been registered; do not retain this unused world.
                 MinecraftServer.getInstanceManager().unregisterInstance(instanceContainer)
@@ -54,6 +73,14 @@ internal class LobbyModule(
             }
         val host =
             prepared?.let { request -> LobbySceneHost({ createRuntime(request) }, fatalStop) }
+        if (System.getenv("GROUNDS_NPC_NATIVE_SOLID_POC") == "true") {
+            require(demoEnabled) { "Native SOLID probe requires the Stage demo" }
+            val npc =
+                prepared!!.scene.elements.filterIsInstance<gg.grounds.scene.format.Npc>().single {
+                    it.id.value == "demo-solid"
+                }
+            nativeSolidPoc = gg.grounds.minestom.lobby.scene.NativeSolidPoc(instanceContainer, npc)
+        }
         sceneHost = host
         if (prepared != null)
             logger.info(
@@ -64,13 +91,43 @@ internal class LobbyModule(
                 prepared.assets.version,
                 prepared.actions.version,
             )
-        val command = SpawnCommand(spawn)
+        val demo =
+            if (demoEnabled)
+                StageNpcDemoAccess(
+                    instanceContainer,
+                    prepared
+                        ?.scene
+                        ?.elements
+                        ?.filterIsInstance<gg.grounds.scene.format.Npc>()
+                        ?.single { it.id.value == "demo-hands" },
+                ) { player ->
+                    ctx.services
+                        .get<Permissions>()
+                        ?.hasPermission(player.uuid, "grounds.scene.edit") == true
+                }
+            else null
+        demoAccess = demo
+        val command = SpawnCommand(spawn) { demo?.restore(it) }
         MinecraftServer.getCommandManager().register(command)
         spawnCommand = command
 
         val node = ctx.eventNode("grounds-lobby")
+        if (demo != null) {
+            val testCommand = StageNpcDemoCommand(demo)
+            MinecraftServer.getCommandManager().register(testCommand)
+            demoCommand = testCommand
+            demo.register(node)
+        }
         if (host == null) LobbyEvents.register(node, instanceContainer, spawn)
         else LobbyEvents.register(node, instanceContainer, spawn, host.ready) { host.isClosed }
+        if (demo != null) {
+            val pack = requireNotNull(demoPack)
+            // Minestom waits for the request's future before completing configuration.
+            node.addListener(AsyncPlayerConfigurationEvent::class.java) {
+                if (it.spawningInstance === instanceContainer && it.player.isOnline)
+                    pack.offer(it.player)
+            }
+        }
         MinecraftServer.getGlobalEventHandler().addChild(node)
         eventNode = node
         watchPins(loaded, ctx)
@@ -85,6 +142,19 @@ internal class LobbyModule(
     override fun start() {
         // GroundsServer invokes module start only after MinecraftServer.start has enabled ticks.
         sceneHost?.start()
+        nativeSolidPoc?.let { probe ->
+            sceneHost!!
+                .ready
+                .thenCompose { probe.start() }
+                .whenComplete { _, error ->
+                    if (error != null) logger.warn("Native SOLID probe could not start", error)
+                    else
+                        logger.info(
+                            "Native SOLID probe ready (station=demo-solid, cubes={})",
+                            probe.cubes.size,
+                        )
+                }
+        }
         // Load and light what the first player sees before anyone is there: otherwise the first
         // join after a restart lights it on the tick and waits seconds on "Loading terrain".
         world?.let { (instance, spawn) ->
@@ -139,6 +209,12 @@ internal class LobbyModule(
     }
 
     override fun stop() {
+        nativeSolidPoc?.close()
+        nativeSolidPoc = null
+        demoCommand?.let(MinecraftServer.getCommandManager()::unregister)
+        demoCommand = null
+        demoAccess?.close()
+        demoAccess = null
         pinEvents?.close()
         pinEvents = null
         // Close the admission gate first, even if an event already captured our listener node.

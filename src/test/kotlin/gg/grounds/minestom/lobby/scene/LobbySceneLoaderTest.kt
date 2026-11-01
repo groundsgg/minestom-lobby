@@ -71,12 +71,12 @@ class LobbySceneLoaderTest {
             scene.with(
                 catalogs =
                     scene.catalogs.copy(
-                        assets = CatalogReference(CatalogId("grounds:assets"), "1.0.0")
+                        assets = CatalogReference(CatalogId("grounds:assets"), assets.version)
                     )
             )
         )
         val prepared = assertNotNullScene(LobbySceneLoader().load(map()))
-        assertEquals("1.0.0", prepared.assets.version)
+        assertEquals(assets.version, prepared.assets.version)
         assertTrue(
             prepared.scene.boundActions().any {
                 it is ApplicationAction && it.key == LobbySceneCatalogs.OPEN_NAVIGATOR
@@ -95,7 +95,15 @@ class LobbySceneLoaderTest {
 
     @Test
     fun `valid exact pins preserve selected published map identity`() {
-        write()
+        val legacy = fixture()
+        write(
+            legacy.with(
+                catalogs =
+                    legacy.catalogs.copy(
+                        actions = CatalogReference(CatalogId("grounds:actions"), "2")
+                    )
+            )
+        )
         val prepared =
             assertNotNullScene(
                 LobbySceneLoader()
@@ -109,7 +117,7 @@ class LobbySceneLoaderTest {
         assertEquals("lobby/mainlobby", prepared.identity.mapId)
         assertEquals(42, prepared.identity.mapVersion)
         assertEquals("grounds:lobby-stage", prepared.identity.sceneId.value)
-        assertEquals("1.0.0", prepared.assets.version)
+        assertEquals(assets.version, prepared.assets.version)
         assertEquals("2", prepared.actions.version)
         assertEquals(
             fixture().elements.associateBy { it.id },
@@ -251,7 +259,7 @@ class LobbySceneLoaderTest {
     }
 
     @Test
-    fun `catalog valid sound and particle capabilities are still explicitly unsupported`() {
+    fun `catalogue sound is supported while particles remain explicitly unsupported`() {
         val sound = AssetKey("grounds:test/sound")
         val particle = AssetKey("grounds:test/particle")
         val extended =
@@ -274,7 +282,7 @@ class LobbySceneLoaderTest {
                     ),
             )
         write(withAction(PlaySoundAction(sound, 1.0, 1.0)))
-        assertTrue(rejected(LobbySceneLoader(extended)).contains("sound", ignoreCase = true))
+        assertNotNull(LobbySceneLoader(extended).load(map()))
         write(
             withAction(
                 EmitParticleAction(

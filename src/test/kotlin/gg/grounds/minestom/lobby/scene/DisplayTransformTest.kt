@@ -1,5 +1,6 @@
 package gg.grounds.minestom.lobby.scene
 
+import gg.grounds.resourcepacks.npc.*
 import gg.grounds.scene.format.EulerRotation
 import gg.grounds.scene.format.LocalBounds
 import gg.grounds.scene.format.Transform
@@ -12,10 +13,79 @@ import net.minestom.server.coordinate.Point
 import net.minestom.server.coordinate.Pos
 import net.minestom.server.entity.MetadataDef
 import net.minestom.server.network.packet.server.play.EntityMetaDataPacket
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 
 class DisplayTransformTest {
+    @Test
+    fun `subfloat translation and scale changes do not restart client interpolation`() {
+        RendererFixture().use { fixture ->
+            fixture.create(sceneTransform()).get(5, TimeUnit.SECONDS).use {
+                val meta =
+                    fixture.display.entityMeta
+                        as net.minestom.server.entity.metadata.display.AbstractDisplayMeta
+                fun pose(delta: Double) =
+                    NpcMatrix.translation(Vec3(1.0 + delta, 2.0, 3.0)) *
+                        NpcMatrix.scale(Vec3(1.0, 2.0 + delta, 3.0))
+
+                assertTrue(DisplayTransform.fromModel(sceneTransform(), pose(0.0)).apply(meta))
+                // These distinct doubles serialize to the same float components as the first pose.
+                assertFalse(DisplayTransform.fromModel(sceneTransform(), pose(1e-10)).apply(meta))
+                assertTrue(DisplayTransform.fromModel(sceneTransform(), pose(1e-5)).apply(meta))
+                assertTrue(DisplayTransform.fromModel(sceneTransform(), pose(0.0)).apply(meta))
+            }
+        }
+    }
+
+    @Test
+    fun `model display metadata preserves reflected and collapsed animated axes`() {
+        val rotation = NpcMatrix.rotation(Vec3(27.0, 43.0, -19.0))
+        val scales =
+            listOf(
+                Vec3(-1.0, -1.0, -1.0),
+                Vec3(-2.0, 3.0, 0.5),
+                Vec3(1.0, 0.0, 0.0),
+                Vec3(0.0, 1.0, 0.0),
+                Vec3(0.0, 0.0, 1.0),
+                Vec3(0.0, 1.0, 1.0),
+                Vec3(1.0, 0.0, 1.0),
+                Vec3(1.0, 1.0, 0.0),
+                Vec3(0.0, 0.0, 0.0),
+            )
+        for (scale in scales) {
+            val model = rotation * NpcMatrix.scale(scale)
+            RendererFixture().use { fixture ->
+                fixture.create(sceneTransform()).get(5, TimeUnit.SECONDS).use {
+                    val meta =
+                        fixture.display.entityMeta
+                            as net.minestom.server.entity.metadata.display.AbstractDisplayMeta
+                    DisplayTransform.fromModel(sceneTransform(), model).apply(meta)
+                    for (axis in 0..2) {
+                        val basis = DoubleArray(3) { if (it == axis) 1.0 else 0.0 }
+                        val rotated = vecMul(quat(meta.rightRotation), basis)
+                        val s = meta.scale
+                        val actual =
+                            vecMul(
+                                quat(meta.leftRotation),
+                                doubleArrayOf(
+                                    rotated[0] * s.x(),
+                                    rotated[1] * s.y(),
+                                    rotated[2] * s.z(),
+                                ),
+                            )
+                        for (row in 0..2) assertNear(
+                            model.values[row * 4 + axis],
+                            actual[row],
+                            "$scale axis$axis row$row",
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     @Test
     fun `maps every unit-cube corner through identity transform and bounds`() {
         assertCorners(
