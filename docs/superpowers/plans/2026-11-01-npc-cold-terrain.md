@@ -58,3 +58,18 @@ Ruling: Existing GroundsWorld0.13.0 already has correct light preparation; reuse
 Review ruling: Future timeouts/interruptible waits cannot cancel Minestom chunk loads. Await owned startup work with join (allOf waits for every load, even failures) before propagating failure/unregistering. Startup remains unavailable until local disk preparation finishes; deployment/process health owns failed-start termination. The delayed-loader interruption regression failed before this correction. Removed unreachable null-loader fixture shortcut: Minestom normalizes absent loaders to NoopChunkLoaderImpl.
 
 Task1 validation:166 licensed tests passed,0 failures/skips; spotlessCheck passed. Bundle acceptance validates all983 addon files and15models/471displays. Only LobbyModule generated classes differ from stable jar, plus new LobbyTerrain; native SOLID bytecode unchanged. Fresh independent review: initial async ownership issue fixed and re-reviewed with no remaining blockers.
+
+### Task2b: Restore existing persisted-light consumption (priority correction)
+
+Ruling: The user pointed out the existing Maps lit-worker feature. Confirmed source and liveCDN: a valid format1 lit copy is advertised, but the lobby downloader always selects the raw bundle. Add this compatible transport selection rather than creating another bake pipeline. Retain bounded startup preparation for legacy/unlit worlds.
+
+Files: MapDistribution.kt and MapDistributionTest.kt.
+- [ ] RED: compatible lit bundle selected/cached with source identity preserved; pinnedDigest stays source digest.
+- [ ] RED: unsupported format falls back to source; tampered/missing-marker lit copies cannot enter verified cache.
+- [ ] GREEN: separate selected transport digest from source identity, validate marker and maintain existing cache safety.
+- [ ] Full suite/format, fresh review, verify actualCDN lit copy/scene/model compatibility and connected cold test.
+- [ ] Deploy updated private image to Stage, verify both lobbies consume the lit copy and startup no longer recomputes full terrain light.
+
+Task2b validation:170 licensed tests pass,0failures/skips; formatting and all983addon files accepted on actual CDN litMap9. Independent downloader review: no blockers. Real source bundlea1bec43f... verified; all29 non-terrain files, including canonical NPCscene662a203e..., are byte-identical in litcopy0834f795.... The historical local raw fixture scene4bd92ad6... differs only in JSON whitespace (semantic equality confirmed), so raw-fixture versus prelit comparisons document that distinction. Source identity remainsa1bec43f....
+
+Initial actual prelit connected run: preparation611ms, peakRSS267.94MiB, firstplatform max186.55ms, join97.53ms, no InstanceContainer monitor wait in platform peak and0JFRDataLoss. This is a remaining first-render/JIT startup cost, not evidence that all first-visit work vanished. Repeat in progress. Legacy raw preparation controls remain343–362ms before fix and48–71ms after bounded prewarm; do not conflate those with prelit first-render variability.

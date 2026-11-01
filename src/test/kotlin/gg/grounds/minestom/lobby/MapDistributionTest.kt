@@ -216,6 +216,107 @@ class MapDistributionTest {
         assertTrue(Files.isRegularFile(cache.resolve(digest).resolve("old.txt")))
     }
 
+    @Test
+    fun `compatible lit copy is verified and cached while map identity stays source based`(
+        @TempDir cache: Path
+    ) {
+        val source = "a".repeat(64)
+        val lit = archive(".grounds-lit-v1" to "", "scene.json" to "unchanged-scene")
+        val litDigest = sha256(lit)
+        server(
+                pin = { base ->
+                    litPin(source, "$base/raw-must-not-load", 1, litDigest, "$base/bundle")
+                },
+                bundle = lit,
+            )
+            .use { fixture ->
+                val distribution = MapDistribution(fixture.baseUrl, "test", cache)
+                val loaded = distribution.mapFor("lobby/main")!!
+                assertEquals(LobbyMapSource.Published("lobby/main", 42, source), loaded.source)
+                assertEquals(cache.resolve("verified-v1").resolve(litDigest), loaded.root)
+                assertTrue(Files.isRegularFile(loaded.root.resolve(".grounds-lit-v1")))
+                assertEquals("unchanged-scene", Files.readString(loaded.root.resolve("scene.json")))
+                assertEquals(
+                    source,
+                    distribution.pinnedDigest("lobby/main"),
+                    "Lighting publication must not trigger a false map repin",
+                )
+                assertEquals(loaded, distribution.mapFor("lobby/main"))
+                assertEquals(1, fixture.bundleRequests.get())
+            }
+    }
+
+    @Test
+    fun `unsupported light format falls back to verified source bundle`(@TempDir cache: Path) {
+        val raw = archive("map.json" to "{}")
+        val digest = sha256(raw)
+        server(
+                pin = { base ->
+                    litPin(
+                        digest,
+                        "$base/bundle",
+                        999,
+                        "b".repeat(64),
+                        "$base/future-must-not-load",
+                    )
+                },
+                bundle = raw,
+            )
+            .use { fixture ->
+                val loaded = MapDistribution(fixture.baseUrl, "test", cache).mapFor("lobby/main")!!
+                assertEquals(cache.resolve("verified-v1").resolve(digest), loaded.root)
+                assertEquals(1, fixture.bundleRequests.get())
+            }
+    }
+
+    @Test
+    fun `selected lit copy without the matching marker cannot enter verified cache`(
+        @TempDir cache: Path
+    ) {
+        val bytes = archive("scene.json" to "{}")
+        val digest = sha256(bytes)
+        server(
+                pin = { base ->
+                    litPin("a".repeat(64), "$base/raw-must-not-load", 1, digest, "$base/bundle")
+                },
+                bundle = bytes,
+            )
+            .use { fixture ->
+                assertNull(MapDistribution(fixture.baseUrl, "test", cache).mapFor("lobby/main"))
+            }
+        assertFalse(Files.exists(cache.resolve("verified-v1").resolve(digest)))
+    }
+
+    @Test
+    fun `tampered lit bytes are rejected against the lit digest`(@TempDir cache: Path) {
+        val bytes = archive(".grounds-lit-v1" to "", "scene.json" to "{}")
+        server(
+                pin = { base ->
+                    litPin(
+                        "a".repeat(64),
+                        "$base/raw-must-not-load",
+                        1,
+                        "b".repeat(64),
+                        "$base/bundle",
+                    )
+                },
+                bundle = bytes,
+            )
+            .use { fixture ->
+                assertNull(MapDistribution(fixture.baseUrl, "test", cache).mapFor("lobby/main"))
+            }
+        assertFalse(Files.exists(cache.resolve("verified-v1").resolve("b".repeat(64))))
+    }
+
+    private fun litPin(
+        source: String,
+        sourceUrl: String,
+        format: Int,
+        lit: String,
+        litUrl: String,
+    ) =
+        """{"maps":{"lobby/main":{"version":42,"bundleSha256":"$source","bundleUrl":"$sourceUrl","lit":{"format":$format,"bundleSha256":"$lit","bundleUrl":"$litUrl"}}}}"""
+
     private fun pin(address: String, version: Int, digest: String, bundleUrl: String): String =
         """{"maps":{"$address":{"version":$version,"bundleSha256":"$digest","bundleUrl":"$bundleUrl"}}}"""
 

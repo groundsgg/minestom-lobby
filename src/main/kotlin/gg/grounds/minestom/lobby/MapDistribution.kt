@@ -1,6 +1,7 @@
 package gg.grounds.minestom.lobby
 
 import com.google.gson.JsonParser
+import gg.grounds.runtime.core.world.MapLight
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.net.URI
@@ -48,7 +49,13 @@ internal class MapDistribution(
     private val http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build()
 
     /** What the pin file says about one map. */
-    data class Pinned(val version: Long, val bundleSha256: String, val bundleUrl: String)
+    data class Pinned(
+        val version: Long,
+        val sourceSha256: String,
+        val bundleSha256: String,
+        val bundleUrl: String,
+        val prelit: Boolean,
+    )
 
     /**
      * The unpacked world folder for [address], or null when anything at all goes wrong.
@@ -71,7 +78,7 @@ internal class MapDistribution(
                     )
                     return LoadedLobbyMap(
                         unpacked,
-                        LobbyMapSource.Published(address, pinned.version, pinned.bundleSha256),
+                        LobbyMapSource.Published(address, pinned.version, pinned.sourceSha256),
                     )
                 }
                 download(pinned, unpacked)
@@ -83,14 +90,14 @@ internal class MapDistribution(
                 )
                 LoadedLobbyMap(
                     unpacked,
-                    LobbyMapSource.Published(address, pinned.version, pinned.bundleSha256),
+                    LobbyMapSource.Published(address, pinned.version, pinned.sourceSha256),
                 )
             }
             .onFailure { logger.warn("Could not get {} from the map service", address, it) }
             .getOrNull()
 
     /** The digest the CDN's pin file names for [address] right now; null when it names none. */
-    fun pinnedDigest(address: String): String? = pin(address)?.bundleSha256
+    fun pinnedDigest(address: String): String? = pin(address)?.sourceSha256
 
     private fun pin(address: String): Pinned? {
         val url = "${cdnBase.trimEnd('/')}/pins/$environment.json"
@@ -112,10 +119,17 @@ internal class MapDistribution(
             logger.warn("No pin for {} in {}", address, environment)
             return null
         }
+        val lit =
+            entry.getAsJsonObject("lit")?.takeIf {
+                it.get("format")?.asString == MapLight.FORMAT.toString()
+            }
+        val transport = lit ?: entry
         return Pinned(
             version = entry.get("version").asLong,
-            bundleSha256 = entry.get("bundleSha256").asString,
-            bundleUrl = entry.get("bundleUrl").asString,
+            sourceSha256 = entry.get("bundleSha256").asString,
+            bundleSha256 = transport.get("bundleSha256").asString,
+            bundleUrl = transport.get("bundleUrl").asString,
+            prelit = lit != null,
         )
     }
 
@@ -149,6 +163,9 @@ internal class MapDistribution(
 
             staging = Files.createTempDirectory(verifiedCache, "unpacking-")
             extract(compressed, staging)
+            require(!pinned.prelit || Files.isRegularFile(staging.resolve(MapLight.MARKER))) {
+                "Prelit map bundle is missing the supported lighting marker"
+            }
             Files.writeString(staging.resolve(VERIFICATION_MARKER), pinned.bundleSha256)
             Files.move(staging, target, StandardCopyOption.ATOMIC_MOVE)
             staging = null
@@ -210,6 +227,9 @@ internal class MapDistribution(
 
     private fun validate(pinned: Pinned) {
         require(pinned.version > 0) { "Map version must be positive" }
+        require(SHA256.matches(pinned.sourceSha256)) {
+            "Map source digest must be lowercase SHA-256"
+        }
         require(SHA256.matches(pinned.bundleSha256)) {
             "Map bundle digest must be lowercase SHA-256"
         }
