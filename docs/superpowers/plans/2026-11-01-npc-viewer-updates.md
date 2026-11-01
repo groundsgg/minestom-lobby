@@ -16,11 +16,10 @@ cohorts; optional metrics through the existing registry.
 - Rebased on the scale correction in Host#230. A later private activation must retain
   the Scene#22 corner correction through the matching private overlay or a released
   dependency containing it; the declared Scene0.4.4 alone does not contain that fix.
-- Current SOLID client acceptance is still open; do not activate this performance follow-up
-  while diagnosing that issue. Native BOUNCE is tracked separately as N31.
-- Integrate Host#232's mounted-pose initialization before any later activation. The frozen
-  correctness benchmark candidate predates that fix and is not a deployable replacement
-  for the latest Stage collision build.
+- Host#232's mounted-pose initialization is integrated. The user confirmed stable Java
+  SOLID collision on both Stage lobbies. Native BOUNCE remains tracked separately as N31.
+- The frozen intermediate correctness benchmark candidate predates Host#232. Use a fresh
+  accepted build from the rebased source for a later performance activation.
 - A one-time rotation change must survive skipped viewer sends; stop/seek cannot leave stale deltas.
 - Immutable packet maps, bounded cohort state, cleanup and timer/cardinality overhead matter.
 - General signed/zero-scale/shear math remains; cached preparation must invalidate on root/local changes.

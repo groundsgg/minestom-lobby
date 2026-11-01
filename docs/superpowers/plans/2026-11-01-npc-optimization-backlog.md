@@ -108,7 +108,16 @@ Kontrollmessung mit 15 Modellen und einem erzwungenen Betrachter: Idle 5.866,8 �
 
 Die aktuellen lokalen Nachweise und das gemeinsam zu aktivierende Host-/NPC-Pack-Paar stehen unter `/home/lukas/grounds/artifacts/npc-performance-2026-11-01/`. Live-Aktivierung und serverseitige Akzeptanz werden in `stage-live-proof.json` vermerkt. Ein tatsächlicher Clienttest für Animationsgefühl, Highlight/Größe und SOLID-Kollision bleibt als eigene Prüfung kenntlich.
 
-Vor jeder privaten Host-/Editor-Aktivierung muss die fertige Variante gegen die echte veröffentlichte Scene geprüft werden. Map 9 bindet den Asset-Katalog `0.0.0-edge.1793492850.ge7a80f9731a7`; eine neuere öffentliche Maven-Version ist kein Ersatz für diese Scene-Bindung. `tools/NpcStageBundleAcceptance.java` ruft den produktiven `LobbySceneLoader` auf und vergleicht alle NPC-Addon-Dateien mit dem im Host eingebetteten Digest-Vertrag. Der erste Performance-Build mit der falschen Katalogversion wurde damit reproduzierbar abgelehnt; der korrigierte Build akzeptiert dieselbe Scene und dasselbe Addon. Dies ersetzt weder Agones-Ready-Prüfung noch Clientabnahme. Quellen gehen in den gemeinsamen Release mit der Queue-/Scene-Änderung; zusätzliche getrennte Versionsreleases werden nicht angestoßen.
+Aktueller Korrekturstand: Die fehlenden Modellteile sind durch resourcepacks#60/deploy#521
+behoben und vom Nutzer bestätigt. Host#230 korrigiert die Skalierungsdauer aller Teile.
+Host#232/deploy#526 initialisieren die gemounteten Shulker explizit; der Nutzer bestätigt
+Java-SOLID auf beiden Stage-Lobbys als stabil. Deploy#527 entfernt die temporäre Diagnose.
+Nachweise liegen unter `/home/lukas/grounds/artifacts/npc-model-missing-parts-2026-11-01/`,
+einschließlich `java-client-acceptance.json` und `live-final-mounted-proof.json`.
+Die weitere Performance-Runde ist separat in Host#233 als Entwurf vorbereitet und enthält
+die bestätigten Korrekturen. N31 bleibt eine eigene offene Erweiterung.
+
+Vor jeder privaten Host-/Editor-Aktivierung muss die fertige Variante gegen die echte veröffentlichte Scene geprüft werden. Map 9 bindet den Asset-Katalog `0.0.0-edge.1793492850.ge7a80f9731a7`; eine neuere öffentliche Maven-Version ist kein Ersatz für diese Scene-Bindung. `tools/NpcStageBundleAcceptance.java` ruft den produktiven `LobbySceneLoader` auf und vergleicht alle NPC-Addon-Dateien mit dem im Host eingebetteten Digest-Vertrag. Der erste Performance-Build mit der falschen Katalogversion wurde damit reproduzierbar abgelehnt; der korrigierte Build akzeptiert dieselbe Scene und dasselbe Addon. Dies ersetzt weder Agones-Ready-Prüfung noch Clientabnahme. Die erste Quellrunde ging in den gemeinsamen Release mit der Queue-/Scene-Änderung ein. Die Folgerunde wird separat geprüft; der Entwurf startet keinen weiteren Release.
 
 Aufruf mit JDK 25, dem tatsächlich zu deployenden Fat-JAR, dem entpackten Map-9-Verzeichnis und dem tatsächlich auszuliefernden NPC-Addon. SHA-256 und Minecraft-SHA-1 müssen aus dem geprüften Deployment-/Artefaktmanifest stammen; die vollständige ZIP-Prüfung schließt `pack.mcmeta` ein:
 

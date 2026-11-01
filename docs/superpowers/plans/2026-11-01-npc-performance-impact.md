@@ -9,10 +9,11 @@ ist noch nicht ausgerollt. Der getrennte Ressourcen-Hotfix gegen fehlende Modell
 
 Die anschließenden Korrekturen für gemeinsame Skalierungsdauer (Host#230) und einen
 reproduzierten SOLID-Eckfall (Scene#22) wurden getrennt durch deploy#524 aktiviert.
-Der Nutzer meldet weiterhin SOLID-Zurücksetzen; dessen tatsächliche Ursache ist noch offen
-und wird durch die begrenzte Stage-Diagnose deploy#525 eingegrenzt. Diese Performance-Runde
-wird deshalb noch nicht aktiviert. Die fehlenden Modellteile wurden dagegen vom Nutzer
-nach dem Ressourcen-Hotfix als behoben bestätigt.
+Die anschließend über deploy#525 eingegrenzte Initialisierungslücke gemounteter Shulker
+wurde separat durch Host#232/deploy#526 korrigiert. Der Nutzer bestätigt danach stabile
+Java-SOLID-Kollision auf beiden Lobbys. Die Performance-Runde bleibt als eigener Entwurf
+unaktiviert. Die fehlenden Modellteile wurden vom Nutzer nach dem Ressourcen-Hotfix
+ebenfalls als behoben bestätigt.
 
 ## Live-Beobachtung
 
@@ -120,8 +121,15 @@ kollisionsfreien Ressourcen und den Scene-Eckfallfix. Nachweis:
 `current-correctness-proof.json`, Build `candidate-correctness.jar` mit SHA-256
 `d1ba30145d62d3b49ee2975b505f017d41981c512f05d4851103e12a1c33c6cc`.
 Dieser eingefrorene Prüfbuild liegt zeitlich vor der zusätzlichen Initialisierung gemounteter
-Shulker aus Host#232. Vor einer Aktivierung muss diese Korrektur ebenfalls integriert und
-neu geprüft werden; der Prüfbuild ist kein Ersatz für den neuesten Stage-Kollisionsbuild.
+Shulker aus Host#232. Die Folgeänderung ist inzwischen auf diese Korrektur rebasiert; für
+eine Aktivierung ist ein frischer geprüfter Build erforderlich. Der historische Prüfbuild
+ist kein Ersatz für den neuesten Stage-Kollisionsbuild.
+
+Die auf Host#232 rebasierte Folgeänderung besteht 179 lizenzierte Tests ohne Skips.
+Ihr neuer Prüfbuild `candidate-post-mounted.jar` hat SHA-256
+`bf22154ee298595007b46dc520cfba0d23b83196351f3cd44f47a8fef2c8cac6` und akzeptiert
+denselben Map9-/Addon-Vertrag. Der öffentliche neutrale Build enthält weiterhin keine
+privaten NPC-Modelle. Die Folgeänderung ist nicht auf Stage aktiviert.
 
 Der spätere Stage-Pod mit nur 204 Entities und zwei Spielern ist kein weiterer
 Performance-Nachweis: Dort war die Testplattform nach dem Neustart noch nicht geladen.
