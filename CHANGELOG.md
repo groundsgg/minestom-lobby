@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.15.0](https://github.com/groundsgg/minestom-lobby/compare/v2.14.3...v2.15.0) (2026-11-01)
+
+
+### Features
+
+* **lobby:** render animated Scene NPCs and demonstrate native collision on Stage ([#225](https://github.com/groundsgg/minestom-lobby/issues/225)) ([d7b5488](https://github.com/groundsgg/minestom-lobby/commit/d7b5488faea46011e62e4ef18f3e5cfd06c21fd4))
+
+
+### Bug Fixes
+
+* **npc:** extend visibility with stable distance transitions ([#228](https://github.com/groundsgg/minestom-lobby/issues/228)) ([27337b9](https://github.com/groundsgg/minestom-lobby/commit/27337b9b5cea915c46f978e7d3fc43f83d194061))
+
+
+### Performance Improvements
+
+* **npc:** bound render work and eliminate redundant display packets ([#227](https://github.com/groundsgg/minestom-lobby/issues/227)) ([8beaea2](https://github.com/groundsgg/minestom-lobby/commit/8beaea2469ab6555df64605ab5644c1d12d2989e))
+
 ## [2.14.3](https://github.com/groundsgg/minestom-lobby/compare/v2.14.2...v2.14.3) (2026-10-31)
 
 
