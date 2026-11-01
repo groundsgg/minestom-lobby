@@ -20,8 +20,8 @@ Stand: 1. November 2026. Ziel sind weniger Serverarbeit, weniger tatsächlich ü
 | Gemeinsam bewegte Würfel bündeln | Umgesetzt, konservativ: 765 → 471 Displays; unterschiedliche Rotation/Pivots bleiben bei Bedarf getrennt. | Bone-basierte Modellaufteilung in [ModelEngine][me-model] und [BetterModel][bm-blueprint]. |
 | Unveränderte Transformationsfelder weglassen | Umgesetzt; insbesondere keine identischen Quaternion-Arrays erneut setzen. | Direkter Befund im Grounds-Paketpfad; vollständige Deltas statt Scheingewinn durch Bundles. |
 | Animation und Kopf-/Körperbewegung zusammenführen | Umgesetzt; ein begrenzter Renderpfad. | Grounds-Befund; animierte Bone-Hierarchie als gemeinsame Recheneinheit. |
-| Client-Interpolation zum Update-Takt passend setzen | Umgesetzt: 200 ms nahe, 250 ms weiter entfernt; 4/5 Clientticks. | [Display-Interpolation][mc-display]. |
-| 3D-Sichtweite pro Station und Betrachter | Umgesetzt: 32 Blöcke, gleiche Instance erforderlich; trennt die 33 Blöcke höhere Testplattform vom Lobbyboden. | Entfernung und vertikale Relevanz in [ModelEngine][me-config]. |
+| Client-Interpolation zum Update-Takt passend setzen | Umgesetzt: 200 ms bis 16 Blöcke, 250 ms bis 32 Blöcke, danach 500 ms; 4/5/10 Clientticks nach nächstem relevanten Betrachter. | [Display-Interpolation][mc-display]. |
+| 3D-Sichtweite pro Station und Betrachter | Umgesetzt: Eintritt bis 64 Blöcke, bestehende Betrachter bis 72 Blöcke; unabhängig davon höchstens 32 Blöcke Höhenabstand und gleiche Instance. Trennt die 33 Blöcke höhere Testplattform vom Lobbyboden. | Entfernung und vertikale Relevanz in [ModelEngine][me-config]. |
 | Keine Pose ohne Betrachter berechnen | Umgesetzt; Animationszeit läuft weiter, Wiedereintritt erhält den aktuellen Zustand. | Sichtbarkeit als Voraussetzung für Renderarbeit. |
 | Kleine Kopfänderungen sammeln | Umgesetzt: 2° relativ zur zuletzt angewendeten Richtung; Kopf und Kinder ändern sich unabhängig vom Körper. | Kopf-Bones in [ModelEngine][me-bones]. |
 | Stationäre Anker bei Körperdrehung nicht teleportieren | Umgesetzt. | Direkter Grounds-Befund. |

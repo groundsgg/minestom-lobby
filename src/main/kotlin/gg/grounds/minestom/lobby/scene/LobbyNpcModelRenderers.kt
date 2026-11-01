@@ -45,11 +45,11 @@ internal class LobbyNpcModelRenderers(
                 model.parts.map { part ->
                     NpcItemDisplay(lock).also { display ->
                         display.updateViewableRule { player ->
-                            NpcRenderPolicy.distanceSquared(
+                            NpcRenderPolicy.canView(
                                 player,
                                 context.instance,
                                 context.transform.root.position,
-                            ) <= NpcRenderPolicy.VIEW_DISTANCE_SQUARED
+                            )
                         }
                         display.editEntityMeta(ItemDisplayMeta::class.java) { meta ->
                             meta.setItemStack(
