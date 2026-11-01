@@ -13,6 +13,117 @@ import org.junit.jupiter.api.Test
 
 class NpcViewerScaleTest {
     @Test
+    fun `personal scale synchronizes interpolation for animated torso and static legs`() {
+        MinecraftServer.init()
+        val model =
+            NpcModel.parse(
+                """{"schemaVersion":1,"asset":"grounds:npc/test/scale_timing","bounds":{"center":[0,1,0],"size":[1,2,1]},"bones":[{"id":"root","parent":null,"origin":[0,0,0],"rotation":[0,0,0]},{"id":"body","parent":"root","origin":[0,1,0],"rotation":[0,0,0]},{"id":"legs","parent":"root","origin":[0,0,0],"rotation":[0,0,0]}],"parts":[{"bone":"body","model":"grounds:npc_parts/test/scale_timing/part_000","center":[0,1.25,0],"pivot":[0,1,0],"rotation":[0,0,0]},{"bone":"legs","model":"grounds:npc_parts/test/scale_timing/part_001","center":[0,0.25,0],"pivot":[0,0,0],"rotation":[0,0,0]}],"animations":{"idle":{"loop":"loop","length":2,"tracks":{"body":{"position":[{"time":0,"value":[0,0,0],"interpolation":"linear"},{"time":2,"value":[0,0.1,0],"interpolation":"linear"}]}}}},"sounds":{}}"""
+            )
+        val assets =
+            AssetCatalog(
+                CatalogId("test:assets"),
+                "1",
+                CatalogVersionRange(CatalogId("test:pack"), "1", "1"),
+                mapOf(
+                    model.asset to
+                        AssetDefinition(
+                            model.asset,
+                            AssetKind.NPC_BODY,
+                            setOf(LocalId("idle")),
+                            model.bounds,
+                            emptyMap(),
+                        )
+                ),
+            )
+        RendererFixture().use { fixture ->
+            val player = fixture.player()
+            val handle =
+                LobbyNpcModelRenderers(assets, mapOf(model.asset to model))
+                    .rendererFor(model.asset, AssetKind.NPC_BODY)!!
+                    .create(
+                        SceneAssetRenderContext(
+                            fixture.instance,
+                            LocalId("scale_timing"),
+                            null,
+                            model.asset,
+                            sceneTransform(),
+                        )
+                    )
+                    .toCompletableFuture()
+                    .join()
+            try {
+                val displays =
+                    fixture.instance.entities.filterIsInstance<NpcItemDisplay>().sortedBy {
+                        it.entityId
+                    }
+                handle.startAnimation(LocalId("idle"), 0)
+                handle.advanceAnimation(200)
+                // Both began at ten ticks before admission. Only the animated torso
+                // subsequently received the nearby viewer's four-tick animation duration.
+                assertEquals(
+                    4,
+                    (displays[0].entityMeta as ItemDisplayMeta).transformationInterpolationDuration,
+                )
+                assertEquals(
+                    10,
+                    (displays[1].entityMeta as ItemDisplayMeta).transformationInterpolationDuration,
+                )
+                val duration = MetadataDef.Display.TRANSFORMATION_INTERPOLATION_DURATION.index()
+                fun capture(action: () -> Unit): List<EntityMetaDataPacket> {
+                    player.connection.packets.clear()
+                    action()
+                    return displays.map { display ->
+                        player.connection.packets.filterIsInstance<EntityMetaDataPacket>().last {
+                            it.entityId() == display.entityId
+                        }
+                    }
+                }
+                val grow = capture {
+                    handle.applyViewerState(player, SceneViewerVisualState(1.35, false))
+                }
+                val highlight = capture {
+                    handle.applyViewerState(player, SceneViewerVisualState(1.35, true))
+                }
+                val restore = capture { handle.clearViewerState(player) }
+                val reentry = capture {
+                    displays.forEach { it.removeViewer(player) }
+                    displays.forEach { it.addViewer(player) }
+                }
+                assertTrue(
+                    highlight.all { it.entries().keys == setOf(0) },
+                    "Highlight must not restart pose interpolation",
+                )
+                val poseFields =
+                    setOf(
+                        MetadataDef.Display.TRANSLATION.index(),
+                        MetadataDef.Display.SCALE.index(),
+                        MetadataDef.Display.ROTATION_LEFT.index(),
+                        MetadataDef.Display.ROTATION_RIGHT.index(),
+                        MetadataDef.Display.INTERPOLATION_DELAY.index(),
+                    )
+                assertAll(
+                    listOf("grow" to grow, "restore" to restore, "reentry" to reentry).map {
+                        (phase, packets) ->
+                        org.junit.jupiter.api.function.Executable {
+                            assertTrue(
+                                packets.all { it.entries().keys.containsAll(poseFields) },
+                                "$phase needs a coherent complete pose",
+                            )
+                            assertEquals(
+                                listOf(4, 4),
+                                packets.map { it.entries()[duration]?.value() },
+                                "$phase must explicitly initialize the same interpolation duration for every part",
+                            )
+                        }
+                    }
+                )
+            } finally {
+                handle.close()
+            }
+        }
+    }
+
+    @Test
     fun `personal scale survives animation transforms and retracking without affecting another viewer`() {
         MinecraftServer.init()
         val model =

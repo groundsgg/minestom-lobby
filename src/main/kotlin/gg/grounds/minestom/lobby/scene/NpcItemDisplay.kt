@@ -64,7 +64,12 @@ internal class NpcItemDisplay(private val lock: Any) : Entity(EntityType.ITEM_DI
         return entries
     }
 
-    fun sendVisualState(player: Player, resetInterpolation: Boolean) {
+    fun sendVisualFlags(player: Player) {
+        val flags = metadataPacket.entries()[0] ?: Metadata.Byte(0)
+        player.sendPacket(EntityMetaDataPacket(entityId, personalized(player, mapOf(0 to flags))))
+    }
+
+    fun sendPoseState(player: Player, interpolationDuration: Int) {
         val meta = entityMeta as ItemDisplayMeta
         val flags = metadataPacket.entries()[0] ?: Metadata.Byte(0)
         val fields =
@@ -72,9 +77,13 @@ internal class NpcItemDisplay(private val lock: Any) : Entity(EntityType.ITEM_DI
                 0 to flags,
                 MetadataDef.Display.TRANSLATION.index() to Metadata.Vector3(meta.translation),
                 MetadataDef.Display.SCALE.index() to Metadata.Vector3(meta.scale),
+                MetadataDef.Display.ROTATION_LEFT.index() to Metadata.Quaternion(meta.leftRotation),
+                MetadataDef.Display.ROTATION_RIGHT.index() to
+                    Metadata.Quaternion(meta.rightRotation),
+                MetadataDef.Display.TRANSFORMATION_INTERPOLATION_DURATION.index() to
+                    Metadata.VarInt(interpolationDuration),
+                MetadataDef.Display.INTERPOLATION_DELAY.index() to Metadata.VarInt(0),
             )
-        if (resetInterpolation)
-            fields[MetadataDef.Display.INTERPOLATION_DELAY.index()] = Metadata.VarInt(0)
         player.sendPacket(EntityMetaDataPacket(entityId, personalized(player, fields)))
     }
 
