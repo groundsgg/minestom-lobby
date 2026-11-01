@@ -8,6 +8,7 @@ import net.minestom.server.entity.MetadataHolder
 import net.minestom.server.entity.Player
 import net.minestom.server.entity.metadata.display.ItemDisplayMeta
 import net.minestom.server.network.packet.server.play.EntityMetaDataPacket
+import net.minestom.server.utils.PacketSendingUtils
 
 internal val DEFAULT_NPC_VISUAL = 1.0 to false
 
@@ -21,13 +22,14 @@ internal class NpcItemDisplay(private val lock: Any) : Entity(EntityType.ITEM_DI
             synchronized(lock) {
                 if (!isRemoved) {
                     val common = EntityMetaDataPacket(entityId, changes)
+                    val commonViewers = ArrayList<Player>()
                     viewers.forEach { player ->
                         val entries = personalized(player, changes)
-                        player.sendPacket(
-                            if (entries === changes) common
-                            else EntityMetaDataPacket(entityId, entries)
-                        )
+                        if (entries === changes) commonViewers += player
+                        else player.sendPacket(EntityMetaDataPacket(entityId, entries))
                     }
+                    if (commonViewers.isNotEmpty())
+                        PacketSendingUtils.sendGroupedPacket(commonViewers, common)
                 }
             }
         }
