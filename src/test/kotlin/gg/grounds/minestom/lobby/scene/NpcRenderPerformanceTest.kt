@@ -139,6 +139,140 @@ class NpcRenderPerformanceTest {
     }
 
     @Test
+    fun `NPC is visible at fifty blocks during initial attachment`() {
+        RendererFixture().use { fixture ->
+            val player = fixture.player(Pos(50.0, 0.0, 0.0))
+            val handle = create(fixture)
+            val displays = fixture.instance.entities.filterIsInstance<NpcItemDisplay>()
+            assertTrue(displays.all { player in it.viewers })
+            assertTrue(displays.all { player.connection.spawns(it.entityId).size == 1 })
+            handle.close()
+        }
+    }
+
+    @Test
+    fun `spawn metadata allows the client to render the entire retained range`() {
+        RendererFixture().use { fixture ->
+            val player = fixture.player(Pos(50.0, 0.0, 0.0))
+            val handle = create(fixture)
+            val displays = fixture.instance.entities.filterIsInstance<NpcItemDisplay>()
+            for (display in displays) {
+                val viewRange =
+                    player.connection.packets
+                        .filterIsInstance<EntityMetaDataPacket>()
+                        .filter { it.entityId() == display.entityId }
+                        .mapNotNull {
+                            it.entries()[MetadataDef.Display.VIEW_RANGE.index()]?.value() as? Float
+                        }
+                        .lastOrNull() ?: 1.0f
+                assertTrue(
+                    viewRange >= 1.25f,
+                    "Client needs visibility headroom beyond the retained range",
+                )
+            }
+            handle.close()
+        }
+    }
+
+    @Test
+    fun `viewer remains across the admission boundary and leaves beyond the retention range`() {
+        RendererFixture().use { fixture ->
+            val player = fixture.player(Pos(60.0, 0.0, 0.0))
+            val handle = create(fixture)
+            val body = fixture.instance.entities.filterIsInstance<NpcItemDisplay>().first()
+            assertTrue(player in body.viewers)
+            player.connection.packets.clear()
+            for (distance in listOf(66.0, 63.0, 70.0, 64.0)) {
+                player.teleport(Pos(distance, 0.0, 0.0)).join()
+                handle.advanceAnimation(500)
+                assertTrue(player in body.viewers, "Viewer dropped at $distance blocks")
+            }
+            assertTrue(player.connection.spawns(body.entityId).isEmpty())
+            player.teleport(Pos(73.0, 0.0, 0.0)).join()
+            handle.advanceAnimation(1000)
+            assertFalse(player in body.viewers)
+            player.teleport(Pos(68.0, 0.0, 0.0)).join()
+            handle.advanceAnimation(1500)
+            assertFalse(player in body.viewers, "Retention must not admit a new viewer")
+            player.teleport(Pos(60.0, 0.0, 0.0)).join()
+            handle.advanceAnimation(1750)
+            assertTrue(player in body.viewers)
+            handle.close()
+        }
+    }
+
+    @Test
+    fun `distant NPC uses two animation updates per second and matching interpolation`() {
+        RendererFixture().use { fixture ->
+            val player = fixture.player(Pos(50.0, 0.0, 0.0))
+            val handle = create(fixture)
+            val body =
+                fixture.instance.entities.filterIsInstance<NpcItemDisplay>().minBy { it.entityId }
+            handle.startAnimation(LocalId("wave"), 0)
+            player.connection.packets.clear()
+            for (tick in 1..20) handle.advanceAnimation(tick * 50L)
+            val updates = player.connection.packets.filterIsInstance<EntityMetaDataPacket>()
+            assertEquals(4, updates.size, "Two animated parts should each update twice")
+            assertEquals(
+                10,
+                (body.entityMeta as ItemDisplayMeta).transformationInterpolationDuration,
+            )
+            assertEquals(1.7, (body.entityMeta as ItemDisplayMeta).translation.y(), 1e-6)
+            handle.close()
+        }
+    }
+
+    @Test
+    fun `moving between distance bands adjusts the next update and interpolation`() {
+        RendererFixture().use { fixture ->
+            val player = fixture.player(Pos(50.0, 0.0, 0.0))
+            val handle = create(fixture)
+            val body =
+                fixture.instance.entities.filterIsInstance<NpcItemDisplay>().minBy { it.entityId }
+            handle.startAnimation(LocalId("wave"), 0)
+            player.connection.packets.clear()
+            handle.advanceAnimation(250)
+            assertTrue(player.connection.packets.filterIsInstance<EntityMetaDataPacket>().isEmpty())
+            player.teleport(Pos(8.0, 0.0, 0.0)).join()
+            handle.advanceAnimation(300)
+            assertEquals(
+                4,
+                (body.entityMeta as ItemDisplayMeta).transformationInterpolationDuration,
+            )
+            assertEquals(1.0, (body.entityMeta as ItemDisplayMeta).translation.y(), 1e-6)
+            player.teleport(Pos(50.0, 0.0, 0.0)).join()
+            player.connection.packets.clear()
+            handle.advanceAnimation(600)
+            assertTrue(player.connection.packets.filterIsInstance<EntityMetaDataPacket>().isEmpty())
+            handle.advanceAnimation(800)
+            assertEquals(2, player.connection.packets.filterIsInstance<EntityMetaDataPacket>().size)
+            assertEquals(
+                10,
+                (body.entityMeta as ItemDisplayMeta).transformationInterpolationDuration,
+            )
+            assertEquals(1.5, (body.entityMeta as ItemDisplayMeta).translation.y(), 1e-6)
+            handle.close()
+        }
+    }
+
+    @Test
+    fun `retention range cannot keep a viewer on the vertically separated lobby floor`() {
+        RendererFixture().use { fixture ->
+            val player = fixture.player(Pos(50.0, 0.0, 0.0))
+            val handle = create(fixture)
+            val displays = fixture.instance.entities.filterIsInstance<NpcItemDisplay>()
+            assertTrue(displays.all { player in it.viewers })
+            player.teleport(Pos(50.0, 33.0, 0.0)).join()
+            handle.startAnimation(LocalId("wave"), 0)
+            assertTrue(displays.all { player !in it.viewers })
+            player.connection.packets.clear()
+            handle.advanceAnimation(1000)
+            assertTrue(player.connection.packets.filterIsInstance<EntityMetaDataPacket>().isEmpty())
+            handle.close()
+        }
+    }
+
+    @Test
     fun `vertical station distance excludes viewers in the same chunk`() {
         RendererFixture().use { fixture ->
             // The Stage platform is 33 blocks above the lobby floor.
@@ -274,14 +408,8 @@ class NpcRenderPerformanceTest {
         RendererFixture().use { first ->
             RendererFixture().use { other ->
                 val player = first.player()
-                assertTrue(
-                    NpcRenderPolicy.distanceSquared(player, first.instance, Vec3(0.0, 0.0, 0.0)) <=
-                        NpcRenderPolicy.VIEW_DISTANCE_SQUARED
-                )
-                assertFalse(
-                    NpcRenderPolicy.distanceSquared(player, other.instance, Vec3(0.0, 0.0, 0.0)) <=
-                        NpcRenderPolicy.VIEW_DISTANCE_SQUARED
-                )
+                assertTrue(NpcRenderPolicy.canView(player, first.instance, Vec3(0.0, 0.0, 0.0)))
+                assertFalse(NpcRenderPolicy.canView(player, other.instance, Vec3(0.0, 0.0, 0.0)))
             }
         }
     }

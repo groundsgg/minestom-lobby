@@ -75,7 +75,9 @@ internal class AnimatedNpcHandle(
         val next = buildSet {
             instance.players.forEach { player ->
                 val distance = NpcRenderPolicy.distanceSquared(player, instance, anchor)
-                if (distance <= NpcRenderPolicy.VIEW_DISTANCE_SQUARED) {
+                if (
+                    NpcRenderPolicy.canView(player, instance, anchor, player.uuid in visiblePlayers)
+                ) {
                     add(player.uuid)
                     nearest = minOf(nearest, distance)
                 }
@@ -157,7 +159,7 @@ internal class AnimatedNpcHandle(
         elapsed = time
         if (updateViewers) refreshViewers()
         if (visiblePlayers.isEmpty()) return
-        val interval = if (nearestViewerSquared <= 16.0 * 16.0) 200L else 250L
+        val interval = NpcRenderPolicy.updateIntervalMillis(nearestViewerSquared)
         if (
             !force &&
                 lastRendered != Long.MIN_VALUE &&
@@ -229,7 +231,7 @@ internal class AnimatedNpcHandle(
         val pose = model.itemDisplayPose(name, seconds, headLook)
         val unchangedRoot = previousTransform == transform
         val previous = previousPose
-        val duration = if (nearestViewerSquared <= 16.0 * 16.0) 4 else 5
+        val duration = (NpcRenderPolicy.updateIntervalMillis(nearestViewerSquared) / 50).toInt()
         displays.forEachIndexed { index, display ->
             if (
                 unchangedRoot &&

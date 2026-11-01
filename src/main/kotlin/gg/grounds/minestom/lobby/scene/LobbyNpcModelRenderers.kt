@@ -45,11 +45,11 @@ internal class LobbyNpcModelRenderers(
                 model.parts.map { part ->
                     NpcItemDisplay(lock).also { display ->
                         display.updateViewableRule { player ->
-                            NpcRenderPolicy.distanceSquared(
+                            NpcRenderPolicy.canView(
                                 player,
                                 context.instance,
                                 context.transform.root.position,
-                            ) <= NpcRenderPolicy.VIEW_DISTANCE_SQUARED
+                            )
                         }
                         display.editEntityMeta(ItemDisplayMeta::class.java) { meta ->
                             meta.setItemStack(
@@ -57,6 +57,8 @@ internal class LobbyNpcModelRenderers(
                                     .with(DataComponents.ITEM_MODEL, part.model)
                             )
                             meta.setTransformationInterpolationDuration(2)
+                            // Leave client-side headroom beyond the 72-block server retention band.
+                            meta.setViewRange(1.25f)
                         }
                     }
                 }
