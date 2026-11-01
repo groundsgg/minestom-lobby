@@ -8,7 +8,6 @@ import gg.grounds.modules.get
 import gg.grounds.permissions.Permissions
 import gg.grounds.runtime.GroundsModule
 import gg.grounds.runtime.GroundsServerContext
-import gg.grounds.runtime.core.world.GroundsWorld
 import gg.grounds.scene.minestom.SceneRuntimeCreationResult
 import gg.grounds.scene.minestom.SceneRuntimeFactory
 import gg.grounds.scene.minestom.SceneRuntimeRequest
@@ -19,7 +18,6 @@ import java.util.concurrent.CompletionStage
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import net.minestom.server.MinecraftServer
-import net.minestom.server.ServerFlag
 import net.minestom.server.event.Event
 import net.minestom.server.event.EventNode
 import net.minestom.server.event.player.AsyncPlayerConfigurationEvent
@@ -65,6 +63,26 @@ internal class LobbyModule(
                                     "NPC demo map digest missing"
                                 },
                             )
+                    }
+                    .also { request ->
+                        val started = System.nanoTime()
+                        val centres =
+                            request
+                                ?.scene
+                                ?.elements
+                                ?.filterIsInstance<gg.grounds.scene.format.Npc>()
+                                ?.map { npc ->
+                                    npc.transform.position.let {
+                                        net.minestom.server.coordinate.Vec(it.x, it.y, it.z)
+                                    }
+                                }
+                                .orEmpty()
+                        LobbyTerrain.prepare(created, centres)
+                        logger.info(
+                            "Prepared lobby visitor terrain in {} ms (chunks={})",
+                            (System.nanoTime() - started) / 1_000_000,
+                            instanceContainer.chunks.size,
+                        )
                     }
             } catch (failure: Exception) {
                 // No lobby command/listener has been registered; do not retain this unused world.
@@ -152,20 +170,6 @@ internal class LobbyModule(
                         logger.info(
                             "Native SOLID probe ready (station=demo-solid, cubes={})",
                             probe.cubes.size,
-                        )
-                }
-        }
-        // Load and light what the first player sees before anyone is there: otherwise the first
-        // join after a restart lights it on the tick and waits seconds on "Loading terrain".
-        world?.let { (instance, spawn) ->
-            val started = System.nanoTime()
-            GroundsWorld.preload(instance, spawn, ServerFlag.CHUNK_VIEW_DISTANCE + 1)
-                .whenComplete { _, error ->
-                    if (error != null) logger.warn("Could not preload the lobby spawn", error)
-                    else
-                        logger.info(
-                            "Preloaded the lobby spawn in {} ms",
-                            (System.nanoTime() - started) / 1_000_000,
                         )
                 }
         }
