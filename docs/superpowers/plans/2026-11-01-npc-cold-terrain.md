@@ -34,14 +34,14 @@ Interface: LobbyTerrain.prepare(world: LobbyMap, centres: List<Point>, radius: I
 - [x] Run the focused test and observe missing production behavior.
 - [x] Implement load-union then light, integrate before admission, remove post-start preload; test lifecycle failures.
 - [x] Run full tests, formatting and bundle acceptance with pinned licensed assets.
-- [ ] Commit and obtain fresh whole-change correctness review.
+- [x] Commit and obtain fresh whole-change correctness review.
 
 ### Task2: Cold verification and Stage deployment
 
-- [ ] Add a new hash-pinned candidate to private isolated harness; retain historical immutable artifacts.
-- [ ] Compare same-harness fresh JVM spawn join and first platform visit; inspect tick series, JFR and process memory.
-- [ ] Build private image and update only Stage lobby image pin; verify readiness, invariant pins and numerical metrics.
-- [ ] Publish measured results and request the already-authorized user test on Stage.
+- [x] Add a new hash-pinned candidate to private isolated harness; retain historical immutable artifacts.
+- [x] Compare same-harness fresh JVM spawn join and first platform visit; inspect tick series, JFR and process memory.
+- [x] Build private image and update only Stage lobby image pin; verify readiness, invariant pins and numerical metrics.
+- [x] Publish measured results and request the already-authorized user test on Stage.
 
 ### Task3: Profile-backed follow-up
 
@@ -64,12 +64,14 @@ Task1 validation:166 licensed tests passed,0 failures/skips; spotlessCheck passe
 Ruling: The user pointed out the existing Maps lit-worker feature. Confirmed source and liveCDN: a valid format1 lit copy is advertised, but the lobby downloader always selects the raw bundle. Add this compatible transport selection rather than creating another bake pipeline. Retain bounded startup preparation for legacy/unlit worlds.
 
 Files: MapDistribution.kt and MapDistributionTest.kt.
-- [ ] RED: compatible lit bundle selected/cached with source identity preserved; pinnedDigest stays source digest.
-- [ ] RED: unsupported format falls back to source; tampered/missing-marker lit copies cannot enter verified cache.
-- [ ] GREEN: separate selected transport digest from source identity, validate marker and maintain existing cache safety.
-- [ ] Full suite/format, fresh review, verify actualCDN lit copy/scene/model compatibility and connected cold test.
-- [ ] Deploy updated private image to Stage, verify both lobbies consume the lit copy and startup no longer recomputes full terrain light.
+- [x] RED: compatible lit bundle selected/cached with source identity preserved; pinnedDigest stays source digest.
+- [x] RED: unsupported format falls back to source; tampered/missing-marker lit copies cannot enter verified cache.
+- [x] GREEN: separate selected transport digest from source identity, validate marker and maintain existing cache safety.
+- [x] Full suite/format, fresh review, verify actualCDN lit copy/scene/model compatibility and connected cold test.
+- [x] Deploy updated private image to Stage, verify both lobbies consume the lit copy and startup no longer recomputes full terrain light.
 
 Task2b validation:170 licensed tests pass,0failures/skips; formatting and all983addon files accepted on actual CDN litMap9. Independent downloader review: no blockers. Real source bundlea1bec43f... verified; all29 non-terrain files, including canonical NPCscene662a203e..., are byte-identical in litcopy0834f795.... The historical local raw fixture scene4bd92ad6... differs only in JSON whitespace (semantic equality confirmed), so raw-fixture versus prelit comparisons document that distinction. Source identity remainsa1bec43f....
 
 Initial actual prelit connected run: preparation611ms, peakRSS267.94MiB, firstplatform max186.55ms, join97.53ms, no InstanceContainer monitor wait in platform peak and0JFRDataLoss. This is a remaining first-render/JIT startup cost, not evidence that all first-visit work vanished. Repeat in progress. Legacy raw preparation controls remain343–362ms before fix and48–71ms after bounded prewarm; do not conflate those with prelit first-render variability.
+
+Task2 complete: deploy#542 activated prelit22cab857 on both Stage lobbies; source identity/catalogue/addon/SOLID unchanged. User confirms two lobbies visible and no observed first-platform lag. Full evidence:2026-11-01-npc-cold-terrain-results.md. N20 proceeds independently on Scene branch perf/npc-hover-candidates-20261101; N32 remains pending that measurement.

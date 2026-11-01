@@ -76,6 +76,15 @@ Kontrollmessung mit 15 Modellen und einem erzwungenen Betrachter: Idle 5.866,8 �
 | N26 | P1 Voraussetzung / M / Teilweise | Explizite Initialisierung und Resynchronisation bei echten Lebenszykluswechseln. | Vollständiger Sichtbarkeitseintritt ist vorhanden. Für LOD/Reconnect/Reload Delta-Basen explizit zurücksetzen; keine pauschalen Vollupdates als Dauerlösung. | RenderInit in [Model-Optionen][me-options], Resync in [Befehlen][me-commands], Initial-load-Pfade in [RenderPipeline][bm-pipeline]. |
 | N27 | P1 zuerst / M / Teilweise | Modellbezogene Kostenmessung für Pose, Zerlegung, Versand und Sichtbarkeit. | Lokaler Benchmark vorhanden; zusätzlich begrenzte Laufzeit-Histogramme, p95/p99, echte Bytes, innere Pakete, Allokationen, Cull-Gründe und Alter des letzten Updates. Kein Tick-für-Tick-Logging. | Updater-/Tracker-Timings von `/meg health` in [ModelEngine][me-commands]. |
 
+## Profilbefunde nach dem SOLID-Fix
+
+| ID | Priorität / Aufwand / Status | Ansatz und Nutzen | Abnahme und Grenzen | Quelle |
+| --- | --- | --- | --- | --- |
+| N32 | P1 nach Profil / M / Offen | Inverse Bounds-Transformationen je Elementrevision vorberechnen. | Bounds-/Root-/Local-Änderungen, Entfernen, Scherung und nichtuniforme Skalierung korrekt behandeln; zunächst N20 getrennt messen. | Eigene verbundene Profile: SceneBoundsRaycaster/AffineTransform verursachen weiterhin viele double[]-Allokationen. |
+| N33 | P1 / M / Auf Stage bestätigt | Bereits gespeicherte Map-Beleuchtung verwenden; für unbeleuchtete Maps relevante Chunks vor Eintritt vorbereiten. | Keine neue Bake-Pipeline: service-maps#74 existiert seit19.Oktober. Lobby ignorierte den vorhandenen lit-Pin. Auswahl, Prüfsummen, Originalidentität und Fallback korrigiert;170Tests,6kalte verbundene Läufe, Stage-Nutzertest ohne merklichen Lag. | [Nachweis](2026-11-01-npc-cold-terrain-results.md). |
+
+N20 wird als isolierter Kandidat geprüft: Interaktions-Owner bereits im Tracker-Callback auswählen, bevor die471dekorativen Displays gesammelt/sortiert werden. Ein deterministischer LocalId-Sort bleibt erhalten.268Scene-Tests und170Host-Tests bestehen; der20Client-Vergleich läuft. N21 bleibt für die getrennten171–187ms erster Entity-Erzeugung auf kalten prelitMaps offen. Der cohortbasierte Kandidat aus Host#233 bleibt wegen gemessenem CPU-Nachteil unabhängig davon Entwurf; die Traffic-Gewinne allein rechtfertigen keine Aktivierung.
+
 ## Clientarbeit und Parallelität
 
 | ID | Priorität / Aufwand / Status | Ansatz und Nutzen | Abnahme und Grenzen | Quelle |
