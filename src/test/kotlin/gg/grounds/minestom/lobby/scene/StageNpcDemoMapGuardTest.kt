@@ -5,12 +5,17 @@ import gg.grounds.resourcepacks.catalog.GroundsAssetCatalog
 import gg.grounds.scene.format.Vec3
 import java.nio.file.Path
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 
 class StageNpcDemoMapGuardTest {
     @Test
     fun `demo never becomes ready on a baked fallback wrong pin or missing scene`() {
         val assets = GroundsAssetCatalog.catalog
+        assumeTrue(
+            gg.grounds.scene.format.AssetKey("grounds:npc/townfolk/builder") in assets.assets,
+            "Licensed model variant not selected",
+        )
         val base = lobbySceneFixture(assets, Vec3(100.0, 140.0, 100.0), Vec3(102.0, 140.0, 100.0))
         val scene = stageNpcDemoScene(base, assets)
         val digest = "a".repeat(64)

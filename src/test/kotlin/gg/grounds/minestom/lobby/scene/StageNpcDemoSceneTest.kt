@@ -7,11 +7,21 @@ import gg.grounds.scene.format.*
 import java.nio.file.Files
 import java.nio.file.Path
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assumptions.assumeTrue
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 
 class StageNpcDemoSceneTest {
     @TempDir lateinit var directory: Path
+
+    @BeforeEach
+    fun requireLicensedCatalog() {
+        assumeTrue(
+            AssetKey("grounds:npc/townfolk/builder") in GroundsAssetCatalog.catalog.assets,
+            "Licensed model variant not selected",
+        )
+    }
 
     @Test
     fun `complete demo preserves foreign elements covers every NPC feature and resolves in the real host`() {
