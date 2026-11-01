@@ -261,9 +261,12 @@ internal class AnimatedNpcHandle(
                 viewerVisuals.remove(player.uuid)
             else viewerVisuals[player.uuid] = state.scaleMultiplier to state.highlighted
             refreshViewers()
+            val duration = visualInterpolationDuration()
             displays.forEach {
-                if (player in it.viewers)
-                    it.sendVisualState(player, previous != state.scaleMultiplier)
+                if (player in it.viewers) {
+                    if (previous != state.scaleMultiplier) it.sendPoseState(player, duration)
+                    else it.sendVisualFlags(player)
+                }
             }
         }
     }
@@ -272,15 +275,24 @@ internal class AnimatedNpcHandle(
         synchronized(lock) {
             if (!closed) {
                 val changed = viewerVisuals.remove(player.uuid)?.first?.let { it != 1.0 } ?: false
-                displays.forEach { if (player in it.viewers) it.sendVisualState(player, changed) }
+                val duration = visualInterpolationDuration()
+                displays.forEach {
+                    if (player in it.viewers) {
+                        if (changed) it.sendPoseState(player, duration)
+                        else it.sendVisualFlags(player)
+                    }
+                }
             }
         }
     }
 
     private fun sendViewerState(display: NpcItemDisplay, player: Player) {
         if (closed) return
-        display.sendVisualState(player, false)
+        display.sendPoseState(player, visualInterpolationDuration())
     }
+
+    private fun visualInterpolationDuration(): Int =
+        (NpcRenderPolicy.updateIntervalMillis(nearestViewerSquared) / 50).toInt()
 
     override fun close() {
         synchronized(lock) {

@@ -80,6 +80,31 @@ class NativeSolidPocTest {
                     it.entityType == EntityType.SHULKER
                 }
             assertEquals(probe.cubes.size, bodies.size)
+            bodies.forEach { body ->
+                val carrier = requireNotNull(body.vehicle)
+                val initialPackets = player.connection.packets.toList()
+                val bodySpawn =
+                    initialPackets.indexOfLast {
+                        it is SpawnEntityPacket && it.entityId() == body.entityId
+                    }
+                val carrierSpawn =
+                    initialPackets.indexOfLast {
+                        it is SpawnEntityPacket && it.entityId() == carrier.entityId
+                    }
+                val mount =
+                    initialPackets.indexOfLast {
+                        it is SetPassengersPacket &&
+                            it.vehicleEntityId() == carrier.entityId &&
+                            body.entityId in it.passengersId()
+                    }
+                assertTrue(
+                    bodySpawn >= 0 &&
+                        carrierSpawn >= 0 &&
+                        mount > bodySpawn &&
+                        mount > carrierSpawn,
+                    "Initial viewer needs both spawns before mounting: mount=$mount body=$bodySpawn carrier=$carrierSpawn",
+                )
+            }
             val lateViewer = fixture.player(Pos(1000.0, 173.0, 1000.0))
             // Exercise automatic tracking; Entity.addViewer is a single-entity manual API.
             lateViewer.teleport(Pos(1.25, 173.0, 5.0)).join()
