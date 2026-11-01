@@ -7,6 +7,13 @@ ist noch nicht ausgerollt. Der getrennte Ressourcen-Hotfix gegen fehlende Modell
 ([resourcepacks#60](https://github.com/groundsgg/resourcepacks/pull/60),
 [deploy#521](https://github.com/groundsgg/deploy/pull/521)) enthält diese Folgeänderung nicht.
 
+Die anschließenden Korrekturen für gemeinsame Skalierungsdauer (Host#230) und einen
+reproduzierten SOLID-Eckfall (Scene#22) wurden getrennt durch deploy#524 aktiviert.
+Der Nutzer meldet weiterhin SOLID-Zurücksetzen; dessen tatsächliche Ursache ist noch offen
+und wird durch die begrenzte Stage-Diagnose deploy#525 eingegrenzt. Diese Performance-Runde
+wird deshalb noch nicht aktiviert. Die fehlenden Modellteile wurden dagegen vom Nutzer
+nach dem Ressourcen-Hotfix als behoben bestätigt.
+
 ## Live-Beobachtung
 
 Verglichen wurden 12:00–12:10 Uhr und 12:26–12:36 Uhr **Europe/Berlin** am 1. November,
@@ -105,6 +112,16 @@ Client-Frametimes bleiben außerhalb dieses lokalen Vergleichs.
 Reproduktion und alle Streubereiche: `artifacts/npc-performance-next-2026-11-01/`
 mit `cohort-v2-conclusion.txt`, `cohort-v2-summary.json`, `cohort-v2-verification.json`,
 `NpcPerfProbeV2.java` und den einzelnen JSONL-/Prometheus-Ausgaben.
+
+Nach Integration der zwischenzeitlichen Korrekturen bestehen 176 lizenzierte Host-Tests
+ohne Fehler oder Skips. Alle 54 kompilierten Host-Scene-/Rendererklassen sind bytegleich
+zum oben vermessenen V2-Kandidaten; der neue private Prüfbuild enthält zusätzlich die
+kollisionsfreien Ressourcen und den Scene-Eckfallfix. Nachweis:
+`current-correctness-proof.json`, Build `candidate-correctness.jar` mit SHA-256
+`d1ba30145d62d3b49ee2975b505f017d41981c512f05d4851103e12a1c33c6cc`.
+Dieser eingefrorene Prüfbuild liegt zeitlich vor der zusätzlichen Initialisierung gemounteter
+Shulker aus Host#232. Vor einer Aktivierung muss diese Korrektur ebenfalls integriert und
+neu geprüft werden; der Prüfbuild ist kein Ersatz für den neuesten Stage-Kollisionsbuild.
 
 Der spätere Stage-Pod mit nur 204 Entities und zwei Spielern ist kein weiterer
 Performance-Nachweis: Dort war die Testplattform nach dem Neustart noch nicht geladen.
