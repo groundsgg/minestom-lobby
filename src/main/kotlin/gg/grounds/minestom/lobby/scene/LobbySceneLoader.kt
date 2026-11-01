@@ -22,7 +22,7 @@ internal data class PreparedLobbyScene(
 
 internal class LobbySceneLoader(
     private val assets: AssetCatalog = GroundsAssetCatalog.catalog,
-    private val renderers: SceneAssetRendererRegistry = LobbyPlaceholderRenderers(assets),
+    private val renderers: SceneAssetRendererRegistry = LobbySceneRenderers(assets),
 ) {
     fun load(map: LoadedLobbyMap): PreparedLobbyScene? {
         val file = map.root.resolve("scene.json")
@@ -68,32 +68,78 @@ internal class LobbySceneLoader(
         scene.elements.forEach { element ->
             when (element) {
                 is Prop -> {
-                    check(element.initialAnimation == null) {
-                        "Unsupported initial animation in $file"
+                    element.initialAnimation?.let { clip ->
+                        check(
+                            (renderers as? AnimatedSceneRenderers)?.supportsAnimation(
+                                element.asset,
+                                clip,
+                            ) == true
+                        ) {
+                            "Unsupported initial animation in $file"
+                        }
                     }
                     renderer(element.asset, AssetKind.PROP)
                 }
                 is CompositeProp -> element.parts.forEach { renderer(it.asset, AssetKind.PROP) }
                 is Npc -> {
-                    check(element.initialAnimation == null) {
-                        "Unsupported initial animation in $file"
+                    element.initialAnimation?.let { clip ->
+                        check(
+                            (renderers as? AnimatedSceneRenderers)?.supportsAnimation(
+                                element.body,
+                                clip,
+                            ) == true
+                        ) {
+                            "Unsupported initial animation in $file"
+                        }
                     }
                     renderer(element.body, AssetKind.NPC_BODY)
                 }
             }
         }
+        fun targetAsset(target: ElementTarget): AssetKey {
+            return when (val element = scene.elements.single { it.id == target.element }) {
+                is Npc -> element.body
+                is Prop -> element.asset
+                is CompositeProp -> element.parts.single { it.id == target.part }.asset
+            }
+        }
+        val effects = LobbySceneEffects(assets)
         scene.boundActions().forEach { action ->
             when (action) {
-                is StartAnimationAction,
-                is StopAnimationAction -> error("Unsupported lobby animation in $file")
+                is StartAnimationAction ->
+                    check(
+                        (renderers as? AnimatedSceneRenderers)?.supportsAnimation(
+                            targetAsset(action.target),
+                            action.animation,
+                        ) == true
+                    ) {
+                        "Unsupported lobby animation in $file"
+                    }
+                is StopAnimationAction ->
+                    check(
+                        (renderers as? AnimatedSceneRenderers)?.supportsAnimation(
+                            targetAsset(action.target),
+                            action.animation,
+                        ) == true
+                    ) {
+                        "Unsupported lobby animation in $file"
+                    }
                 is SetViewerScaleAction ->
-                    error(
-                        "Unsupported lobby viewer scale in $file; renderer supports highlight only"
-                    )
+                    check(
+                        (renderers as? AnimatedSceneRenderers)?.supportsViewerScale(
+                            targetAsset(action.target)
+                        ) == true
+                    ) {
+                        "Unsupported lobby viewer scale in $file"
+                    }
                 is PlaySoundAction ->
-                    error("Unsupported lobby sound ${action.sound.value} in $file")
+                    check(effects.supports(action.sound, AssetKind.SOUND)) {
+                        "Unsupported lobby sound ${action.sound.value} in $file"
+                    }
                 is EmitParticleAction ->
-                    error("Unsupported lobby particle ${action.particle.value} in $file")
+                    check(effects.supports(action.particle, AssetKind.PARTICLE)) {
+                        "Unsupported lobby particle ${action.particle.value} in $file"
+                    }
                 else -> Unit
             }
         }

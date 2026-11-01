@@ -26,10 +26,32 @@ tasks.register<JavaExec>("generateLobbySceneFixture") {
     }
 }
 
+tasks.register<JavaExec>("migrateQueueNpcScene") {
+    group = "scene"
+    description =
+        "Adds Scene queue NPCs to an explicit input and writes a new sidecar; never overwrites."
+    dependsOn(tasks.classes)
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("gg.grounds.minestom.lobby.scene.QueueNpcSceneMigrationKt")
+    doFirst {
+        args(
+            listOf("sceneInput", "sceneOutput", "sceneNpcBody").map { key ->
+                providers.gradleProperty(key).orNull ?: error("Missing -P$key")
+            } +
+                listOf(
+                    providers.gradleProperty("sceneIdleAnimation").orNull ?: "-",
+                    providers.gradleProperty("sceneGreetingAnimation").orNull ?: "-",
+                )
+        )
+    }
+}
+
 application { mainClass.set("gg.grounds.minestom.lobby.MainKt") }
 
 tasks.test {
-    systemProperty("lobby.test.runtimeClasspath", sourceSets.test.get().runtimeClasspath.asPath)
+    doFirst {
+        systemProperty("lobby.test.runtimeClasspath", sourceSets.test.get().runtimeClasspath.asPath)
+    }
     systemProperty("org.slf4j.simpleLogger.cacheOutputStream", "false")
 }
 
@@ -79,7 +101,9 @@ dependencies {
 
     implementation("gg.grounds:grounds-minestom-runtime-runtime-core:0.13.0")
     implementation("gg.grounds:scene-minestom:0.4.3")
+    implementation("gg.grounds:scene-interaction:0.4.3")
     implementation("gg.grounds:resourcepacks-catalog:1.0.0")
+    implementation("gg.grounds:resourcepacks-npc-runtime:1.2.1")
     implementation("gg.grounds:plugin-lobby-scene-catalog:2.0.0")
     // Minecraft 26.3. Overrides the 26.2 Minestom in grounds-dependencies 1.0.0 until that
     // platform carries an upstream 26.3 release. Keep in step with grounds-vanilla's 26.3 line,

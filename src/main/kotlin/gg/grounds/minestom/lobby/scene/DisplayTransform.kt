@@ -1,5 +1,6 @@
 package gg.grounds.minestom.lobby.scene
 
+import gg.grounds.resourcepacks.npc.*
 import gg.grounds.scene.format.LocalBounds
 import gg.grounds.scene.format.Transform
 import gg.grounds.scene.format.Vec3
@@ -21,13 +22,37 @@ private constructor(
     private val scale: DoubleArray,
     private val right: DoubleArray,
 ) {
-    fun apply(meta: AbstractDisplayMeta, anchor: Vec3 = Vec3(0.0, 0.0, 0.0)) {
-        meta.setTranslation(
-            Vec(translation.x - anchor.x, translation.y - anchor.y, translation.z - anchor.z)
+    /**
+     * Returns whether serialized pose fields changed, so callers can restart interpolation once.
+     */
+    fun apply(meta: AbstractDisplayMeta, anchor: Vec3 = Vec3(0.0, 0.0, 0.0)): Boolean {
+        val nextTranslation =
+            Vec(
+                (translation.x - anchor.x).toFloat().toDouble(),
+                (translation.y - anchor.y).toFloat().toDouble(),
+                (translation.z - anchor.z).toFloat().toDouble(),
+            )
+        val nextLeft = quaternion(left)
+        // VECTOR3 metadata is serialized as floats, despite Vec storing doubles.
+        val nextScale =
+            Vec(
+                scale[0].toFloat().toDouble(),
+                scale[1].toFloat().toDouble(),
+                scale[2].toFloat().toDouble(),
+            )
+        val nextRight = quaternion(right)
+        if (
+            meta.translation == nextTranslation &&
+                meta.leftRotation.contentEquals(nextLeft) &&
+                meta.scale == nextScale &&
+                meta.rightRotation.contentEquals(nextRight)
         )
-        meta.setLeftRotation(quaternion(left))
-        meta.setScale(Vec(scale[0], scale[1], scale[2]))
-        meta.setRightRotation(quaternion(right))
+            return false
+        meta.setTranslation(nextTranslation)
+        meta.setLeftRotation(nextLeft)
+        meta.setScale(nextScale)
+        meta.setRightRotation(nextRight)
+        return true
     }
 
     private fun quaternion(rotation: DoubleArray): FloatArray {
@@ -92,6 +117,26 @@ private constructor(
             )
         }
 
+        fun fromModel(transform: SceneRenderTransform, model: NpcMatrix): DisplayTransform {
+            val m = model.values
+            val modelAffine =
+                Affine(
+                    Vec3(m[3], m[7], m[11]),
+                    Matrix3(doubleArrayOf(m[0], m[1], m[2], m[4], m[5], m[6], m[8], m[9], m[10])),
+                )
+            val composed =
+                affine(transform.root) *
+                    (transform.local?.let(::affine) ?: Affine.IDENTITY) *
+                    modelAffine
+            val decomposed = decompose(composed.matrix)
+            return DisplayTransform(
+                composed.translation,
+                decomposed.left,
+                decomposed.scale,
+                decomposed.right,
+            )
+        }
+
         private fun affine(transform: Transform): Affine =
             Affine(transform.position, Matrix3.rotation(transform) * Matrix3.scale(transform.scale))
 
@@ -104,6 +149,7 @@ private constructor(
                 matrix *
                     eigenvectors *
                     Matrix3.diagonal(scale.map { if (it == 0.0) 0.0 else 1.0 / it }.toDoubleArray())
+            if (matrix.determinant() < 0.0) scale[2] = -scale[2]
             return Decomposition(left.orthonormalized(), scale, right.orthonormalized())
         }
     }
@@ -159,16 +205,60 @@ private class Matrix3(private val values: DoubleArray) {
             )
         )
 
+    fun determinant(): Double =
+        values[0] * (values[4] * values[8] - values[5] * values[7]) -
+            values[1] * (values[3] * values[8] - values[5] * values[6]) +
+            values[2] * (values[3] * values[7] - values[4] * values[6])
+
     fun orthonormalized(): DoubleArray {
-        val x = normalize(doubleArrayOf(values[0], values[3], values[6]))
-        val y =
-            normalize(
-                subtract(
-                    doubleArrayOf(values[1], values[4], values[7]),
-                    scale(x, dot(x, doubleArrayOf(values[1], values[4], values[7]))),
-                )
-            )
-        val z = cross(x, y)
+        val columns = Array(3) { c -> DoubleArray(3) { r -> values[r * 3 + c] } }
+        val present = columns.map { dot(it, it) > 1e-20 }
+        fun perpendicular(axis: DoubleArray): DoubleArray {
+            val hint =
+                if (abs(axis[0]) < .8) doubleArrayOf(1.0, 0.0, 0.0)
+                else doubleArrayOf(0.0, 1.0, 0.0)
+            return normalize(subtract(hint, scale(axis, dot(axis, hint))))
+        }
+        // Preserve every surviving axis when authored animation collapses one or two axes.
+        val (x, y, z) =
+            when {
+                present[0] && present[1] -> {
+                    val x = normalize(columns[0])
+                    val y = normalize(subtract(columns[1], scale(x, dot(x, columns[1]))))
+                    Triple(x, y, cross(x, y))
+                }
+                present[0] && present[2] -> {
+                    val x = normalize(columns[0])
+                    val z = normalize(subtract(columns[2], scale(x, dot(x, columns[2]))))
+                    Triple(x, cross(z, x), z)
+                }
+                present[1] && present[2] -> {
+                    val y = normalize(columns[1])
+                    val z = normalize(subtract(columns[2], scale(y, dot(y, columns[2]))))
+                    Triple(cross(y, z), y, z)
+                }
+                present[0] -> {
+                    val x = normalize(columns[0])
+                    val y = perpendicular(x)
+                    Triple(x, y, cross(x, y))
+                }
+                present[1] -> {
+                    val y = normalize(columns[1])
+                    val z = perpendicular(y)
+                    Triple(cross(y, z), y, z)
+                }
+                present[2] -> {
+                    val z = normalize(columns[2])
+                    val x = perpendicular(z)
+                    Triple(x, cross(z, x), z)
+                }
+                else ->
+                    Triple(
+                        doubleArrayOf(1.0, 0.0, 0.0),
+                        doubleArrayOf(0.0, 1.0, 0.0),
+                        doubleArrayOf(0.0, 0.0, 1.0),
+                    )
+            }
         return doubleArrayOf(x[0], y[0], z[0], x[1], y[1], z[1], x[2], y[2], z[2])
     }
 

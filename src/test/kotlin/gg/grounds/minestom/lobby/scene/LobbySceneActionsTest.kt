@@ -1,6 +1,7 @@
 package gg.grounds.minestom.lobby.scene
 
 import gg.grounds.lobby.LobbyNavigatorService
+import gg.grounds.lobby.LobbyQueueService
 import gg.grounds.lobby.scene.LobbySceneCatalogs
 import gg.grounds.permissions.*
 import gg.grounds.scene.format.*
@@ -157,6 +158,105 @@ class LobbySceneActionsTest {
             )
             assertNull(
                 LobbySceneActions(null, policy).handlerFor(LobbySceneCatalogs.OPEN_NAVIGATOR)
+            )
+        }
+    }
+
+    @Test
+    fun `queue actions delegate the exact mode and duel selection without commands`() {
+        RendererFixture().use { fixture ->
+            val player = fixture.player()
+            val received = mutableListOf<String>()
+            val service =
+                object : LobbyQueueService {
+                    override fun toggleQueue(player: Player, modeId: String) =
+                        CompletableFuture.completedFuture(true).also { received += modeId }
+
+                    override fun openDuels(player: Player) =
+                        CompletableFuture.completedFuture(true).also { received += "duel-menu" }
+                }
+            val registry =
+                LobbySceneActions(null, LobbyScenePlayerPolicy(fixture.instance, null), service)
+            val toggle = registry.handlerFor(ActionKey("grounds:lobby/toggle_queue"))!!
+            assertEquals(
+                SceneActionResult.Success,
+                toggle
+                    .execute(
+                        context(player)
+                            .copy(
+                                arguments = mapOf(LocalId("mode") to StringArgument("bedwars-2x1"))
+                            )
+                    )
+                    .toCompletableFuture()
+                    .join(),
+            )
+            assertEquals(
+                SceneActionResult.Success,
+                registry
+                    .handlerFor(ActionKey("grounds:lobby/open_duel_menu"))!!
+                    .execute(context(player))
+                    .toCompletableFuture()
+                    .join(),
+            )
+            assertEquals(listOf("bedwars-2x1", "duel-menu"), received)
+        }
+    }
+
+    @Test
+    fun `malformed queue arguments and a player outside the scene cannot reach the queue service`() {
+        RendererFixture().use { fixture ->
+            val service =
+                object : LobbyQueueService {
+                    override fun toggleQueue(
+                        player: Player,
+                        modeId: String,
+                    ): CompletableFuture<Boolean> = fail("Invalid queue action reached service")
+
+                    override fun openDuels(player: Player): CompletableFuture<Boolean> =
+                        fail("Invalid duel action reached service")
+                }
+            val registry =
+                LobbySceneActions(null, LobbyScenePlayerPolicy(fixture.instance, null), service)
+            val handler = registry.handlerFor(ActionKey("grounds:lobby/toggle_queue"))!!
+            val player = fixture.player()
+            for (args in
+                listOf(
+                    emptyMap(),
+                    mapOf(LocalId("mode") to StringArgument("/queue leave")),
+                    mapOf(LocalId("mode") to LongArgument(1)),
+                    mapOf(
+                        LocalId("mode") to StringArgument("duel"),
+                        LocalId("extra") to StringArgument("x"),
+                    ),
+                )) {
+                assertInstanceOf(
+                    SceneActionResult.Rejected::class.java,
+                    handler
+                        .execute(context(player).copy(arguments = args))
+                        .toCompletableFuture()
+                        .join(),
+                )
+            }
+            assertInstanceOf(
+                SceneActionResult.Rejected::class.java,
+                handler
+                    .execute(
+                        context(TestPlayer())
+                            .copy(arguments = mapOf(LocalId("mode") to StringArgument("duel")))
+                    )
+                    .toCompletableFuture()
+                    .join(),
+            )
+            assertInstanceOf(
+                SceneActionResult.Rejected::class.java,
+                registry
+                    .handlerFor(ActionKey("grounds:lobby/open_duel_menu"))!!
+                    .execute(
+                        context(player)
+                            .copy(arguments = mapOf(LocalId("extra") to StringArgument("x")))
+                    )
+                    .toCompletableFuture()
+                    .join(),
             )
         }
     }
