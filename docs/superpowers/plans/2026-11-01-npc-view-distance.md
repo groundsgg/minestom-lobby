@@ -6,6 +6,9 @@ Design: increase admission from 32 to 64 blocks in 3D, while retaining the indep
 32-block vertical limit that excludes the Stage test platform from the lobby floor.
 Existing viewers remain until 72 blocks, preventing boundary spawn/despawn churn.
 The same admission rule applies during initial attachment and later movement.
+Spawn metadata sets the relative client Display view range to 1.25, leaving headroom
+for the retention band. Client render-distance/entity-scaling settings still apply
+as documented by [Mojang](https://www.minecraft.net/en-us/article/minecraft-java-edition-1-19-4).
 Near animation stays at 200 ms through 16 blocks and 250 ms through 32 blocks;
 NPCs whose nearest relevant viewer is farther away use 500 ms / 10 clientticks.
 This continues the shared-pose policy; true independent per-viewer rates remain N13.
@@ -22,8 +25,9 @@ traffic. Independent vertical admission plus a slower added range addresses both
 - [x] Run full Host tests/formatting and the real Stage scene/addon gate; independent review.
 - [ ] Open current-main follow-up PR and hand the exact candidate to the joint release owner.
 
-Evidence: 158 Host tests, zero failures/skips, formatting and shadowJar pass. Five added
-regressions cover the new range and transitions; three first failed against the old policy.
+Evidence: 159 Host tests, zero failures/skips, formatting and shadowJar pass. Six added
+regressions cover the new range, transitions and client spawn metadata. Three first failed
+against the old policy; the spawn-metadata regression failed separately before its fix.
 The production-JAR gate accepts the real Map9 and 983 addon asset digests plus both ZIP
 hashes, and rejects a wrong catalogue and a pack.mcmeta-only mutation. Independent review
 found no actionable issues. The existing Stage image still has the earlier 32-block policy

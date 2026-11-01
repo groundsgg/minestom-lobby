@@ -57,6 +57,8 @@ internal class LobbyNpcModelRenderers(
                                     .with(DataComponents.ITEM_MODEL, part.model)
                             )
                             meta.setTransformationInterpolationDuration(2)
+                            // Leave client-side headroom beyond the 72-block server retention band.
+                            meta.setViewRange(1.25f)
                         }
                     }
                 }

@@ -151,6 +151,30 @@ class NpcRenderPerformanceTest {
     }
 
     @Test
+    fun `spawn metadata allows the client to render the entire retained range`() {
+        RendererFixture().use { fixture ->
+            val player = fixture.player(Pos(50.0, 0.0, 0.0))
+            val handle = create(fixture)
+            val displays = fixture.instance.entities.filterIsInstance<NpcItemDisplay>()
+            for (display in displays) {
+                val viewRange =
+                    player.connection.packets
+                        .filterIsInstance<EntityMetaDataPacket>()
+                        .filter { it.entityId() == display.entityId }
+                        .mapNotNull {
+                            it.entries()[MetadataDef.Display.VIEW_RANGE.index()]?.value() as? Float
+                        }
+                        .lastOrNull() ?: 1.0f
+                assertTrue(
+                    viewRange >= 1.25f,
+                    "Client needs visibility headroom beyond the retained range",
+                )
+            }
+            handle.close()
+        }
+    }
+
+    @Test
     fun `viewer remains across the admission boundary and leaves beyond the retention range`() {
         RendererFixture().use { fixture ->
             val player = fixture.player(Pos(60.0, 0.0, 0.0))
