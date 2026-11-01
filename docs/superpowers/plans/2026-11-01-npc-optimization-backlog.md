@@ -160,3 +160,5 @@ java --class-path /absolute/path/minestom-lobby-all.jar \
 [mc-1216]: https://www.minecraft.net/en-us/article/minecraft-java-edition-1-21-6
 
 Aktuelle Sensor-Messungen: [N20/N32-Nachweis](2026-11-01-npc-sensor-performance-results.md). Die Prozentwerte gehören zu zwei unabhängigen kontrollierten Paaren und werden nicht addiert. N13/N24/N27 aus Host#233 bleiben wegen des größeren CPU-Nachteils getrennt im Entwurf. Weitergehende Geometrieänderungen und native BOUNCE-Anpassungen werden nicht ohne eigene visuelle/Gameplay-Abnahme in diesen Performance-Rollout gemischt.
+
+N24-Standardpfad ist über deploy#554 auf beiden Stage-Lobbys aktiv (Image e447d40b5747, Digest c6d3952478658bfbaa945757e2b50667a2778e78fd02ff6a81b46a968ac7bf30). Alle 765 Testplattform-Würfel und die bestehende SOLID-/Lighting-Konfiguration bleiben erhalten. #236 bleibt wegen nicht durchgehend belegtem CPU-Gewinn separat im Entwurf; #233 wird mit seinen bisherigen CPU-Nachteilen nicht pauschal übernommen.

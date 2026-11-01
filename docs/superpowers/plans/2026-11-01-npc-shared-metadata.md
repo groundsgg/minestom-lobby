@@ -31,7 +31,7 @@ Files: owned private artifact scripts/manifests; results report and optimization
 
 - [x] Hash-pin baseline/candidate; measure1/20/60actual clients including movement and three visibility reentries with matched counters. JFR outside throughput windows only.
 - [x] Record CPU, allocations, tick tails and dispatch counts honestly. Reject any unsupported win; no client packet-count reduction claim.
-- [ ] Publish reviewed source/results. If accepted, activate only private Stage image, verify live pins/readiness and clean up owned processes.
+- [x] Publish reviewed source/results; activate the private Stage image via deploy#554; verify both live pins/readiness/map/catalogue/addon/nativeSOLID and clean up owned processes.
 
 ## Execution ledger
 
@@ -48,3 +48,5 @@ Measured refinement before acceptance: first candidate b3a9e34e at1client alloca
 Refinement checks: the new single-common test first failed with an unexpected CachedPacket (RED), then passed after adding the cardinality guard.175licensed tests pass with0skips;175ordinary tests pass with5expectedasset skips;5translation-enabled focused tests pass. The refined e447d40b57476606dd9df3fc7223b71997c2c03ec4f4d878252f45e84b44743b artifact again passes983addon files and723456bit-identical pose records. Re-run the full connected candidate schedule against the same frozen baseline; disclose control reuse rather than calling it another independent pair.
 
 Task2 numerical decision: retain for repeatable allocation reduction (final60mixed −24.2%) and lower60client processCPU(−4.3%), with exact geometry/data and no operational failures. Do not claim uniform tick/tail/RX improvements; the final unfavorable reentry window and scheduling counters are included in the report. Final e447candidate completes1/20/60, movement,3reentries and strict separateJFR with0disconnects/DataLoss; source map unchanged. Stage activation remains next.
+
+Task2 rollout complete: private image digestc6d3952478658bfbaa945757e2b50667a2778e78fd02ff6a81b46a968ac7bf30 is verified on both Stage lobbies with0restarts; prelitMap9/catalogue/addon/nativeSOLID preserved. Both old lobbies have been replaced by normal rollout; no old allocated instance remains. All owned benchmark containers/servers/ports are cleaned up. Optional human smoke test remains unclaimed; Source#237 final merge follows documentation CI.
