@@ -29,8 +29,8 @@ Files: scene/NpcItemDisplay.kt; tests/scene/NpcSharedMetadataTest.kt and Rendere
 
 Files: owned private artifact scripts/manifests; results report and optimization backlog.
 
-- [ ] Hash-pin baseline/candidate; measure1/20/60actual clients including movement and three visibility reentries with matched counters. JFR outside throughput windows only.
-- [ ] Record CPU, allocations, tick tails and dispatch counts honestly. Reject any unsupported win; no client packet-count reduction claim.
+- [x] Hash-pin baseline/candidate; measure1/20/60actual clients including movement and three visibility reentries with matched counters. JFR outside throughput windows only.
+- [x] Record CPU, allocations, tick tails and dispatch counts honestly. Reject any unsupported win; no client packet-count reduction claim.
 - [ ] Publish reviewed source/results. If accepted, activate only private Stage image, verify live pins/readiness and clean up owned processes.
 
 ## Execution ledger
@@ -46,3 +46,5 @@ Task1 complete: fresh independent review of0603235 found no correctness blockers
 Measured refinement before acceptance: first candidate b3a9e34e at1client allocates17.09MB/s versus15.87MB/s baseline. Shared serialization needs at least2common recipients. Add the single-common (including beside a personal viewer) regression first, observe RED, then bypass native grouping for one common recipient. The current frozen a-pair must finish unchanged; rebuild and verify the refined artifact separately before activation.
 
 Refinement checks: the new single-common test first failed with an unexpected CachedPacket (RED), then passed after adding the cardinality guard.175licensed tests pass with0skips;175ordinary tests pass with5expectedasset skips;5translation-enabled focused tests pass. The refined e447d40b57476606dd9df3fc7223b71997c2c03ec4f4d878252f45e84b44743b artifact again passes983addon files and723456bit-identical pose records. Re-run the full connected candidate schedule against the same frozen baseline; disclose control reuse rather than calling it another independent pair.
+
+Task2 numerical decision: retain for repeatable allocation reduction (final60mixed −24.2%) and lower60client processCPU(−4.3%), with exact geometry/data and no operational failures. Do not claim uniform tick/tail/RX improvements; the final unfavorable reentry window and scheduling counters are included in the report. Final e447candidate completes1/20/60, movement,3reentries and strict separateJFR with0disconnects/DataLoss; source map unchanged. Stage activation remains next.
