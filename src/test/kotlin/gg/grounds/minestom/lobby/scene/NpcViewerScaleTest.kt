@@ -72,7 +72,7 @@ class NpcViewerScaleTest {
             assertEquals(2.0, value(first, scale).x(), 1e-6)
             assertEquals(1.0, value(second, scale).x(), 1e-6)
             assertEquals(1.5, (display.entityMeta as ItemDisplayMeta).translation.y(), 1e-6)
-            handle.applyTransform(sceneTransform(Vec3(10.0, 140.0, 20.0)))
+            handle.applyTransform(sceneTransform(Vec3(10.0, 0.0, 20.0)))
             handle.advanceAnimation(1000)
             fixture.instance.tick(1000)
             assertEquals(4.0, value(first, translation).y(), 1e-6)

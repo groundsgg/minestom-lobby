@@ -20,6 +20,7 @@ class AnimatedNpcRendererTest {
     @Test
     fun `source animation moves the rendered part and a one-shot returns to idle`() {
         RendererFixture().use { fixture ->
+            fixture.player(net.minestom.server.coordinate.Pos(10.0, 140.0, 20.0))
             val model = model()
             val assets =
                 AssetCatalog(
@@ -67,7 +68,7 @@ class AnimatedNpcRendererTest {
             handle.startAnimation(LocalId("hidden"), 0)
             assertEquals(0.0, meta.scale.length(), 1e-6)
             assertTrue(meta.leftRotation.all { it.isFinite() })
-            val player = fixture.player()
+            val player = fixture.player(net.minestom.server.coordinate.Pos(10.0, 140.0, 20.0))
             handle.applyViewerState(player, SceneViewerVisualState(highlighted = true))
             assertTrue(player.connection.flags(display.entityId).last() and 0x40 != 0)
             handle.close()

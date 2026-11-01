@@ -41,18 +41,15 @@ private constructor(
                 scale[2].toFloat().toDouble(),
             )
         val nextRight = quaternion(right)
-        if (
-            meta.translation == nextTranslation &&
-                meta.leftRotation.contentEquals(nextLeft) &&
-                meta.scale == nextScale &&
-                meta.rightRotation.contentEquals(nextRight)
-        )
-            return false
-        meta.setTranslation(nextTranslation)
-        meta.setLeftRotation(nextLeft)
-        meta.setScale(nextScale)
-        meta.setRightRotation(nextRight)
-        return true
+        val translationChanged = meta.translation != nextTranslation
+        val leftChanged = !meta.leftRotation.contentEquals(nextLeft)
+        val scaleChanged = meta.scale != nextScale
+        val rightChanged = !meta.rightRotation.contentEquals(nextRight)
+        if (translationChanged) meta.setTranslation(nextTranslation)
+        if (leftChanged) meta.setLeftRotation(nextLeft)
+        if (scaleChanged) meta.setScale(nextScale)
+        if (rightChanged) meta.setRightRotation(nextRight)
+        return translationChanged || leftChanged || scaleChanged || rightChanged
     }
 
     private fun quaternion(rotation: DoubleArray): FloatArray {
@@ -265,10 +262,15 @@ private class Matrix3(private val values: DoubleArray) {
     fun eigen(): Pair<Matrix3, DoubleArray> {
         val a = values.copyOf()
         val v = IDENTITY.values.copyOf()
-        repeat(24) {
-            val pairs = arrayOf(0 to 1, 0 to 2, 1 to 2)
-            val (p, q) = pairs.maxBy { abs(a[it.first * 3 + it.second]) }
-            if (abs(a[p * 3 + q]) < 1e-12) return@repeat
+        for (iteration in 0 until 24) {
+            var p = 0
+            var q = 1
+            if (abs(a[2]) > abs(a[p * 3 + q])) q = 2
+            if (abs(a[5]) > abs(a[p * 3 + q])) {
+                p = 1
+                q = 2
+            }
+            if (abs(a[p * 3 + q]) < 1e-12) break
             val angle = 0.5 * atan2(2 * a[p * 3 + q], a[q * 3 + q] - a[p * 3 + p])
             val c = cos(angle)
             val s = sin(angle)
