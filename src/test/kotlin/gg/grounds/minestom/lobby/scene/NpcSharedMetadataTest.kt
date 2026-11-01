@@ -67,6 +67,42 @@ class NpcSharedMetadataTest {
     }
 
     @Test
+    fun `a single common recipient avoids a serialized cache even beside a personal viewer`() {
+        for (withPersonalViewer in listOf(false, true)) {
+            RendererFixture().use { fixture ->
+                val common = fixture.player()
+                val personal = if (withPersonalViewer) fixture.player() else null
+                val players = listOfNotNull(common, personal)
+                val display = display(fixture, *players.toTypedArray())
+                display.visualState = { if (it === personal) 2.0 to false else DEFAULT_NPC_VISUAL }
+                display.editEntityMeta(ItemDisplayMeta::class.java) {
+                    it.translation = Vec(2.0, 3.0, 4.0)
+                }
+                val packet =
+                    assertInstanceOf(
+                        EntityMetaDataPacket::class.java,
+                        common.connection.envelopes.single(),
+                    )
+                assertEquals(
+                    Vec(2.0, 3.0, 4.0),
+                    packet.entries()[MetadataDef.Display.TRANSLATION.index()]!!.value(),
+                )
+                if (personal != null) {
+                    val own =
+                        assertInstanceOf(
+                            EntityMetaDataPacket::class.java,
+                            personal.connection.envelopes.single(),
+                        )
+                    assertEquals(
+                        Vec(4.0, 6.0, 8.0),
+                        own.entries()[MetadataDef.Display.TRANSLATION.index()]!!.value(),
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
     fun `queued old frames retain their pose when a new frame is rendered before encoding`() {
         RendererFixture().use { fixture ->
             val first = fixture.player()

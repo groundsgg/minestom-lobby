@@ -1,6 +1,6 @@
 # Shared NPC metadata serialization
 
-Use the pinned Minestom `PacketSendingUtils.sendGroupedPacket` API for recipients whose personalized metadata is exactly the common change map. Continue sending independently personalized packets to viewers with scale/highlight differences. Keep grouping within one immutable per-display metadata update; no cache spans frames, viewers' delta bases, worlds or proxies.
+Use the pinned Minestom `PacketSendingUtils.sendGroupedPacket` API for recipients whose personalized metadata is exactly the common change map. Only use grouped serialization for at least two common recipients; a single common recipient receives the ordinary packet to avoid cache overhead. Continue sending independently personalized packets to viewers with scale/highlight differences. Keep grouping within one immutable per-display metadata update; no cache spans frames, viewers' delta bases, worlds or proxies.
 
 The current renderer shares `EntityMetaDataPacket` objects but each player's socket still calls `writeFramedPacket` and `EntityMetaDataPacket.copyWithOperator` separately. Existing connected profiles show framing/compression as a major cost. Native grouping wraps component-safe common packets in `CachedPacket`, preserves per-player outbound events and cancellation, and retains normal translation for translatable components. This is backend-local serialization reuse; remote identities/routing and frontend protocol translation remain the existing network system's responsibility.
 

@@ -28,7 +28,8 @@ internal class NpcItemDisplay(private val lock: Any) : Entity(EntityType.ITEM_DI
                         if (entries === changes) commonViewers += player
                         else player.sendPacket(EntityMetaDataPacket(entityId, entries))
                     }
-                    if (commonViewers.isNotEmpty())
+                    if (commonViewers.size == 1) commonViewers[0].sendPacket(common)
+                    else if (commonViewers.size > 1)
                         PacketSendingUtils.sendGroupedPacket(commonViewers, common)
                 }
             }
