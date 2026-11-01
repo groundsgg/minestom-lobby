@@ -35,14 +35,14 @@ The raw control is deliberately favored: spawn lighting finishes before client a
 
 ## Stage and checks
 
--170licensedHosttests pass,0failures/skips; formatting passes.
--RealHTTP tests verify prelit selection/cache/source identity, unsupported format fallback, wrong bytes and missing marker rejection.
--Terrain tests verify cross-chunk propagation, later edits, delayed/interrupted load ownership and failed-start cleanup.
--All983addon asset files pass bundle acceptance on actual prelitMap9.
--Independent reviews found one initial task-ownership issue, fixed with join and a red/green delayed-loader regression; final reviews have no blockers.
--128deployment tests and both GitOps PR checks pass.
--Stage activation: deploy#536 added safe fallback, deploy#542 (`78ad6fd7be2e842f07905ffc4222a5bcd0b1ae62`) activated prelit consumption.
--Both Stage lobbies report the expected prelit digest, original Map9/catalogue and6SOLIDcubes. Terrain preparation took3576/3186ms on the shared Stage node, down from16329ms on the first fallback-only pod. ArgoCD reportsSynced/Healthy; no restart was required from the user.
--User feedback after the replacement lobby appeared: “Sieht viel besser aus” and “Konnte jetzt grade keine Lags feststellen”.
+- 170licensedHosttests pass,0failures/skips; formatting passes.
+- RealHTTP tests verify prelit selection/cache/source identity, unsupported format fallback, wrong bytes and missing marker rejection.
+- Terrain tests verify cross-chunk propagation, later edits, delayed/interrupted load ownership and failed-start cleanup.
+- All983addon asset files pass bundle acceptance on actual prelitMap9.
+- Independent reviews found one initial task-ownership issue, fixed with join and a red/green delayed-loader regression; final reviews have no blockers.
+- 128deployment tests and both GitOps PR checks pass.
+- Stage activation: deploy#536 added safe fallback, deploy#542 (`78ad6fd7be2e842f07905ffc4222a5bcd0b1ae62`) activated prelit consumption.
+- Both Stage lobbies report the expected prelit digest, original Map9/catalogue and6SOLIDcubes. Terrain preparation took3576/3186ms on the shared Stage node, down from16329ms on the first fallback-only pod. ArgoCD reportsSynced/Healthy; no restart was required from the user.
+- User feedback after the replacement lobby appeared: “Sieht viel besser aus” and “Konnte jetzt grade keine Lags feststellen”.
 
 Raw numerical evidence and audited recordings stay in the private local artifact directories `artifacts/npc-load-profile-2026-11-01/terrain-*` and `artifacts/npc-cold-terrain-2026-11-01`.
