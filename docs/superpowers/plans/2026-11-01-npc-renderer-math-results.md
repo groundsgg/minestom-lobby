@@ -84,3 +84,20 @@ This implements the shared affine/primitive-temporary candidate for N12; accepta
 N21 first-visibility and first-entity work remains the next measured target. Avoid partial bodies while spreading work: prepare an NPC's complete initial state before exposing it, preserve interaction ownership, and bound preparation per tick. The present headless movement test does not replace the user's earlier Java SOLID collision acceptance or a fresh GUI animation/scale smoke test.
 
 Final verification: both existing Stage lobby containers remain ready on the accepted `hover-bounds-c3e662a91ac3@sha256:29a6a6b2096f2c91ba8d13b58971a57ea92a0acfbb91d723b5034b1cadbefb1a` image, with zero restarts (GameServer states: one Ready, one Allocated). All owned renderer client containers were removed, owned JVM runners exited successfully and loopback test/forward ports are closed. No renderer image was built/pushed or activated.
+
+## Follow-up: matched CPU and scheduler attribution
+
+A further matched baseline/candidate pair adds tick-thread CPU, Linux tick-task run-queue delay, CPU0 occupancy, compilation and GC-time counters. Both variants use the same source harness, frozen jars, copied map and 60 actual clients. Five reentries per variant complete with no disconnects, no source-map changes and a constant 619 displays. Neither variant triggers the bounded profile rule (two consecutive reentry intervals at least 3 ms mean). There is no new recording and no DataLoss claim for these unrecorded runs.
+
+| Window | Mean tick, old → new (ms) | CPU, old → new (core) | Allocation, old → new (MB/s) |
+| --- | --- | --- | --- |
+| near-steady-60 | 1.678 → 2.016 | 0.1445 → 0.1576 | 36.34 → 33.93 |
+| reentry-0 | 1.710 → 1.893 | 0.1476 → 0.1512 | 37.21 → 34.97 |
+| reentry-1 | 1.595 → 1.530 | 0.1422 → 0.1328 | 37.11 → 35.00 |
+| reentry-2 | 1.429 → 1.603 | 0.1343 → 0.1472 | 37.03 → 35.12 |
+| reentry-3 | 1.789 → 1.731 | 0.1576 → 0.1447 | 37.15 → 35.10 |
+| reentry-4 | 1.763 → 1.878 | 0.1497 → 0.1481 | 36.93 → 34.94 |
+
+The high-tail behavior is not reproduced and its root cause remains unknown. Allocation improves again, but CPU is not consistently lower (the before-exit candidate window is about 9% higher). These results do not establish a sustained CPU win. The Linux and Java tick-thread counters include between-tick pacing; Minestom TickMonitor is wall time from tick start through dispatcher/flush work. Do not sum these counters as a decomposition of TickMonitor, and do not retroactively attribute the uninstrumented slow run to host contention or JIT.
+
+Decision remains: no merge or Stage activation of #236. Prioritize independently testable common metadata serialization, which is a confirmed repeated path in both source and connected profiles. Private follow-up artifacts: `reentry-attribution-*-a` and `reentry-attribution-summary.json`.
