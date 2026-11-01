@@ -99,9 +99,14 @@ internal class TestPlayer : Player(CapturingConnection(), GameProfile(UUID.rando
 
 internal class CapturingConnection : PlayerConnection() {
     val packets = CopyOnWriteArrayList<ServerPacket>()
+    val envelopes = CopyOnWriteArrayList<SendablePacket>()
+    var captureEnvelopes = false
+    var decodePackets = true
     @Volatile var beforeSend: ((ServerPacket) -> Unit)? = null
 
     override fun sendPacket(packet: SendablePacket) {
+        if (captureEnvelopes) envelopes += packet
+        if (!decodePackets) return
         val decoded = SendablePacket.extractServerPacket(ConnectionState.PLAY, packet) ?: return
         beforeSend?.invoke(decoded)
         packets += decoded
