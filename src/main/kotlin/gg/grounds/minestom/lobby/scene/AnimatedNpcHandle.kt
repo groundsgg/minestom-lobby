@@ -16,12 +16,13 @@ internal class AnimatedNpcHandle(
     private val displays: List<NpcItemDisplay>,
     private var transform: SceneRenderTransform,
     private val effects: LobbySceneEffects,
+    phaseSeed: Int,
 ) : HeadLookRenderedAssetHandle {
     private var closed = false
     private var revision = 0L
     private var requested: String? = null
     private var elapsed = 0L
-    private var lastRendered = Long.MIN_VALUE
+    private val animationClock = NpcAnimationClock(phaseSeed)
     private var variationStarted: Long? = null
     private var nextVariation = 20_000L
     private val viewerVisuals = mutableMapOf<UUID, Pair<Double, Boolean>>()
@@ -160,14 +161,7 @@ internal class AnimatedNpcHandle(
         if (updateViewers) refreshViewers()
         if (visiblePlayers.isEmpty()) return
         val interval = NpcRenderPolicy.updateIntervalMillis(nearestViewerSquared)
-        if (
-            !force &&
-                lastRendered != Long.MIN_VALUE &&
-                time >= lastRendered &&
-                time - lastRendered < interval
-        )
-            return
-        lastRendered = time
+        if (!animationClock.advance(time, interval, force)) return
         commitHeadLook()
         val name = requested
         val clip = name?.let(model.animations::get)

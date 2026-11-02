@@ -99,6 +99,8 @@ internal class LobbyNpcModelRenderers(
                                 displays,
                                 context.transform,
                                 LobbySceneEffects(assets),
+                                context.elementId.value.hashCode() +
+                                    (context.partId?.value?.hashCode() ?: 0),
                             )
                         if (!result.complete(handle)) handle.close()
                     } catch (error: Throwable) {

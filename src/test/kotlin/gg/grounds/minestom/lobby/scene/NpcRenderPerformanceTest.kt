@@ -19,7 +19,10 @@ class NpcRenderPerformanceTest {
             """{"schemaVersion":1,"asset":"grounds:npc/test/performance","bounds":{"center":[0,1,0],"size":[1,2,1]},"bones":[{"id":"body","name":"body","parent":null,"origin":[0,0,0],"rotation":[0,0,0]},{"id":"head","name":"head","parent":"body","origin":[0,1.5,0],"rotation":[0,0,0]}],"parts":[{"bone":"body","model":"grounds:npc_parts/test/body","center":[0,0.7,0],"pivot":[0,0.7,0],"rotation":[0,0,0]},{"bone":"head","model":"grounds:npc_parts/test/head","center":[0,1.8,0],"pivot":[0,1.8,0],"rotation":[0,0,0]}],"animations":{"idle":{"loop":"loop","length":2,"tracks":{}},"wave":{"loop":"once","length":2,"tracks":{"body":{"position":[{"time":0,"value":[0,0,0],"interpolation":"linear"},{"time":2,"value":[0,2,0],"interpolation":"linear"}]}}}},"sounds":{}}"""
         )
 
-    private fun create(fixture: RendererFixture): HeadLookRenderedAssetHandle {
+    private fun create(
+        fixture: RendererFixture,
+        elementId: String = "performance",
+    ): HeadLookRenderedAssetHandle {
         val assets =
             AssetCatalog(
                 CatalogId("test:assets"),
@@ -41,7 +44,7 @@ class NpcRenderPerformanceTest {
             .create(
                 SceneAssetRenderContext(
                     fixture.instance,
-                    LocalId("performance"),
+                    LocalId(elementId),
                     null,
                     model.asset,
                     sceneTransform(),
@@ -49,6 +52,36 @@ class NpcRenderPerformanceTest {
             )
             .toCompletableFuture()
             .join() as HeadLookRenderedAssetHandle
+    }
+
+    @Test
+    fun `simultaneously started NPCs spread complete poses over successive ticks`() {
+        RendererFixture().use { fixture ->
+            val player = fixture.player()
+            val handles = (0..3).map { create(fixture, "p$it") }
+            try {
+                handles.forEach { it.startAnimation(LocalId("wave"), 0) }
+                for (tick in 1..20) {
+                    player.connection.packets.clear()
+                    handles.forEach { it.advanceAnimation(tick * 50L) }
+                    val updates = player.connection.packets.filterIsInstance<EntityMetaDataPacket>()
+                    assertEquals(2, updates.size, "Tick $tick should contain one complete NPC pose")
+                    val heights =
+                        updates
+                            .map {
+                                (it.entries()
+                                        .getValue(MetadataDef.Display.TRANSLATION.index())
+                                        .value() as net.minestom.server.coordinate.Point)
+                                    .y()
+                            }
+                            .sorted()
+                    assertEquals(0.7 + tick * 0.05, heights[0], 1e-6)
+                    assertEquals(1.8 + tick * 0.05, heights[1], 1e-6)
+                }
+            } finally {
+                handles.forEach { it.close() }
+            }
+        }
     }
 
     @Test

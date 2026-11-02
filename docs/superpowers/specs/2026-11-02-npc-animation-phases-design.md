@@ -1,0 +1,11 @@
+# Distribute NPC animation work across ticks
+
+Continue the approved NPC performance backlog (N21) on main `83e1fba`, with the user's Stage acceptance of scale and SOLID. Keep both draft #233 and #236 separate.
+
+Today every handle waits an interval after its last render. NPCs started or readmitted together tend to perform their next pose/decomposition/delivery work together. The current connected profile still contains substantial animation work; existing whole-server tick timings alone do not establish how much of their tail this synchronization explains. Test that hypothesis, then measure before rollout.
+
+Use a stable phase derived from the Scene element ID, optionally its part ID, on the existing 50 ms client-tick grid. Keep 200/250/500 ms intervals and real elapsed animation time. A common handle still updates all its displays together. Initial state, start/stop, reentry, scale and explicit anchor movement retain immediate state updates. The first regular update after an immediate update can arrive sooner than one interval; following updates have the normal cadence. Late server ticks produce one current pose, never a catch-up burst. Backward seeks reset the clock. Distance-band changes use the prior last-render-based deadline until the first render in that band, avoiding an unnecessary early far update. No distance reduction, new culling, geometry, cohort caches, or collision change.
+
+Alternatives considered: retry #233 (extra delivery state/CPU, still unproven on new base); cache more renderer mathematics (#236, allocation savings but inconsistent CPU); stable phases (small isolated scheduling change, potentially lower bursts, selected by agent under standing instruction to progress sensibly). This is an agent choice, not a new user-selected design.
+
+Accept only after tests preserve lifecycle behavior, a deterministic many-handle trace shows distributed work without lost poses, and fresh connected baseline/candidate comparisons show a worthwhile tail or resource benefit without a material regression. Preserve all adverse results. If the hypothesis fails, leave a documented draft, keep current Stage, and do not merge just because tests pass. No claim of less network traffic or fewer total pose calculations is implied.
