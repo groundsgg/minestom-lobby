@@ -113,15 +113,18 @@ internal class AnimatedNpcHandle(
             display.updateViewableRule { player ->
                 player.instance === instance && player.uuid in viewerIntervals
             }
-            previousViewers.forEach { player ->
-                val interval = next[player.uuid]
-                if (
+            val transitioning =
+                previousViewers.filter { player ->
+                    val interval = next[player.uuid]
                     interval != null &&
                         previous[player.uuid] != interval &&
                         player in display.viewers
-                )
-                    display.sendPoseState(player, (interval.interval / 50).toInt())
-            }
+                }
+            transitioning
+                .groupBy { next.getValue(it.uuid) }
+                .forEach { (rate, players) ->
+                    display.sendPoseState(players, (rate.interval / 50).toInt())
+                }
         }
     }
 

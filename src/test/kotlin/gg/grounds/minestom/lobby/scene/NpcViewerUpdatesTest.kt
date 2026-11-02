@@ -8,7 +8,9 @@ import net.minestom.server.coordinate.Point
 import net.minestom.server.coordinate.Pos
 import net.minestom.server.entity.MetadataDef
 import net.minestom.server.entity.metadata.display.ItemDisplayMeta
+import net.minestom.server.network.ConnectionState
 import net.minestom.server.network.packet.server.CachedPacket
+import net.minestom.server.network.packet.server.SendablePacket
 import net.minestom.server.network.packet.server.play.EntityMetaDataPacket
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeAll
@@ -398,6 +400,77 @@ class NpcViewerUpdatesTest {
                     assertSame(a, b)
                 }
                 assertEquals(retained, near[0].updates().first().entries())
+            } finally {
+                handle.close()
+            }
+        }
+    }
+
+    @Test
+    fun `rate transitions share frozen snapshots only among compatible viewers`() {
+        RendererFixture().use { fixture ->
+            val first = fixture.player(Pos(50.0, 0.0, 0.0))
+            val second = fixture.player(Pos(51.0, 0.0, 0.0))
+            val personal = fixture.player(Pos(52.0, 0.0, 0.0))
+            val medium = fixture.player(Pos(53.0, 0.0, 0.0))
+            val unchanged = fixture.player(Pos(54.0, 0.0, 0.0))
+            val handle = create(fixture)
+            try {
+                handle.startAnimation(LocalId("wave"), 0)
+                handle.applyViewerState(personal, SceneViewerVisualState(2.0, true))
+                handle.advanceAnimation(200)
+                val viewers = listOf(first, second, personal, medium, unchanged)
+                viewers.forEach {
+                    it.connection.captureEnvelopes = true
+                    it.connection.decodePackets = false
+                }
+                listOf(first, second, personal).forEach { it.teleport(Pos.ZERO).join() }
+                medium.teleport(Pos(24.0, 0.0, 0.0)).join()
+                viewers.forEach { it.connection.envelopes.clear() }
+                handle.advanceAnimation(250)
+                val duration = MetadataDef.Display.TRANSFORMATION_INTERPOLATION_DURATION.index()
+                fun snapshots(player: TestPlayer) =
+                    player.connection.envelopes.filter {
+                        val packet = SendablePacket.extractServerPacket(ConnectionState.PLAY, it)
+                        packet is EntityMetaDataPacket && duration in packet.entries()
+                    }
+                val a = snapshots(first)
+                val b = snapshots(second)
+                val own = snapshots(personal)
+                val mid = snapshots(medium)
+                assertEquals(2, a.size)
+                assertEquals(2, b.size)
+                assertEquals(2, own.size)
+                assertEquals(2, mid.size)
+                assertTrue(snapshots(unchanged).isEmpty())
+                fun packet(frame: SendablePacket) =
+                    SendablePacket.extractServerPacket(ConnectionState.PLAY, frame)
+                        as EntityMetaDataPacket
+                for (index in a.indices) {
+                    val common = assertInstanceOf(CachedPacket::class.java, a[index])
+                    assertSame(common, b[index])
+                    assertInstanceOf(EntityMetaDataPacket::class.java, own[index])
+                    assertInstanceOf(EntityMetaDataPacket::class.java, mid[index])
+                    assertEquals(4, packet(common).entries()[duration]!!.value())
+                    assertEquals(4, packet(own[index]).entries()[duration]!!.value())
+                    assertEquals(5, packet(mid[index]).entries()[duration]!!.value())
+                    assertEquals(7, packet(common).entries().size)
+                    assertEquals(
+                        0,
+                        (packet(common).entries()[0]!!.value() as Byte).toInt() and 0x40,
+                    )
+                    assertNotEquals(
+                        0,
+                        (packet(own[index]).entries()[0]!!.value() as Byte).toInt() and 0x40,
+                    )
+                    assertEquals(
+                        packet(common).translation()!!.mul(2.0),
+                        packet(own[index]).translation(),
+                    )
+                }
+                val old = a.map { packet(it).translation() }
+                handle.advanceAnimation(500)
+                assertEquals(old, a.map { packet(it).translation() })
             } finally {
                 handle.close()
             }

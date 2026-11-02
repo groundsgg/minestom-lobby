@@ -152,6 +152,34 @@ class NpcSharedMetadataTest {
     }
 
     @Test
+    fun `explicit flag and pose refreshes retain unrelated entity bits and current viewer glow`() {
+        RendererFixture().use { fixture ->
+            val common = fixture.player()
+            val personal = fixture.player()
+            val display = display(fixture, common, personal)
+            display.visualState = { if (it === personal) 1.0 to true else DEFAULT_NPC_VISUAL }
+            for (invisible in listOf(false, true, false)) {
+                display.editEntityMeta(ItemDisplayMeta::class.java) {
+                    it.setOnFire(true)
+                    it.setInvisible(invisible)
+                }
+                val expected = if (invisible) 0x21 else 0x01
+                for (pose in listOf(false, true)) {
+                    listOf(common, personal).forEach {
+                        it.connection.packets.clear()
+                        if (pose) display.sendPoseState(it, 5) else display.sendVisualFlags(it)
+                    }
+                    val shared = common.connection.packets.single() as EntityMetaDataPacket
+                    val own = personal.connection.packets.single() as EntityMetaDataPacket
+                    assertEquals(expected.toByte(), shared.entries()[0]!!.value())
+                    assertEquals((expected or 0x40).toByte(), own.entries()[0]!!.value())
+                    assertEquals(if (pose) 7 else 1, shared.entries().size)
+                }
+            }
+        }
+    }
+
+    @Test
     fun `personal only audience receives its scaled pose without a common frame`() {
         RendererFixture().use { fixture ->
             val personal = fixture.player()
