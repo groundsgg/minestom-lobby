@@ -25,8 +25,11 @@ internal class AnimatedNpcHandle(
     private var variationStarted: Long? = null
     private var nextVariation = 20_000L
     private val viewerVisuals = mutableMapOf<UUID, Pair<Double, Boolean>>()
-    private var visiblePlayers = emptySet<UUID>()
-    private var nearestViewerSquared = Double.POSITIVE_INFINITY
+    private var viewerIntervals = emptyMap<UUID, NpcViewerRate>()
+    private var viewerPlayers = emptyMap<UUID, Player>()
+    private val nextViewerUpdate = mutableMapOf<NpcViewerRate, Long>()
+    private var viewerGroups = emptyMap<NpcViewerRate, List<Player>>()
+    private var renderInterval = 500L
     private var headLook = Vec3(0.0, 0.0, 0.0)
     private var pendingHeadLook = headLook
     private var previousPose: List<NpcMatrix>? = null
@@ -71,26 +74,53 @@ internal class AnimatedNpcHandle(
     private fun refreshViewers() {
         val instance = displays.first().instance
         val anchor = transform.root.position
-        var nearest = Double.POSITIVE_INFINITY
-        val next = buildSet {
+        var playersChanged = false
+        val next = buildMap {
             instance.players.forEach { player ->
                 val distance = NpcRenderPolicy.distanceSquared(player, instance, anchor)
                 if (
-                    NpcRenderPolicy.canView(player, instance, anchor, player.uuid in visiblePlayers)
+                    NpcRenderPolicy.canView(
+                        player,
+                        instance,
+                        anchor,
+                        player.uuid in viewerIntervals,
+                    )
                 ) {
-                    add(player.uuid)
-                    nearest = minOf(nearest, distance)
+                    if (viewerPlayers[player.uuid] !== player) playersChanged = true
+                    put(
+                        player.uuid,
+                        NpcRenderPolicy.viewerRate(distance, viewerIntervals[player.uuid]),
+                    )
                 }
             }
         }
-        nearestViewerSquared = nearest
-        if (next == visiblePlayers) return
-        val resuming = visiblePlayers.isEmpty() && next.isNotEmpty()
-        visiblePlayers = next
-        if (resuming) advance(elapsed, true, false)
+        renderInterval = next.values.minOfOrNull { it.interval } ?: 500L
+        if (next == viewerIntervals && !playersChanged) return
+        val previous = viewerIntervals
+        val resuming = previous.isEmpty() && next.isNotEmpty()
+        viewerIntervals = next
+        viewerPlayers = instance.players.filter { it.uuid in next }.associateBy { it.uuid }
+        viewerGroups = viewerPlayers.values.groupBy { next.getValue(it.uuid) }
+        val intervals = next.values.toSet()
+        nextViewerUpdate.keys.retainAll(intervals)
+        intervals.forEach { nextViewerUpdate.putIfAbsent(it, elapsed + it.interval) }
+        displays.forEach { it.configureUpdates(intervals) }
+        // Refresh the shared target before snapshots without forcing unrelated cohorts to send.
+        if (resuming || next.any { (id, interval) -> previous[id] != interval })
+            advance(elapsed, true, false, false)
         displays.forEach { display ->
+            val previousViewers = display.viewers.toList()
             display.updateViewableRule { player ->
-                player.instance === instance && player.uuid in visiblePlayers
+                player.instance === instance && player.uuid in viewerIntervals
+            }
+            previousViewers.forEach { player ->
+                val interval = next[player.uuid]
+                if (
+                    interval != null &&
+                        previous[player.uuid] != interval &&
+                        player in display.viewers
+                )
+                    display.sendPoseState(player, (interval.interval / 50).toInt())
             }
         }
     }
@@ -148,6 +178,7 @@ internal class AnimatedNpcHandle(
             variationStarted = null
             commitHeadLook()
             render(null, 0.0)
+            flushViewerUpdates(elapsed, true)
         }
     }
 
@@ -155,18 +186,27 @@ internal class AnimatedNpcHandle(
         synchronized(lock) { if (!closed) advance(elapsedMillis, false) }
     }
 
-    private fun advance(time: Long, force: Boolean, updateViewers: Boolean = true) {
+    private fun advance(
+        time: Long,
+        force: Boolean,
+        updateViewers: Boolean = true,
+        flush: Boolean = true,
+    ) {
+        val seeking = time < elapsed
         elapsed = time
         if (updateViewers) refreshViewers()
-        if (visiblePlayers.isEmpty()) return
-        val interval = NpcRenderPolicy.updateIntervalMillis(nearestViewerSquared)
+        if (viewerIntervals.isEmpty()) return
+        val interval = renderInterval
         if (
             !force &&
+                !seeking &&
                 lastRendered != Long.MIN_VALUE &&
                 time >= lastRendered &&
                 time - lastRendered < interval
-        )
+        ) {
+            if (flush) flushViewerUpdates(time, seeking)
             return
+        }
         lastRendered = time
         commitHeadLook()
         val name = requested
@@ -211,7 +251,20 @@ internal class AnimatedNpcHandle(
                 }
             }
         }
-        render(displayed, seconds)
+        val beforeSingleDeadline =
+            nextViewerUpdate.size == 1 && time < nextViewerUpdate.values.first()
+        render(displayed, seconds, !flush || beforeSingleDeadline)
+        if (flush) flushViewerUpdates(time, force || seeking)
+    }
+
+    private fun flushViewerUpdates(time: Long, force: Boolean) {
+        if (nextViewerUpdate.values.none { force || time >= it }) return
+        for ((rate, deadline) in nextViewerUpdate) {
+            if (!force && time < deadline) continue
+            val recipients = viewerGroups[rate].orEmpty()
+            displays.forEach { display -> display.flushUpdates(rate, recipients) }
+            nextViewerUpdate[rate] = time + rate.interval
+        }
     }
 
     private fun playSound(name: String) {
@@ -227,11 +280,11 @@ internal class AnimatedNpcHandle(
             headLook = pendingHeadLook
     }
 
-    private fun render(name: String?, seconds: Double) {
+    private fun render(name: String?, seconds: Double, deferUpdates: Boolean = false) {
         val pose = model.itemDisplayPose(name, seconds, headLook)
         val unchangedRoot = previousTransform == transform
         val previous = previousPose
-        val duration = (NpcRenderPolicy.updateIntervalMillis(nearestViewerSquared) / 50).toInt()
+        val duration = (renderInterval / 50).toInt()
         displays.forEachIndexed { index, display ->
             if (
                 unchangedRoot &&
@@ -239,14 +292,20 @@ internal class AnimatedNpcHandle(
                     previous[index].values.contentEquals(pose[index].values)
             )
                 return@forEachIndexed
-            display.editEntityMeta(ItemDisplayMeta::class.java) { meta ->
-                if (
-                    DisplayTransform.fromModel(transform, NPC_FACING * pose[index])
-                        .apply(meta, transform.root.position)
-                ) {
-                    meta.setTransformationInterpolationDuration(duration)
-                    meta.setTransformationInterpolationStartDelta(0)
+            // Keep entry preparation queued until existing viewers' deadlines.
+            display.deferUpdates = deferUpdates
+            try {
+                display.editEntityMeta(ItemDisplayMeta::class.java) { meta ->
+                    if (
+                        DisplayTransform.fromModel(transform, NPC_FACING * pose[index])
+                            .apply(meta, transform.root.position)
+                    ) {
+                        meta.setTransformationInterpolationDuration(duration)
+                        meta.setTransformationInterpolationStartDelta(0)
+                    }
                 }
+            } finally {
+                display.deferUpdates = false
             }
         }
         previousPose = pose
@@ -261,12 +320,11 @@ internal class AnimatedNpcHandle(
                 viewerVisuals.remove(player.uuid)
             else viewerVisuals[player.uuid] = state.scaleMultiplier to state.highlighted
             refreshViewers()
-            val duration = visualInterpolationDuration()
             displays.forEach {
-                if (player in it.viewers) {
-                    if (previous != state.scaleMultiplier) it.sendPoseState(player, duration)
+                if (player in it.viewers)
+                    if (previous != state.scaleMultiplier)
+                        it.sendPoseState(player, viewerDuration(player))
                     else it.sendVisualFlags(player)
-                }
             }
         }
     }
@@ -275,10 +333,9 @@ internal class AnimatedNpcHandle(
         synchronized(lock) {
             if (!closed) {
                 val changed = viewerVisuals.remove(player.uuid)?.first?.let { it != 1.0 } ?: false
-                val duration = visualInterpolationDuration()
                 displays.forEach {
                     if (player in it.viewers) {
-                        if (changed) it.sendPoseState(player, duration)
+                        if (changed) it.sendPoseState(player, viewerDuration(player))
                         else it.sendVisualFlags(player)
                     }
                 }
@@ -286,13 +343,13 @@ internal class AnimatedNpcHandle(
         }
     }
 
+    private fun viewerDuration(player: Player): Int =
+        ((viewerIntervals[player.uuid]?.interval ?: renderInterval) / 50).toInt()
+
     private fun sendViewerState(display: NpcItemDisplay, player: Player) {
         if (closed) return
-        display.sendPoseState(player, visualInterpolationDuration())
+        display.sendPoseState(player, viewerDuration(player))
     }
-
-    private fun visualInterpolationDuration(): Int =
-        (NpcRenderPolicy.updateIntervalMillis(nearestViewerSquared) / 50).toInt()
 
     override fun close() {
         synchronized(lock) {
@@ -301,10 +358,14 @@ internal class AnimatedNpcHandle(
                 revision++
                 visibilityTask.cancel()
                 viewerVisuals.clear()
-                visiblePlayers = emptySet()
+                viewerIntervals = emptyMap()
+                viewerPlayers = emptyMap()
+                viewerGroups = emptyMap()
+                nextViewerUpdate.clear()
                 displays.forEach {
                     it.viewerState = null
                     it.visualState = null
+                    it.clearUpdates()
                     it.remove()
                 }
             }
