@@ -75,6 +75,7 @@ internal class AnimatedNpcHandle(
         val instance = displays.first().instance
         val anchor = transform.root.position
         var playersChanged = false
+        var fastestInterval = 500L
         val next = buildMap {
             instance.players.forEach { player ->
                 val distance = NpcRenderPolicy.distanceSquared(player, instance, anchor)
@@ -87,14 +88,13 @@ internal class AnimatedNpcHandle(
                     )
                 ) {
                     if (viewerPlayers[player.uuid] !== player) playersChanged = true
-                    put(
-                        player.uuid,
-                        NpcRenderPolicy.viewerRate(distance, viewerIntervals[player.uuid]),
-                    )
+                    val rate = NpcRenderPolicy.viewerRate(distance, viewerIntervals[player.uuid])
+                    put(player.uuid, rate)
+                    fastestInterval = minOf(fastestInterval, rate.interval)
                 }
             }
         }
-        renderInterval = next.values.minOfOrNull { it.interval } ?: 500L
+        renderInterval = fastestInterval
         if (next == viewerIntervals && !playersChanged) return
         val previous = viewerIntervals
         val resuming = previous.isEmpty() && next.isNotEmpty()
