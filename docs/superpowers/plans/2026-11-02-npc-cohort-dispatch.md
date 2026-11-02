@@ -19,9 +19,9 @@ Snapshots vs pending deltas at rate change; entry without actual Entity viewer m
 **Interfaces:** `NpcViewerRate.interval: Long`, `configureUpdates(Set<NpcViewerRate>)`, `flushUpdates(rate, recipients)`, shared `sendMetadata(changes, recipients)` filtering actual spawned viewers.
 
 - [x] Reuse 12 existing real-renderer cohort regressions without runtime metrics. Observe missing behavior on accepted main: 7 fail / 5 pass, including incorrect slow-viewer duration and unwanted fast delivery.
-- [ ] Port lifecycle/accumulator semantics only, remove metrics and prepared math. Use shared cached packet fanout and grouped recipients. Run focused tests then full licensed/neutral suites, fixed-pose and addon acceptance.
-- [ ] Add regressions for shared cache per cohort, no deltas to unspawned viewers, and seek within a suppressed interval; demonstrate RED/GREEN. Optimize only proven hot paths, preserving single-group behavior.
-- [ ] Independent correctness review of complete branch and fixes; commit tested code.
+- [x] Isolated lifecycle/accumulator port, enum rates and grouped/native-cached dispatch. 190 licensed tests pass0skips, ordinary190with5expected asset skips; 723456fixedposebits unchanged,983addonfiles accepted.
+- [x] Added cache/actual-viewer/small-seek regressions. Core12cohort cases observed7RED on main, all15pass in candidate. Minestom automatic viewers require updateViewableRule in the test setup; removeViewer returned false (test setup failure preserved).
+- [x] Independent correctness review completed; one same-UUID replacement invalidation bug reproduced RED (2 expected updates,0 received), fixed by detecting Player object identity, full191licensed/neutral suites GREEN. No other blockers; corrected artifact cd1a319d is frozen and used for candidate run.
 
 ### Task 2: Measure and decide
 
@@ -35,3 +35,8 @@ Snapshots vs pending deltas at rate change; entry without actual Entity viewer m
 ## Execution ledger
 
 - Reuse existing isolated worktree; previous experiment retained on its own branch. No new subagent implementer; primary owns architecture/integration/correctness decisions. Fresh final reviewer only as required by review skill.
+
+- Independent review: one Important same-UUID reconnect issue in cached Player recipients; new real reconnect regression pending RED/GREEN, no other product blockers. Proxy review no obvious counting/safety defect; exact150000byte bidirectional local echo passed.
+- Final benchmark runner is gated on a new reviewed frozen artifact; initial9574e4f4 jar preserved, not eligible for candidate execution. Baseline throughput is uncontaminated by rebuilds; candidate verification will overlap only the separate diagnostic reference profile. Do not compare profile sample counts quantitatively.
+
+- Refined validation: 191licensed tests0skips, neutral191with5expectedasset skips; golden723456records hash27daa369 unchanged,983file acceptance passes. Frozen final jar cd1a319d8d89db13c191448ba776c21520f4ccc31cd44c51d0249a69df6b436b. Only metadata membership/delivery changes are included.

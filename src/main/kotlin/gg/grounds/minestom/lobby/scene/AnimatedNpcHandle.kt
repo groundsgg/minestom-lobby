@@ -26,6 +26,7 @@ internal class AnimatedNpcHandle(
     private var nextVariation = 20_000L
     private val viewerVisuals = mutableMapOf<UUID, Pair<Double, Boolean>>()
     private var viewerIntervals = emptyMap<UUID, NpcViewerRate>()
+    private var viewerPlayers = emptyMap<UUID, Player>()
     private val nextViewerUpdate = mutableMapOf<NpcViewerRate, Long>()
     private var viewerGroups = emptyMap<NpcViewerRate, List<Player>>()
     private var renderInterval = 500L
@@ -73,6 +74,7 @@ internal class AnimatedNpcHandle(
     private fun refreshViewers() {
         val instance = displays.first().instance
         val anchor = transform.root.position
+        var playersChanged = false
         val next = buildMap {
             instance.players.forEach { player ->
                 val distance = NpcRenderPolicy.distanceSquared(player, instance, anchor)
@@ -84,6 +86,7 @@ internal class AnimatedNpcHandle(
                         player.uuid in viewerIntervals,
                     )
                 ) {
+                    if (viewerPlayers[player.uuid] !== player) playersChanged = true
                     put(
                         player.uuid,
                         NpcRenderPolicy.viewerRate(distance, viewerIntervals[player.uuid]),
@@ -92,14 +95,12 @@ internal class AnimatedNpcHandle(
             }
         }
         renderInterval = next.values.minOfOrNull { it.interval } ?: 500L
-        if (next == viewerIntervals) return
+        if (next == viewerIntervals && !playersChanged) return
         val previous = viewerIntervals
         val resuming = previous.isEmpty() && next.isNotEmpty()
         viewerIntervals = next
-        viewerGroups =
-            next.values.toSet().associateWith { rate ->
-                instance.players.filter { next[it.uuid] == rate }
-            }
+        viewerPlayers = instance.players.filter { it.uuid in next }.associateBy { it.uuid }
+        viewerGroups = viewerPlayers.values.groupBy { next.getValue(it.uuid) }
         val intervals = next.values.toSet()
         nextViewerUpdate.keys.retainAll(intervals)
         intervals.forEach { nextViewerUpdate.putIfAbsent(it, elapsed + it.interval) }
@@ -350,6 +351,7 @@ internal class AnimatedNpcHandle(
                 visibilityTask.cancel()
                 viewerVisuals.clear()
                 viewerIntervals = emptyMap()
+                viewerPlayers = emptyMap()
                 viewerGroups = emptyMap()
                 nextViewerUpdate.clear()
                 displays.forEach {

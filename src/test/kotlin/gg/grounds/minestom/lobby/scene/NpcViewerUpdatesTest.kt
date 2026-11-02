@@ -430,6 +430,35 @@ class NpcViewerUpdatesTest {
     }
 
     @Test
+    fun `same uuid reconnect replaces cached recipients without postponing the occupied cohort`() {
+        RendererFixture().use { fixture ->
+            fixture.player()
+            val original = fixture.player(Pos(50.0, 0.0, 0.0))
+            val other = fixture.player(Pos(51.0, 0.0, 0.0))
+            val handle = create(fixture)
+            try {
+                handle.startAnimation(LocalId("wave"), 0)
+                handle.advanceAnimation(200)
+                val uuid = original.uuid
+                original.remove()
+                val replacement = fixture.player(Pos(50.0, 0.0, 0.0), uuid)
+                assertNotSame(original, replacement)
+                listOf(replacement, other).forEach { it.connection.packets.clear() }
+                handle.advanceAnimation(400)
+                handle.advanceAnimation(500)
+                for (viewer in listOf(replacement, other)) {
+                    val heights = viewer.updates().mapNotNull { it.translation()?.y() }.sorted()
+                    assertEquals(2, heights.size)
+                    assertEquals(1.1, heights[0], 1e-6)
+                    assertEquals(2.2, heights[1], 1e-6)
+                }
+            } finally {
+                handle.close()
+            }
+        }
+    }
+
+    @Test
     fun `seek inside a suppressed render interval restores the current pose for all cohorts`() {
         RendererFixture().use { fixture ->
             val near = fixture.player()

@@ -83,8 +83,8 @@ internal class RendererFixture(val bounds: LocalBounds = unitBounds) : AutoClose
             .toCompletableFuture()
 
     // Player's pinned future overrides join to process the scheduled spawn on the caller thread.
-    fun player(position: Pos = Pos.ZERO) =
-        TestPlayer().also { it.setInstance(instance, position).join() }
+    fun player(position: Pos = Pos.ZERO, uuid: UUID = UUID.randomUUID()) =
+        TestPlayer(uuid).also { it.setInstance(instance, position).join() }
 
     override fun close() {
         instance.entities.toList().forEach { it.remove() }
@@ -92,7 +92,8 @@ internal class RendererFixture(val bounds: LocalBounds = unitBounds) : AutoClose
     }
 }
 
-internal class TestPlayer : Player(CapturingConnection(), GameProfile(UUID.randomUUID(), "test")) {
+internal class TestPlayer(uuid: UUID = UUID.randomUUID()) :
+    Player(CapturingConnection(), GameProfile(uuid, "test")) {
     val connection
         get() = playerConnection as CapturingConnection
 }
