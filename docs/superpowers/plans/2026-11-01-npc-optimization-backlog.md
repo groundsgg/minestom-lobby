@@ -5,7 +5,7 @@ description: Priorisierter Umsetzungsstand und weitere übertragbare Ansätze f�
 
 # NPC Optimierungen aus anderen Plugins
 
-Stand: 1. November 2026. Ziel sind weniger Serverarbeit, weniger tatsächlich übertragene Daten und weniger Clientarbeit bei erhaltener Geometrie, Animation und Interaktion. Die Liste ist der Arbeitsbacklog für die geprüften Ansätze aus ModelEngine, MythicMobs, Oraxen, ItemsAdder und BetterModel.
+Stand: 2. November 2026. Ziel sind weniger Serverarbeit, weniger tatsächlich übertragene Daten und weniger Clientarbeit bei erhaltener Geometrie, Animation und Interaktion. Die Liste ist der Arbeitsbacklog für die geprüften Ansätze aus ModelEngine, MythicMobs, Oraxen, ItemsAdder und BetterModel.
 
 **Status:** „Umgesetzt“ bezeichnet den geprüften Performance-Kandidaten; der Live-Stand wird im Rollout-Nachweis geführt. „Teilweise“ bedeutet, dass der Grundmechanismus existiert, die beschriebene Erweiterung noch fehlt. „Offen“ ist keine Zusage eines bereits gemessenen Gewinns.
 
@@ -68,7 +68,7 @@ Kontrollmessung mit 15 Modellen und einem erzwungenen Betrachter: Idle 5.866,8 �
 
 | ID | Priorität / Aufwand / Status | Ansatz und Nutzen | Abnahme und Grenzen | Quelle |
 | --- | --- | --- | --- | --- |
-| N21 | P1 / S–M / Offen | Animationsdeadlines und Spawn-Arbeit gleichmäßig über Ticks verteilen. | Deterministische Phasen; Animationszeit bleibt an Echtzeit gebunden. Interaktionen nicht verzögern; Einblendungen stückweise oder sauber atomar. | Periodische Tracker in [BetterModel][bm-tracker]; unser Scheduler-Vorschlag. |
+| N21 | P1 / S–M / Phasenkandidat geprüft, nicht aktiviert | Animationsdeadlines und Spawn-Arbeit gleichmäßig über Ticks verteilen. | Host#238 verteilt synthetische Updates, zeigt aber bei 60 bewegten Clients CPU +14,6 %, mittlere Tickzeit +23,0 % und Metadatenpakete +12,0 %. Deshalb Entwurf; initiale Entity-Erzeugung/Spawn-Budget bleibt getrennt offen. [Nachweis](2026-11-02-npc-animation-phases-results.md). | Periodische Tracker in [BetterModel][bm-tracker]; unser Scheduler-Vorschlag. |
 | N22 | P2 / M / Offen | Gewichtetes Renderbudget aus Displayzahl, Bytes, Nähe und Bedeutung. | Maximale Wartezeit garantieren; nahe Interaktionsziele bevorzugen. Keine starre NPC-Obergrenze ohne Bezug zur Modellkomplexität. | Per-Chunk-Limits in [ItemsAdder][ia-settings]; adaptives Budget ist unser Vorschlag. |
 | N23 | P2–P3 / L / Offen | Rein paketbasierte dekorative Displays bei serverseitigen Gameplay-Hitboxen. | IDs, Spawn/Despawn, Weltwechsel, Respawn, Cleanup und Zuordnung korrekt verwalten. Client-Entities und notwendige Metadaten bleiben bestehen; deaktivierte Physik reduziert den Zusatzgewinn bereits. | Nicht-Entity-Basen in [ModelEngine][me-base], Paket-Displays in [MythicMobs][mm-packet]. |
 | N24 | P1–P2 / M / Gemeinsamer Standardpfad umgesetzt | Identische Metadaten über die native gruppierte Versand-API gemeinsam serialisieren. | Erst ab zwei gemeinsamen Empfängern; persönliche Skalierung/Flags getrennt, Übersetzung und Cache-Regeln bleiben nativ. 175 Host-Tests, 723.456 bitidentische Modellzustände; bei 60 Clients Allokation −24,2 %, CPU −4,3 %. Keine einheitliche Tickzeit-/RX-Verbesserung. Kohorten/LOD aus #233 bleiben getrennt offen. [Nachweis](2026-11-01-npc-shared-metadata-results.md). | Globale/persönliche Pakete in [BetterModel Tracker][bm-tracker], Dispatch-Optimierungen in [MythicMobs][mm-changelog]; native Minestom-API. |
@@ -96,7 +96,7 @@ N20 ist in Scene#24 übernommen und einzeln gemessen: Interaktions-Owner bereits
 ## Empfohlene Reihenfolge
 
 1. N27: Live-Messung nach dem Rollout als belastbare Grundlage.
-2. N21 und N13: Lastspitzen verteilen und Viewer-Multiplikation begrenzen.
+2. N13: Viewer-Multiplikation auf dem akzeptierten gemeinsamen Serialisierungspfad begrenzen. N21-Phasen aus #238 bleiben mangels einheitlichem Nutzen Entwurf; initiale Spawn-Arbeit separat untersuchen.
 3. N01: Composite-Compiler-Spike mit vollständigem Geometrie-/Texturvergleich; danach erst passenden Host und Pack gemeinsam aktivieren.
 4. N07, N09, N10 und N12 gemäß Pose-/Allokationsprofil.
 5. N14/N17/N18; danach N16 nur bei positivem Kostenvergleich.
@@ -162,3 +162,5 @@ java --class-path /absolute/path/minestom-lobby-all.jar \
 Aktuelle Sensor-Messungen: [N20/N32-Nachweis](2026-11-01-npc-sensor-performance-results.md). Die Prozentwerte gehören zu zwei unabhängigen kontrollierten Paaren und werden nicht addiert. N13/N24/N27 aus Host#233 bleiben wegen des größeren CPU-Nachteils getrennt im Entwurf. Weitergehende Geometrieänderungen und native BOUNCE-Anpassungen werden nicht ohne eigene visuelle/Gameplay-Abnahme in diesen Performance-Rollout gemischt.
 
 N24-Standardpfad ist über deploy#554 auf beiden Stage-Lobbys aktiv (Image e447d40b5747, Digest c6d3952478658bfbaa945757e2b50667a2778e78fd02ff6a81b46a968ac7bf30). Alle 765 Testplattform-Würfel und die bestehende SOLID-/Lighting-Konfiguration bleiben erhalten. #236 bleibt wegen nicht durchgehend belegtem CPU-Gewinn separat im Entwurf; #233 wird mit seinen bisherigen CPU-Nachteilen nicht pauschal übernommen.
+
+N21-Nachprüfung am 2. November: [Host#238](https://github.com/groundsgg/minestom-lobby/pull/238) bleibt trotz 182 grünen Host-Tests und unveränderter Geometrie im Entwurf. Frisches abgeschlossenes Paar mit 1/20/60 echten Java-Testclients plus Bewegung und drei Wiedereintritten; alle vollständigen und ungünstigen Fenster im [Messbericht](2026-11-02-npc-animation-phases-results.md). Nominale Intervalle bleiben gleich, reale Metadatenpakete nehmen jedoch um etwa 4–12 % zu. Kein neuer Stage-Rollout. Der Nutzer hat Skalierung und SOLID des bisherigen #237-Stage-Stands bestätigt.

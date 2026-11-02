@@ -29,10 +29,10 @@ Forced state immediately before a regular deadline; interval changes; rewind/res
 **Files:** isolated artifacts under `artifacts/npc-animation-phases-2026-11-02`; existing load harness copied to fresh run names, frozen baseline `e447d40b5747` and frozen candidate.
 **Interfaces:** two frozen host jars, same prelit Map9/Scene/catalogue; actual loopback Java clients; bounded startup-owned safe JFR, no live attach.
 
-- [ ] Run fresh 1/20/60 client baseline/candidate matrix, moving and three exit/reentries; collect CPU, allocation, mean/p99/max and packet counts, plus host contention.
-- [ ] Report all windows and limitations. Confirm client counts, no disconnects, complete displays, no JFR loss, original fixtures unchanged and owned cleanup.
-- [ ] Obtain fresh correctness review of the complete branch; address material findings with RED/GREEN tests.
-- [ ] If measured benefit justifies it, merge with exact-head CI gate and activate private Stage image through the existing workflow; otherwise preserve a draft with the measured rejection reason. Update backlog and final outcome.
+- [x] Completed fresh baseline A / candidate B full matrix, movement and three reentries; candidate A controller abort preserved.
+- [x] Complete quantitative report records favorable/adverse windows, partial-run evidence, host contention, all 619 displays, no disconnects, zero JFR loss and unchanged original fixtures. Owned shutdown complete; final listener/container and Stage read-only verification follow.
+- [x] Fresh correctness review completed; one Important rewind finding fixed with RED/GREEN and a passing full suite, no additional findings.
+- [x] Rejected for activation: retain #238 as documented draft, update backlog. No merge, new private image or Stage changes; #233/#236 also remain separate.
 
 ## Execution ledger
 
@@ -46,3 +46,12 @@ Forced state immediately before a regular deadline; interval changes; rewind/res
 
 - Review fix: separate last-observed timestamp detects seek within a suppressed interval. New test observed RED (expected true, got false), then whole licensed and neutral suites passed (182 tests); 723,456 fixed-time pose records and 983-file bundle acceptance still match. Frozen final jar `084388a2a8619adef07220a432584babcd76c3f842603eb15ad6744cd1b82297`.
 - Bookkeeping correction: first freeze-proof script addressed the wrong XML parent after copying the jar; proof creation failed without changing the jar. The corrected script verified identical source/frozen hashes and captured the neutral 182-test result (5 expected skips). Licensed XML was overwritten by the subsequent neutral run; preserve full logs and recheck licensed counts after throughput measurements, rather than inferring archived XML contents.
+
+- Final licensed XML archived: 182 tests, zero failures/errors/skips; neutral run 182 tests, five expected asset skips. Host class comparison against Stage changes only AnimatedNpcHandle, its file facade, LobbyNpcModelRenderers and added NpcAnimationClock.
+- Harness correction: candidate A aborted at the first warmup-60 sample, before measured 60-client windows, because command dispatch acknowledgment was mistaken for completed server positioning (7/7/6 in bands, 40 still outside). No disconnects/product exception; owned shutdown succeeded and fixture unchanged. Preserve A raw data; retry B confirms all server position counts before warmup. Baseline A already satisfied those counts at all sampled windows and remains the control. This is one completed pair, not two independent comparisons.
+
+- Preliminary decision after complete throughput windows: do not activate. Candidate B moving-60 uses more process CPU and higher mean tick work than baseline A, with higher allocation and metadata dispatch counts. Await owned profile completion, audited summary and cleanup before final report; no new private image or Stage/GitOps changes.
+
+- Final decision: [complete results](2026-11-02-npc-animation-phases-results.md). No uniform tick-tail/CPU benefit, higher allocation and actual dispatch counts; keep current user-accepted Stage. The next relevant optimization is N13 delivery on top of #237, not a view-distance reduction.
+
+- Cleanup verified: no owned Minecraft/dashboard/metrics listeners or client containers. Fresh read-only Stage API discovery timed out twice; stopped owned kubectl child. No Stage mutation attempted; no fresh live health claim. All implementation/measurement tasks complete, retained draft is the intended outcome.
