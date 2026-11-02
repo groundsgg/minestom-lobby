@@ -40,3 +40,9 @@ Forced state immediately before a regular deadline; interval changes; rewind/res
 - Base: `83e1fbaad23142c24dc0dee6c728bc453851b672`; worktree `/home/lukas/grounds/.worktrees/npc-pack-model-host`, branch `perf/npc-animation-phases-20261102`.
 
 - Frozen candidate jar SHA-256: `809b673727b800d6635a1601e01dfef26bf8c8d920ef015246d3575e6a131a00`. A fresh baseline/candidate connected matrix is running; no Stage changes yet.
+
+- Independent correctness review: one Important finding, rewind inside a skipped interval is not detected against lastRendered. Fix via last-observed timestamp and RED/GREEN regression; no other actionable findings. Review did not assess GUI, performance or rollout.
+- Measurement ruling: baseline throughput windows finish before compiling the seek fix. Baseline JFR is diagnostic only and may overlap local verification of the candidate; do not use that recording for quantitative baseline/candidate CPU claims. Candidate start is gated on a new frozen reviewed jar; initial `809b...` is preserved and will not be measured/deployed as the final candidate.
+
+- Review fix: separate last-observed timestamp detects seek within a suppressed interval. New test observed RED (expected true, got false), then whole licensed and neutral suites passed (182 tests); 723,456 fixed-time pose records and 983-file bundle acceptance still match. Frozen final jar `084388a2a8619adef07220a432584babcd76c3f842603eb15ad6744cd1b82297`.
+- Bookkeeping correction: first freeze-proof script addressed the wrong XML parent after copying the jar; proof creation failed without changing the jar. The corrected script verified identical source/frozen hashes and captured the neutral 182-test result (5 expected skips). Licensed XML was overwritten by the subsequent neutral run; preserve full logs and recheck licensed counts after throughput measurements, rather than inferring archived XML contents.

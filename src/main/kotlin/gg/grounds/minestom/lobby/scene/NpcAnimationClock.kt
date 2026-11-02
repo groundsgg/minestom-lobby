@@ -3,11 +3,15 @@ package gg.grounds.minestom.lobby.scene
 /** Stagger regular work without shifting the elapsed time used to sample a pose. */
 internal class NpcAnimationClock(private val seed: Int) {
     private var lastRendered = Long.MIN_VALUE
+    private var lastAdvanced = Long.MIN_VALUE
     private var lastInterval = 0L
 
     fun advance(time: Long, interval: Long, force: Boolean): Boolean {
+        val seeking = time < lastAdvanced
+        lastAdvanced = time
         if (
             !force &&
+                !seeking &&
                 lastRendered != Long.MIN_VALUE &&
                 time >= lastRendered &&
                 time - lastRendered < interval &&

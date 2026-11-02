@@ -56,6 +56,16 @@ class NpcAnimationClockTest {
     }
 
     @Test
+    fun `rewind within a skipped interval immediately restores the requested pose`() {
+        val clock = NpcAnimationClock(0)
+        assertTrue(clock.advance(0, 200, true))
+        assertFalse(clock.advance(150, 200, false))
+        assertTrue(clock.advance(100, 200, false))
+        assertFalse(clock.advance(100, 200, false))
+        assertTrue(clock.advance(200, 200, false))
+    }
+
+    @Test
     fun `backward seek and late ticks render one current state without a catchup burst`() {
         val clock = NpcAnimationClock(1)
         assertTrue(clock.advance(1000, 200, true))
