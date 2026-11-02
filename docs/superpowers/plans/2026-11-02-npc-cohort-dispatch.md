@@ -28,9 +28,9 @@ Snapshots vs pending deltas at rate change; entry without actual Entity viewer m
 **Files:** isolated artifacts under `/home/lukas/grounds/artifacts/npc-cohort-dispatch-2026-11-02`; raw owned test fixture runs in the existing load-profile artifact root.
 **Interfaces:** frozen accepted `e447d40b5747` baseline and new candidate, identical bounded connected-client workload with server position confirmation.
 
-- [ ] Fresh 1/20/60 clients, motion and three reentries; CPU/allocation/mean/p99/max/dispatches, safe bounded JFR separately. Confirm actual traffic bytes if supported by the client/harness; otherwise state limitation.
-- [ ] Preserve all complete/failed runs, verify counts/fixtures/cleanup. Update optimization backlog and PR with acceptance/rejection reason.
-- [ ] Only merge/activate a qualified result; if Stage API remains unavailable, report the actual rollout limitation and complete unaffected work. No Production change.
+- [x] Complete baseline A and two complete candidates A/B with 1/20/60 clients, motion, three reentries, separate audited JFR and actual loopback TCP bytes; B uses the same control, not another independent pair.
+- [x] All complete/failed runs and input/count proofs preserved. Full report includes adverse20client mean/p99, moving56ms transition, reentry3maximum, increased allocation and all-near traffic. Backlog updated; source qualified for Stage trial only.
+- [ ] Merge qualified source after final exact-head CI; private Stage image and draft GitOps pin prepared. Stage API still fails bounded10s read; do not activate GitOps or claim live verification. No Production change.
 
 ## Execution ledger
 
@@ -44,3 +44,5 @@ Snapshots vs pending deltas at rate change; entry without actual Entity viewer m
 - Initial full candidate A cd1a319d: mixed20/60wirebytes -24.1%/-27.2%, CPU +3.5%/-3.3%, allocation +9.4%/+3.1%; moving bytes -21.0%, CPU -1.2%, allocation+11.4%. All-near reentry CPU +2.0–5.7%, mean+13.2–16.2%; retain complete summary-a.json, no rollout acceptance.
 - Ruling: add a single-cohort direct-delivery fast path to avoid accumulating when no receiver needs a different rate. Snapshot preparation still defers changes; a pending delta or future cohort deadline keeps regular cadence. Homogeneous direct metadata test observed RED(1expected,0received), then GREEN. A second test exposed an early900ms update after the500ms deferred flush; RED, fixed with deadline-aware preparation, all193licensed/neutral tests GREEN.
 - Frozen B fast jar:2a058aeb42f56543a6c39f0386569d3966b2e2d4a23f524a5369052e63eb30ab;193licensed0skip,neutral1935expectedskip,golden723456unchanged,983file acceptance pass. Candidate B reuses baseline A; do not present it as a second independent A/B pair.
+
+- Additional independent review of new direct path (24cb6c5..0efd8ae) found no actionable correctness findings. Final B193tests remain green. Full results:2026-11-02-npc-cohort-dispatch-results.md. Stage trial accepted for repeatable21–26%mixed workload byte savings with steadyCPU near parity; explicit56ms transient, allocation and small-audience regressions carried forward. No generalMSPTgain claim.
