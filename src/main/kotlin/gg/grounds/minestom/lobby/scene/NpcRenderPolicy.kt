@@ -28,6 +28,15 @@ internal object NpcRenderPolicy {
             else -> 500L
         }
 
+    fun viewerRate(distanceSquared: Double, previous: NpcViewerRate?): NpcViewerRate =
+        when {
+            previous == NpcViewerRate.NEAR && distanceSquared <= 18.0 * 18.0 -> NpcViewerRate.NEAR
+            distanceSquared <= 16.0 * 16.0 -> NpcViewerRate.NEAR
+            previous == NpcViewerRate.MID && distanceSquared <= 36.0 * 36.0 -> NpcViewerRate.MID
+            distanceSquared <= 32.0 * 32.0 -> NpcViewerRate.MID
+            else -> NpcViewerRate.FAR
+        }
+
     fun distanceSquared(player: Player, instance: Instance, anchor: Vec3): Double {
         if (player.instance !== instance) return Double.POSITIVE_INFINITY
         val p = player.position

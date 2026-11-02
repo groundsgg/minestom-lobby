@@ -16,21 +16,14 @@ internal val DEFAULT_NPC_VISUAL = 1.0 to false
 internal class NpcItemDisplay(private val lock: Any) : Entity(EntityType.ITEM_DISPLAY) {
     var viewerState: ((Player) -> Unit)? = null
     var visualState: ((Player) -> Pair<Double, Boolean>)? = null
+    private var pendingUpdates: NpcPendingMetadata? = null
 
     init {
         metadata = MetadataHolder { changes ->
             synchronized(lock) {
                 if (!isRemoved) {
-                    val common = EntityMetaDataPacket(entityId, changes)
-                    val commonViewers = ArrayList<Player>()
-                    viewers.forEach { player ->
-                        val entries = personalized(player, changes)
-                        if (entries === changes) commonViewers += player
-                        else player.sendPacket(EntityMetaDataPacket(entityId, entries))
-                    }
-                    if (commonViewers.size == 1) commonViewers[0].sendPacket(common)
-                    else if (commonViewers.size > 1)
-                        PacketSendingUtils.sendGroupedPacket(commonViewers, common)
+                    val pending = pendingUpdates
+                    if (pending == null) sendMetadata(changes, viewers) else pending.merge(changes)
                 }
             }
         }
@@ -40,6 +33,36 @@ internal class NpcItemDisplay(private val lock: Any) : Entity(EntityType.ITEM_DI
         // Explicit anchor moves still synchronize immediately; stationary visuals need no
         // heartbeat.
         setSynchronizationTicks(Long.MAX_VALUE / 2)
+    }
+
+    fun configureUpdates(rates: Set<NpcViewerRate>) {
+        val pending = pendingUpdates ?: NpcPendingMetadata().also { pendingUpdates = it }
+        pending.configure(rates)
+    }
+
+    fun flushUpdates(rate: NpcViewerRate, recipients: Collection<Player>) {
+        pendingUpdates?.drain(rate)?.let { sendMetadata(it, recipients, true) }
+    }
+
+    fun clearUpdates() {
+        pendingUpdates?.clear()
+    }
+
+    private fun sendMetadata(
+        changes: Map<Int, Metadata.Entry<*>>,
+        recipients: Collection<Player>,
+        checkMembership: Boolean = false,
+    ) {
+        val common = EntityMetaDataPacket(entityId, changes)
+        val commonViewers = ArrayList<Player>()
+        recipients.forEach { player ->
+            if (checkMembership && player !in viewers) return@forEach
+            val entries = personalized(player, changes)
+            if (entries === changes) commonViewers += player
+            else player.sendPacket(EntityMetaDataPacket(entityId, entries))
+        }
+        if (commonViewers.size == 1) commonViewers[0].sendPacket(common)
+        else if (commonViewers.size > 1) PacketSendingUtils.sendGroupedPacket(commonViewers, common)
     }
 
     private fun personalized(
