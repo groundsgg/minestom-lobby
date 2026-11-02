@@ -430,6 +430,64 @@ class NpcViewerUpdatesTest {
     }
 
     @Test
+    fun `single cohort preparation keeps the existing deadline after its deferred flush`() {
+        RendererFixture().use { fixture ->
+            val far = fixture.player(Pos(50.0, 0.0, 0.0))
+            val handle = create(fixture)
+            try {
+                handle.startAnimation(LocalId("wave"), 0)
+                handle.advanceAnimation(200)
+                fixture.player(Pos(48.0, 0.0, 0.0))
+                far.connection.packets.clear()
+                handle.advanceAnimation(400)
+                assertTrue(far.updates().isEmpty())
+                handle.advanceAnimation(500)
+                assertEquals(2, far.updates().size)
+                far.connection.packets.clear()
+                handle.advanceAnimation(900)
+                assertTrue(far.updates().isEmpty())
+                handle.advanceAnimation(1000)
+                assertEquals(2, far.updates().size)
+            } finally {
+                handle.close()
+            }
+        }
+    }
+
+    @Test
+    fun `a homogeneous audience retains direct cached metadata delivery`() {
+        RendererFixture().use { fixture ->
+            val viewers = listOf(fixture.player(), fixture.player(Pos(2.0, 0.0, 0.0)))
+            val handle = create(fixture)
+            try {
+                handle.startAnimation(LocalId("wave"), 0)
+                viewers.forEach {
+                    it.connection.captureEnvelopes = true
+                    it.connection.envelopes.clear()
+                    it.connection.packets.clear()
+                }
+                val body =
+                    fixture.instance.entities.filterIsInstance<NpcItemDisplay>().minBy {
+                        it.entityId
+                    }
+                body.editEntityMeta(ItemDisplayMeta::class.java) { it.isInvisible = true }
+                for (viewer in viewers) {
+                    assertEquals(1, viewer.updates().size)
+                    assertTrue(
+                        (viewer.updates().single().entries().getValue(0).value() as Byte)
+                            .toInt() and 0x20 != 0
+                    )
+                }
+                val frame = viewers[0].connection.envelopes.single()
+                assertTrue(frame is CachedPacket)
+                assertSame(frame, viewers[1].connection.envelopes.single())
+            } finally {
+                handle.close()
+            }
+        }
+    }
+
+    @Test
     fun `same uuid reconnect replaces cached recipients without postponing the occupied cohort`() {
         RendererFixture().use { fixture ->
             fixture.player()

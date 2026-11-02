@@ -17,13 +17,16 @@ internal class NpcItemDisplay(private val lock: Any) : Entity(EntityType.ITEM_DI
     var viewerState: ((Player) -> Unit)? = null
     var visualState: ((Player) -> Pair<Double, Boolean>)? = null
     private var pendingUpdates: NpcPendingMetadata? = null
+    var deferUpdates = false
 
     init {
         metadata = MetadataHolder { changes ->
             synchronized(lock) {
                 if (!isRemoved) {
                     val pending = pendingUpdates
-                    if (pending == null) sendMetadata(changes, viewers) else pending.merge(changes)
+                    if (pending == null || (!deferUpdates && pending.canSendDirect))
+                        sendMetadata(changes, viewers)
+                    else pending.merge(changes)
                 }
             }
         }

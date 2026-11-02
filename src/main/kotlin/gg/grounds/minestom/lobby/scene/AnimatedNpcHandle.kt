@@ -251,7 +251,9 @@ internal class AnimatedNpcHandle(
                 }
             }
         }
-        render(displayed, seconds)
+        val beforeSingleDeadline =
+            nextViewerUpdate.size == 1 && time < nextViewerUpdate.values.first()
+        render(displayed, seconds, !flush || beforeSingleDeadline)
         if (flush) flushViewerUpdates(time, force || seeking)
     }
 
@@ -278,7 +280,7 @@ internal class AnimatedNpcHandle(
             headLook = pendingHeadLook
     }
 
-    private fun render(name: String?, seconds: Double) {
+    private fun render(name: String?, seconds: Double, deferUpdates: Boolean = false) {
         val pose = model.itemDisplayPose(name, seconds, headLook)
         val unchangedRoot = previousTransform == transform
         val previous = previousPose
@@ -290,14 +292,20 @@ internal class AnimatedNpcHandle(
                     previous[index].values.contentEquals(pose[index].values)
             )
                 return@forEachIndexed
-            display.editEntityMeta(ItemDisplayMeta::class.java) { meta ->
-                if (
-                    DisplayTransform.fromModel(transform, NPC_FACING * pose[index])
-                        .apply(meta, transform.root.position)
-                ) {
-                    meta.setTransformationInterpolationDuration(duration)
-                    meta.setTransformationInterpolationStartDelta(0)
+            // Keep entry preparation queued until existing viewers' deadlines.
+            display.deferUpdates = deferUpdates
+            try {
+                display.editEntityMeta(ItemDisplayMeta::class.java) { meta ->
+                    if (
+                        DisplayTransform.fromModel(transform, NPC_FACING * pose[index])
+                            .apply(meta, transform.root.position)
+                    ) {
+                        meta.setTransformationInterpolationDuration(duration)
+                        meta.setTransformationInterpolationStartDelta(0)
+                    }
                 }
+            } finally {
+                display.deferUpdates = false
             }
         }
         previousPose = pose

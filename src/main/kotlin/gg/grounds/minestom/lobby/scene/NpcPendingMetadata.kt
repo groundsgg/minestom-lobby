@@ -6,10 +6,15 @@ import net.minestom.server.entity.MetadataDef
 /** One bounded accumulator per active distance cohort, never per player or animation frame. */
 internal class NpcPendingMetadata {
     private val pending = mutableMapOf<NpcViewerRate, Delta>()
+    private var single: Delta? = null
+
+    val canSendDirect: Boolean
+        get() = single?.isEmpty == true
 
     fun configure(intervals: Set<NpcViewerRate>) {
         pending.keys.retainAll(intervals)
         intervals.forEach { pending.getOrPut(it) { Delta() } }
+        single = pending.values.singleOrNull()
     }
 
     fun merge(changes: Map<Int, Metadata.Entry<*>>) {
@@ -21,13 +26,19 @@ internal class NpcPendingMetadata {
         return pending[interval]?.drain()
     }
 
-    fun clear() = pending.clear()
+    fun clear() {
+        pending.clear()
+        single = null
+    }
 
     private class Delta {
         // MetadataHolder publishes a detached map. Keep that immutable first delta; copy
         // only when another frame must be merged into it for a slower receiving cohort.
         private var first: Map<Int, Metadata.Entry<*>>? = null
         private var merged: MutableMap<Int, Metadata.Entry<*>>? = null
+
+        val isEmpty: Boolean
+            get() = first == null && merged == null
 
         fun merge(changes: Map<Int, Metadata.Entry<*>>) {
             val accumulating = merged
