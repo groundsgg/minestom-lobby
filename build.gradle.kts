@@ -1,4 +1,5 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import java.time.Duration
 import org.gradle.api.file.DuplicatesStrategy
 
 plugins {
@@ -49,6 +50,8 @@ tasks.register<JavaExec>("migrateQueueNpcScene") {
 application { mainClass.set("gg.grounds.minestom.lobby.MainKt") }
 
 tasks.test {
+    timeout = Duration.ofMinutes(2)
+    testLogging.events("started", "failed", "skipped")
     doFirst {
         systemProperty("lobby.test.runtimeClasspath", sourceSets.test.get().runtimeClasspath.asPath)
     }

@@ -106,6 +106,11 @@ internal class NpcItemDisplay(private val lock: Any) : Entity(EntityType.ITEM_DI
 
     fun sendPoseState(players: Collection<Player>, interpolationDuration: Int) {
         if (players.isEmpty()) return
+        if (players.size == 1) {
+            val player = players.first()
+            if (player in viewers) sendPoseState(player, interpolationDuration)
+            return
+        }
         sendMetadata(poseState(interpolationDuration), players, true)
     }
 
