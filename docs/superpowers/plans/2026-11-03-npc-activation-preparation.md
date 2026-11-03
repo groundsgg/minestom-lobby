@@ -34,7 +34,7 @@ Files: LobbySceneActions.kt; test LobbyNpcActivationBudgetTest.kt.
 
 ### Task3: research and qualification
 
-- [ ] Refresh primary sources for ModelEngine, BetterModel, MythicMobs, ItemsAdder/Oraxen and update backlog with applicable unresolved items and caveats.
+- [x] Refresh primary sources for ModelEngine, BetterModel, MythicMobs, ItemsAdder/Oraxen and update backlog with applicable unresolved items and caveats.
 - [ ] Licensed/ordinary suites, unchanged golden/bundle, exact candidate freeze; fresh connected cold baseline/candidate fixture with full-model admission latency retained. Independent final correctness review.
 - [ ] Qualified source PR and exact-head CI. Preserve current Stage overlay/pins in separate deployment only if evidence qualifies and management is observable; verify actual rollout and ask fresh gameplay check. Record all adverse evidence and handoff.
 
@@ -48,3 +48,8 @@ Task1: atomic-publication RED observed (2 failures: pre-pose partial spawns and 
 Ruling: Scene close is asynchronous and marshalled to its owner; one in-flight activation may settle before close completion. Shutdown regression pins no new starts after the returned close future completes and verifies all entities removed. Enforcing no work from the instant close() is requested would change the upstream lifecycle contract.
 
 Task2: real three-NPC admission RED (all three factories at tick1) → GREEN with one complete transition/tick; ordinary full201 tests,0failures/errors,5expected licensed skips. Task2-green.log; shutdown completion boundary pinned.
+
+Final review: no new merge-blocking source finding at1719b93. Minor (pre-existing, deferred): a direct caller cancellation during pending attachment may briefly publish then remove a complete model; normal Scene0.4.4 does not cancel renderer futures. Budget tests prove distinct start ticks for real placeholder renderers; licensed completion latency is measured separately in connected runs.
+Ruling: native prepared ItemStacks require bound Minestom material registries. Production module installation already follows MinecraftServer.init; the standalone bundle gate now explicitly initializes the registry first, without starting a listener.
+
+Qualification: ordinary201tests/5asset skips; licensed201/0skips; exact announcements-preserving Stage jar201/0skips with loaded-class origin proof. Golden723456states unchanged27daa369..., addon983files accepted after explicit registry init. Frozen Stage f74f3e927c2d..., base46da882e...; exactly3entry payloads differ, duplicate archive entries preserved. Cold ABBA complete, full latency retained; sustained connected load next due possible naturally staggered render phases.
