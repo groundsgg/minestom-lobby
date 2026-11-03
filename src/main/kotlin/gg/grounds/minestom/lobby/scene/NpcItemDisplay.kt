@@ -94,13 +94,13 @@ internal class NpcItemDisplay(private val lock: Any) : Entity(EntityType.ITEM_DI
     }
 
     fun sendVisualFlags(player: Player) {
-        val flags = metadataPacket.entries()[0] ?: Metadata.Byte(0)
+        val flags = Metadata.Byte(metadata.get(MetadataDef.ENTITY_FLAGS))
         player.sendPacket(EntityMetaDataPacket(entityId, personalized(player, mapOf(0 to flags))))
     }
 
     fun sendPoseState(player: Player, interpolationDuration: Int) {
         val meta = entityMeta as ItemDisplayMeta
-        val flags = metadataPacket.entries()[0] ?: Metadata.Byte(0)
+        val flags = Metadata.Byte(metadata.get(MetadataDef.ENTITY_FLAGS))
         val fields =
             mutableMapOf<Int, Metadata.Entry<*>>(
                 0 to flags,

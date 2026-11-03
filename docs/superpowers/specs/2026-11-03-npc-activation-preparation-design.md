@@ -1,0 +1,15 @@
+# NPC activation preparation design
+
+User approved prepared render data, direct metadata flags and spreading NPC construction across ticks. Continue inline under existing implementation/qualified-merge/Stage authorization. User's prior request to proceed settles workflow; no new permission gate.
+
+Reuse the clean linked host worktree on `perf/npc-activation-preparation-20261103`, base `4b2b6647912ba3d17d00aead5d0335c4ae7c45a7`. Primary implements; final independent correctness review. Keep current Stage announcements overlay when preparing any eventual rollout.
+
+Prepare immutable PAPER/ITEM_MODEL ItemStacks per model part in LobbyNpcModelRenderers construction, after catalogue validation. Reuse only immutable values, never entity/metadata/pose/viewer state. Read MetadataDef.ENTITY_FLAGS directly in NpcItemDisplay rather than materializing a full metadataPacket.
+
+Use existing SceneRuntimeConfig transitionBudgetPerTick=1 in the Lobby runtime request. This bounds complete automatic activation/deactivation transitions by count; it is **not a hard millisecond ceiling**. One large model may exceed a time budget. It spreads the fifteen platform models across successive ticks while preserving Scene's existing async ownership, stale-desire checks, distance/hysteresis and cleanup. Do not add a second renderer queue with independent shutdown/cancellation ownership. Do not change global library defaults or make all models ALWAYS. Extra visibility latency is up to the finite queued model count; measure it and report it alongside tick peaks.
+
+Hide model displays during attachment. Initialize the complete model's transforms and viewer callbacks before admitting any viewers through AnimatedNpcHandle's existing refresh. Attachment failure removes every part and sends no partial model. Publication means all server-side parts/initial poses are ready before the first spawn; packet delivery is still the native protocol.
+
+Alternatives: a new cross-repository wall-clock queue introduces another lifecycle/cancellation mechanism; deferred until evidence that a complete single model still exceeds acceptable latency. Unbounded eager activation restores first-visitor bursts and is rejected. Existing count budget is the smallest supported intervention. No universal fix for historical Stage441.802ms is claimed.
+
+Validation: semantic real-Minestom tests for incomplete attachment/no premature spawns, complete first publication, multiple automatic NPCs spread across ticks, shutdown canceling queued activation and preserving flags/personalization. Existing full suite and licensed195-test baseline, golden723456-state digest, bundle983-file gate. Pure allocation changes use semantic coverage plus bytecode/allocation evidence, not implementation-mirroring tests. Fresh identical-jar fixture cold connected comparison including first admission/platform/reentry, retained adverse windows and max time until all619 displays. No network/visibility or hitbox geometry changes. External plugin research updates the existing backlog with primary-source links and separates shipped work from new candidates.

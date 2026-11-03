@@ -34,6 +34,13 @@ internal class LobbyNpcModelRenderers(
         }
     }
 
+    private val preparedItems =
+        models.mapValues { (_, model) ->
+            model.parts.map { part ->
+                ItemStack.of(Material.PAPER).with(DataComponents.ITEM_MODEL, part.model)
+            }
+        }
+
     override fun supportsAnimation(asset: AssetKey, animation: LocalId?) =
         models[asset]?.let { animation == null || animation.value in it.animations } == true
 
@@ -42,20 +49,13 @@ internal class LobbyNpcModelRenderers(
         return SceneAssetRendererFactory { context ->
             val lock = Any()
             val displays =
-                model.parts.map { part ->
+                preparedItems.getValue(asset).map { item ->
                     NpcItemDisplay(lock).also { display ->
-                        display.updateViewableRule { player ->
-                            NpcRenderPolicy.canView(
-                                player,
-                                context.instance,
-                                context.transform.root.position,
-                            )
-                        }
+                        // Publish only after every part is attached and the handle has posed all
+                        // parts.
+                        display.updateViewableRule { false }
                         display.editEntityMeta(ItemDisplayMeta::class.java) { meta ->
-                            meta.setItemStack(
-                                ItemStack.of(Material.PAPER)
-                                    .with(DataComponents.ITEM_MODEL, part.model)
-                            )
+                            meta.setItemStack(item)
                             meta.setTransformationInterpolationDuration(2)
                             // Leave client-side headroom beyond the 72-block server retention band.
                             meta.setViewRange(1.25f)

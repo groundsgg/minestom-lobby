@@ -128,5 +128,7 @@ internal fun PreparedLobbyScene.runtimeRequest(
         LobbySceneEffects(assets),
         policy,
         registry,
+        // Spread complete NPC construction across ticks; keep each model's parts together.
+        config = SceneRuntimeConfig(transitionBudgetPerTick = 1),
     )
 }
