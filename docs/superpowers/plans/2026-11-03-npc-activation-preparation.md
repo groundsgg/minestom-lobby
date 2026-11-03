@@ -22,9 +22,9 @@ Preserve SOLID position confirmation, model geometry, interpolation/scale cohere
 ### Task1: construction, flags and atomic initial state
 
 Files: LobbyNpcModelRenderers.kt, NpcItemDisplay.kt; tests NpcActivationPreparationTest.kt, NpcSharedMetadataTest.kt.
-- [ ] Add real attachment cancellation/publication tests; observe RED for premature spawn.
-- [ ] Prepare immutable per-part stacks; attach with viewers denied until complete handle initialization. Read packed flags directly. Characterize all flag bits and template mutation isolation; no test that only checks cache implementation.
-- [ ] Full suite, formatting, bytecode/allocation evidence; commit.
+- [x] Add real attachment cancellation/publication tests; observe RED for premature spawn.
+- [x] Prepare immutable per-part stacks; attach with viewers denied until complete handle initialization. Read packed flags directly. Characterize all flag bits and template mutation isolation; no test that only checks cache implementation.
+- [x] Full ordinary suite and formatting; bytecode/allocation evidence follows final freeze.
 
 ### Task2: bounded complete-NPC transitions
 
@@ -42,3 +42,5 @@ Files: LobbySceneActions.kt; test LobbyNpcActivationBudgetTest.kt.
 
 Ruling: use existing complete-element count budget instead of introducing a wall-clock renderer queue. A single complex model remains indivisible; risk is a remaining single-model peak, to be measured. This is announced to the user and must not be described as a hard2ms cap.
 Ruling: pure allocation changes preserve behavior and use existing/new semantic characterization plus allocation/bytecode evidence rather than a fabricated RED test for an internal cache.
+
+Task1: atomic-publication RED observed (2 failures: pre-pose partial spawns and rejected sibling exposed); GREEN full ordinary suite {'tests': 199, 'failures': 0, 'errors': 0, 'skipped': 5} via Gradle spotlessApply test, task1-green.log. Prepared templates and direct flags covered by mutation/packed-bit characterization and existing semantics.
