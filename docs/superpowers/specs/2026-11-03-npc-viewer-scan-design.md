@@ -1,0 +1,13 @@
+# NPC viewer-scan allocation
+
+Continue from user-accepted #239/#240, base751edf6; keep #233/#236/#238/#241 separate. Reduce repeated construction of equal viewer maps, preserving every existing scan/admission opportunity. No visibility/rate throttle.
+
+Owned startup-only counters on the exact frozen #240 jar show about525refreshes/s:420animation,105scheduled, plus occasional personal-state refreshes. All sampled steady scans and96.99%of moving scans are unchanged. Instrumented unchanged-call wall cost at60clients is about2.98ms/s; this includes probe overhead and is not a production CPU saving. Full-metadata/render callbacks are included in changed-call timing and are not pure scan cost. All counters are numeric; original jar and Stage are untouched.
+
+Chosen approach: a read-only unchanged predicate checks current admission, enum rate, Player identity and admitted count against the existing immutable caches. Return immediately only when all match. On any mismatch, run the existing full refresh unchanged. Thus removals, equal-count exchanges, same-UUID reconnects, transform/rate changes and first admission remain immediate. Also compare the primitive minimum matched interval (500 ms empty) with renderInterval. A weak player-set iteration may see original and replacement objects sequentially during reconnect: the UUID map retains the last rate while its running minimum retains an earlier faster rate. Cache equality alone must not preserve that transient minimum.
+
+Alternatives: pre-size the temporary builder (still rebuilds equal maps); reusable scratch arrays (one pass but adds mutable state/reentrancy obligations); cadence throttling (changes admission timing). The predicate plus existing fallback is the smallest lifecycle-preserving candidate, at the cost of a second partial/full scan on changed calls. Measure that cost explicitly in motion and reentry windows. Choice is the agent's under the user's standing execution authorization.
+
+Preserve64/72visibility hysteresis,32vertical range,200/250/500ms rates and16/18,32/36rate hysteresis; preserve personal glow/scale, queued immutable metadata, actual display membership, geometry, lighting and native SOLID. Instance-local entity delivery retains network-wide routing outside this component; no proxy identity assumptions added.
+
+Existing semantic suites plus a balanced leave/enter regression, complete fixed-pose/bundle checks and independent critical review guard correctness. A fresh uninstrumented1/20/60client, motion and3reentry pair determines qualification, with full favorable/adverse results retained. Diagnostic overrides never enter the candidate or live image. Merge/Stage only if qualified and observable; no Production changes or release process.

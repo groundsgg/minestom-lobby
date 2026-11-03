@@ -8,6 +8,7 @@ import kotlin.math.abs
 import net.minestom.server.coordinate.Pos
 import net.minestom.server.entity.Player
 import net.minestom.server.entity.metadata.display.ItemDisplayMeta
+import net.minestom.server.instance.Instance
 import net.minestom.server.timer.TaskSchedule
 
 internal class AnimatedNpcHandle(
@@ -74,6 +75,7 @@ internal class AnimatedNpcHandle(
     private fun refreshViewers() {
         val instance = displays.first().instance
         val anchor = transform.root.position
+        if (viewersUnchanged(instance, anchor)) return
         var playersChanged = false
         var fastestInterval = 500L
         val next = buildMap {
@@ -123,6 +125,27 @@ internal class AnimatedNpcHandle(
                     display.sendPoseState(player, (interval.interval / 50).toInt())
             }
         }
+    }
+
+    private fun viewersUnchanged(instance: Instance, anchor: Vec3): Boolean {
+        var admitted = 0
+        var fastestInterval = 500L
+        for (player in instance.players) {
+            val previous = viewerIntervals[player.uuid]
+            val distance = NpcRenderPolicy.distanceSquared(player, instance, anchor)
+            if (NpcRenderPolicy.canView(player, instance, anchor, previous != null)) {
+                if (
+                    previous == null ||
+                        viewerPlayers[player.uuid] !== player ||
+                        NpcRenderPolicy.viewerRate(distance, previous) != previous
+                )
+                    return false
+                admitted++
+                fastestInterval = minOf(fastestInterval, previous.interval)
+            }
+        }
+        // A weak iteration can see both sides of a reconnect; also repair its minimum.
+        return admitted == viewerIntervals.size && fastestInterval == renderInterval
     }
 
     override fun applyTransform(transform: SceneRenderTransform) {

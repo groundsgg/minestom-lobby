@@ -3,13 +3,17 @@ package gg.grounds.minestom.lobby.scene
 import gg.grounds.resourcepacks.npc.NpcModel
 import gg.grounds.scene.format.*
 import gg.grounds.scene.minestom.*
+import java.util.UUID
 import net.minestom.server.MinecraftServer
 import net.minestom.server.coordinate.Point
 import net.minestom.server.coordinate.Pos
 import net.minestom.server.entity.MetadataDef
+import net.minestom.server.entity.Player
 import net.minestom.server.entity.metadata.display.ItemDisplayMeta
+import net.minestom.server.instance.InstanceContainer
 import net.minestom.server.network.packet.server.CachedPacket
 import net.minestom.server.network.packet.server.play.EntityMetaDataPacket
+import net.minestom.server.world.DimensionType
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
@@ -399,6 +403,102 @@ class NpcViewerUpdatesTest {
                 }
                 assertEquals(retained, near[0].updates().first().entries())
             } finally {
+                handle.close()
+            }
+        }
+    }
+
+    @Test
+    fun `equal viewer count still swaps leaving and entering players immediately`() {
+        RendererFixture().use { fixture ->
+            val leaving = fixture.player()
+            val stable = fixture.player(Pos(50.0, 0.0, 0.0))
+            val entering = fixture.player(Pos(100.0, 0.0, 0.0))
+            val handle = create(fixture)
+            try {
+                handle.startAnimation(LocalId("wave"), 0)
+                leaving.teleport(Pos(100.0, 0.0, 0.0)).join()
+                entering.teleport(Pos.ZERO).join()
+                entering.connection.packets.clear()
+                stable.connection.packets.clear()
+                handle.advanceAnimation(200)
+                val duration = MetadataDef.Display.TRANSFORMATION_INTERPOLATION_DURATION.index()
+                for (display in fixture.instance.entities.filterIsInstance<NpcItemDisplay>()) {
+                    assertFalse(leaving in display.viewers)
+                    assertTrue(entering in display.viewers)
+                    assertTrue(stable in display.viewers)
+                    val state =
+                        entering.updates().last {
+                            it.entityId() == display.entityId && duration in it.entries()
+                        }
+                    assertEquals(7, state.entries().size)
+                    assertEquals(4, state.entries()[duration]!!.value())
+                }
+                assertTrue(stable.updates().none { duration in it.entries() })
+            } finally {
+                handle.close()
+            }
+        }
+    }
+
+    @Test
+    fun `weak iteration during reconnect does not retain a stale shared sampling interval`() {
+        class ReconnectingInstance : InstanceContainer(UUID.randomUUID(), DimensionType.OVERWORLD) {
+            var replacement: (() -> Player)? = null
+
+            override fun getPlayers(): MutableSet<Player> {
+                val action = replacement ?: return super.getPlayers()
+                val original = super.getPlayers().single()
+                return object : java.util.AbstractSet<Player>() {
+                    override val size = 1
+
+                    override fun iterator(): MutableIterator<Player> =
+                        object : MutableIterator<Player> {
+                            private var index = 0
+
+                            override fun hasNext() = index < 2
+
+                            override fun next(): Player =
+                                when (index++) {
+                                    0 -> original
+                                    1 -> {
+                                        replacement = null
+                                        action()
+                                    }
+                                    else -> throw NoSuchElementException()
+                                }
+
+                            override fun remove() = throw UnsupportedOperationException()
+                        }
+                }
+            }
+        }
+        val instance = ReconnectingInstance()
+        MinecraftServer.getInstanceManager().registerInstance(instance)
+        RendererFixture(instance = instance).use { fixture ->
+            val original = fixture.player()
+            val handle = create(fixture)
+            try {
+                handle.startAnimation(LocalId("wave"), 0)
+                original.teleport(Pos(24.0, 0.0, 0.0)).join()
+                lateinit var replacement: TestPlayer
+                instance.replacement = {
+                    original.remove()
+                    fixture.player(Pos(50.0, 0.0, 0.0), original.uuid).also { replacement = it }
+                }
+                handle.advanceAnimation(200)
+                replacement.connection.packets.clear()
+                handle.advanceAnimation(400)
+                handle.advanceAnimation(600)
+                handle.advanceAnimation(700)
+                val body =
+                    fixture.instance.entities.filterIsInstance<NpcItemDisplay>().minBy {
+                        it.entityId
+                    }
+                val delivered = replacement.updates().last { it.entityId() == body.entityId }
+                assertEquals(1.4, delivered.translation()!!.y(), 1e-6)
+            } finally {
+                instance.replacement = null
                 handle.close()
             }
         }

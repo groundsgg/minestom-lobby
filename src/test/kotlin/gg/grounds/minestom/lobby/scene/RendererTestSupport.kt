@@ -48,8 +48,10 @@ internal fun sceneTransform(position: Vec3 = Vec3(0.0, 0.0, 0.0)) =
         null,
     )
 
-internal class RendererFixture(val bounds: LocalBounds = unitBounds) : AutoCloseable {
-    val instance = MinecraftServer.getInstanceManager().createInstanceContainer()
+internal class RendererFixture(
+    val bounds: LocalBounds = unitBounds,
+    val instance: InstanceContainer = MinecraftServer.getInstanceManager().createInstanceContainer(),
+) : AutoCloseable {
     val registry =
         LobbyPlaceholderRenderers(
             AssetCatalog(
