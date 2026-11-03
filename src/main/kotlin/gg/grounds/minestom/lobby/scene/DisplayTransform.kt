@@ -54,41 +54,39 @@ private constructor(
 
     private fun quaternion(rotation: DoubleArray): FloatArray {
         val trace = rotation[0] + rotation[4] + rotation[8]
-        val (x, y, z, w) =
-            if (trace > 0.0) {
-                val s = sqrt(trace + 1.0) * 2.0
-                arrayOf(
-                    (rotation[7] - rotation[5]) / s,
-                    (rotation[2] - rotation[6]) / s,
-                    (rotation[3] - rotation[1]) / s,
-                    s / 4.0,
-                )
-            } else if (rotation[0] > rotation[4] && rotation[0] > rotation[8]) {
-                val s = sqrt(1.0 + rotation[0] - rotation[4] - rotation[8]) * 2.0
-                arrayOf(
-                    s / 4.0,
-                    (rotation[1] + rotation[3]) / s,
-                    (rotation[2] + rotation[6]) / s,
-                    (rotation[7] - rotation[5]) / s,
-                )
-            } else if (rotation[4] > rotation[8]) {
-                val s = sqrt(1.0 + rotation[4] - rotation[0] - rotation[8]) * 2.0
-                arrayOf(
-                    (rotation[1] + rotation[3]) / s,
-                    s / 4.0,
-                    (rotation[5] + rotation[7]) / s,
-                    (rotation[2] - rotation[6]) / s,
-                )
-            } else {
-                val s = sqrt(1.0 + rotation[8] - rotation[0] - rotation[4]) * 2.0
-                arrayOf(
-                    (rotation[2] + rotation[6]) / s,
-                    (rotation[5] + rotation[7]) / s,
-                    s / 4.0,
-                    (rotation[3] - rotation[1]) / s,
-                )
-            }
-        return floatArrayOf(x.toFloat(), y.toFloat(), z.toFloat(), w.toFloat())
+        return if (trace > 0.0) {
+            val s = sqrt(trace + 1.0) * 2.0
+            floatArrayOf(
+                ((rotation[7] - rotation[5]) / s).toFloat(),
+                ((rotation[2] - rotation[6]) / s).toFloat(),
+                ((rotation[3] - rotation[1]) / s).toFloat(),
+                (s / 4.0).toFloat(),
+            )
+        } else if (rotation[0] > rotation[4] && rotation[0] > rotation[8]) {
+            val s = sqrt(1.0 + rotation[0] - rotation[4] - rotation[8]) * 2.0
+            floatArrayOf(
+                (s / 4.0).toFloat(),
+                ((rotation[1] + rotation[3]) / s).toFloat(),
+                ((rotation[2] + rotation[6]) / s).toFloat(),
+                ((rotation[7] - rotation[5]) / s).toFloat(),
+            )
+        } else if (rotation[4] > rotation[8]) {
+            val s = sqrt(1.0 + rotation[4] - rotation[0] - rotation[8]) * 2.0
+            floatArrayOf(
+                ((rotation[1] + rotation[3]) / s).toFloat(),
+                (s / 4.0).toFloat(),
+                ((rotation[5] + rotation[7]) / s).toFloat(),
+                ((rotation[2] - rotation[6]) / s).toFloat(),
+            )
+        } else {
+            val s = sqrt(1.0 + rotation[8] - rotation[0] - rotation[4]) * 2.0
+            floatArrayOf(
+                ((rotation[2] + rotation[6]) / s).toFloat(),
+                ((rotation[5] + rotation[7]) / s).toFloat(),
+                (s / 4.0).toFloat(),
+                ((rotation[3] - rotation[1]) / s).toFloat(),
+            )
+        }
     }
 
     companion object {
@@ -145,7 +143,9 @@ private constructor(
             val left =
                 matrix *
                     eigenvectors *
-                    Matrix3.diagonal(scale.map { if (it == 0.0) 0.0 else 1.0 / it }.toDoubleArray())
+                    Matrix3.diagonal(
+                        DoubleArray(3) { if (scale[it] == 0.0) 0.0 else 1.0 / scale[it] }
+                    )
             if (matrix.determinant() < 0.0) scale[2] = -scale[2]
             return Decomposition(left.orthonormalized(), scale, right.orthonormalized())
         }
