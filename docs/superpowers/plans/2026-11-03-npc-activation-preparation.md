@@ -35,7 +35,7 @@ Files: LobbySceneActions.kt; test LobbyNpcActivationBudgetTest.kt.
 ### Task3: research and qualification
 
 - [x] Refresh primary sources for ModelEngine, BetterModel, MythicMobs, ItemsAdder/Oraxen and update backlog with applicable unresolved items and caveats.
-- [ ] Licensed/ordinary suites, unchanged golden/bundle, exact candidate freeze; fresh connected cold baseline/candidate fixture with full-model admission latency retained. Independent final correctness review.
+- [x] Licensed/ordinary suites, unchanged golden/bundle, exact candidate freeze; fresh connected cold baseline/candidate fixture with full-model admission latency retained. Independent final correctness review.
 - [ ] Qualified source PR and exact-head CI. Preserve current Stage overlay/pins in separate deployment only if evidence qualifies and management is observable; verify actual rollout and ask fresh gameplay check. Record all adverse evidence and handoff.
 
 ## Ledger
@@ -53,3 +53,9 @@ Final review: no new merge-blocking source finding at1719b93. Minor (pre-existin
 Ruling: native prepared ItemStacks require bound Minestom material registries. Production module installation already follows MinecraftServer.init; the standalone bundle gate now explicitly initializes the registry first, without starting a listener.
 
 Qualification: ordinary201tests/5asset skips; licensed201/0skips; exact announcements-preserving Stage jar201/0skips with loaded-class origin proof. Golden723456states unchanged27daa369..., addon983files accepted after explicit registry init. Frozen Stage f74f3e927c2d..., base46da882e...; exactly3entry payloads differ, duplicate archive entries preserved. Cold ABBA complete, full latency retained; sustained connected load next due possible naturally staggered render phases.
+
+Artifact review: all40,415 physical ZIP entries retain order and duplicates; only3reviewed classes change and match the built source candidate. No harness class shadows application classes. The exact active Stage base is the independently pinned Announcements revision ab5c739, not deploy/main. Any Stage pin must preserve that base and ownership settings.
+
+Bytecode proof: both sendVisualFlags/sendPoseState had1getMetadataPacket call and now have0; each now reads MetadataHolder.get directly. Semantic packed-bit and personal-highlight tests pass. No whole-JVM allocation percentage is inferred from this component removal.
+
+Sustained qualification must require final exitCode0, unchanged original map, exact jar hash and cleanup success, not the early verified-complete marker alone. Exit/reentry in this harness tests viewer re-admission while619entities remain attached (Y-only travel, Scene activation uses X/Z); it is not cold reconstruction. One baseline/candidate pair does not prove reproducibility.
