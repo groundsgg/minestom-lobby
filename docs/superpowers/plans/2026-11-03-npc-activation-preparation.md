@@ -29,8 +29,8 @@ Files: LobbyNpcModelRenderers.kt, NpcItemDisplay.kt; tests NpcActivationPreparat
 ### Task2: bounded complete-NPC transitions
 
 Files: LobbySceneActions.kt; test LobbyNpcActivationBudgetTest.kt.
-- [ ] Real Scene runtime test with three nearby automatic NPCs, at most one factory start per tick and eventual completion; shutdown while queued prevents subsequent starts. Observe RED before config change.
-- [ ] Configure only Lobby Scene request transitionBudgetPerTick=1. Verify full suite, commit.
+- [x] Real Scene runtime test with three nearby automatic NPCs, at most one factory start per tick and eventual completion; shutdown while queued prevents subsequent starts. Observe RED before config change.
+- [x] Configure only Lobby Scene request transitionBudgetPerTick=1. Verify full suite, commit.
 
 ### Task3: research and qualification
 
@@ -44,3 +44,7 @@ Ruling: use existing complete-element count budget instead of introducing a wall
 Ruling: pure allocation changes preserve behavior and use existing/new semantic characterization plus allocation/bytecode evidence rather than a fabricated RED test for an internal cache.
 
 Task1: atomic-publication RED observed (2 failures: pre-pose partial spawns and rejected sibling exposed); GREEN full ordinary suite {'tests': 199, 'failures': 0, 'errors': 0, 'skipped': 5} via Gradle spotlessApply test, task1-green.log. Prepared templates and direct flags covered by mutation/packed-bit characterization and existing semantics.
+
+Ruling: Scene close is asynchronous and marshalled to its owner; one in-flight activation may settle before close completion. Shutdown regression pins no new starts after the returned close future completes and verifies all entities removed. Enforcing no work from the instant close() is requested would change the upstream lifecycle contract.
+
+Task2: real three-NPC admission RED (all three factories at tick1) → GREEN with one complete transition/tick; ordinary full201 tests,0failures/errors,5expected licensed skips. Task2-green.log; shutdown completion boundary pinned.
