@@ -41,7 +41,7 @@ Fresh original workload: 1→20→60 real headless protocol clients, 35s steady 
 | reentry-1 | +34.70% | +119.31% | +16.66% | -1.85% |
 | reentry-2 | +17.18% | +23.71% | +13.05% | -2.41% |
 
-Reentry-0 CPU/rate comparison is excluded because the first metric completion skew was 1773ms; the native tick-count window contains 470 ticks while epoch selection contained 436. Exact native ordinal tick values are retained and cross-checked against cumulative sums: baseline mean/p99/max 2.384/6.866/28.934ms versus candidate **11.911/115.083/156.379ms**. These are real adverse ticks, not discarded as measurement error.
+Reentry-0 CPU/rate comparison is excluded because the first metric completion skew was 1773ms; the native tick-count window contains 470 ticks while epoch selection contained 436. Exact native ordinal mean/p99 values are retained and cross-checked against cumulative sums: baseline 2.384/6.866ms versus candidate **11.911/115.083ms**. Whole-phase maxima (a broader scope) are 28.934ms versus **156.379ms**; the baseline ordinal-window maximum is 10.899ms. These are real adverse ticks, not discarded as measurement error.
 
 Candidate core0 busy was 84.45% vs 49.90%, tick runnable delay 11.348 vs 1.628ms/tick. This supports possible contention; it does not prove an external cause, since JVM threads can also contend. Original JFR first-motion peak worsened 52.712→110.334ms; second 8.985→9.184ms. The prior 56ms outlier is not fixed by this change.
 
