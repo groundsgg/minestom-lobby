@@ -19,7 +19,7 @@ Preserve exact ranges/rates/deadlines, initial spawn ordering and native SOLID. 
 - [x] Add balanced equal-count leave/enter regression in `NpcViewerUpdatesTest`; verify existing behavior before the mechanical optimization.
 - [x] Add `viewersUnchanged(instance: Instance, anchor: Vec3): Boolean` to `AnimatedNpcHandle`, return early from refresh only on exact cache agreement. Preserve the full fallback.
 - [x] Full licensed/ordinary suites, formatting, fixed723456pose digest and983-file addon acceptance; freeze and prove only intended bytecode changes. Independent critical review.
-- [ ] Fresh uninstrumented baseline/candidate owned-client pair, full adverse windows, sampled allocation-site evidence and cleanup. Original56ms motion outlier remains open unless actually diagnosed.
+- [x] Fresh uninstrumented baseline/candidate owned-client pair, full adverse windows, sampled allocation-site evidence and cleanup. Original56ms motion outlier remains open unless actually diagnosed.
 - [ ] Qualified changes only: exact-head CI merge and separately validated observable Stage rollout. If not qualified, retain report and source without adding an unqualified rollout.
 
 ## Ledger
@@ -29,3 +29,5 @@ Existing isolated worktree `/home/lukas/grounds/.worktrees/npc-pack-model-host`;
 - Independent review found a weak-iteration reconnect edge: cached UUID/rate/identity can match while the running minimum is transiently stale. Controlled real removal/replacement through a weak Set reproduces a delivered1.3pose where1.4is expected (RED); original full path passes the same test. Predicate now also verifies primitive minimum against renderInterval, default500. No Long boxing, cadence change or persistent scratch state.
 
 - Reconnect correction GREEN in full195licensed tests0skip; ordinary195pass with5expected asset skips. Formatting,723456fixed states SHA27daa3691026f1a7a958113dcda036b9365f56708ded853bbc60e1429295083e and983-file bundle gate pass. Frozen13f8ca505cead847019573ccd8843892bb9540b3f6b7b84b0835dd4f4899d3d6. Only handle implementation changes; facing initializer differs only in debug info; Scene/Resourcepacks/NpcItemDisplay identical. Probe/ASM classes absent. Final read-only review has no remaining finding. Normal baseline/candidate run uses no overrides or probe classes; diagnosis and throughput are kept separate.
+
+- Both full pair D and the separate isolated20/60pair completed; adverse D retained, isolated CPU6.7–8.1%/allocation6.5–7.1% lower in steady/moving windows. Mixed reentry tails and first-motion peaks remain open. [Full qualification](2026-11-03-npc-viewer-scan-results.md); decision bounded Stage trial only, no general/repeatability claim.
