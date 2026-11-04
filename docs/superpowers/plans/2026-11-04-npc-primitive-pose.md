@@ -33,10 +33,10 @@ add `src/test/kotlin/gg/grounds/minestom/lobby/scene/DisplayQuaternionTest.kt`.
 
 **Interfaces:** unchanged `DisplayTransform.fromModel` and `apply`.
 
-- [ ] Write branch/boundary/ownership characterizations and an external warmed conversion allocation probe (budget 64 bytes per returned quaternion).
-- [ ] Run the probe against the accepted jar; retain actual failure or revise the hypothesis before implementation.
-- [ ] Replace boxed quaternion intermediates and reciprocal scale list only.
-- [ ] Run formatter and all licensed Host tests; compare 723456 serialized states.
-- [ ] Freeze source jar, overlay only reviewed Host classes onto accepted Stage jar; verify every archive entry and run artifact tests.
-- [ ] Run an owned 20/60-client comparison with movement and readmission; retain all windows and decide qualification.
-- [ ] Obtain independent read-only whole-branch review; address correctness findings and record results/backlog/PR.
+- [x] Write branch/boundary/ownership characterizations and an external warmed conversion allocation probe (budget 64 bytes per returned quaternion).
+- [x] Run the probe against the accepted jar; retain actual failure or revise the hypothesis before implementation.
+- [x] Replace boxed quaternion intermediates and reciprocal scale list only.
+- [x] Run formatter and all licensed Host tests; compare 723456 serialized states.
+- [x] Freeze source jar, overlay only reviewed Host classes onto accepted Stage jar; verify every archive entry and run artifact tests.
+- [x] Run an owned 20/60-client comparison with movement and readmission; retain all windows and decide qualification.
+- [x] Obtain independent read-only whole-branch review; address correctness findings and record results/backlog/PR.

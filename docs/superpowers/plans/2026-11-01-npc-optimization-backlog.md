@@ -202,3 +202,16 @@ N34/N35-Qualifikation:201lizenzierte und201Tests gegen das fertige Stage-JAR gr�
 Der direkte Komponentenvergleich spart etwa16%Pose-Allokation, aber der volle20/60Client-Vergleich zeigt statisch60CPU+21,15%/Tickmittel+48,48%, bei BewegungCPU+25,56%/Tickmittel+27,04%. Ein getrennter umgekehrter60Client-Vergleich nach Warmup/Erstbewegungsprofil bestätigt die negative Richtung: statischCPU+17,23%/Tickmittel+46,25%, BewegungCPU+10,40%/Tickmittel+26,67%, Gesamtallokation nur−1,27%/−0,57%. Adverse87,45/52,78msSpitzen bleiben dokumentiert.
 
 **Nicht qualifiziert;#62bleibt Entwurf, Stage bleibt#243/#560.** JIT/Host-Last beeinflussen Messungen, sind aber keine belegte alleinige Ursache. Vollständige dynamische Clip-Samples bleiben offen; N09Cursor werden bei diesen kurzen Tracks ohne Profilbeleg nicht ergänzt. Kein allgemeiner CPU-/Tickgewinn, keine Paket-/Geometrieänderung als umgesetzt verbuchen. Weitere Arbeit auf die dominanten Versand-/Sichtbarkeitspfade und die separat abzusichernde Modellkonsolidierung ausrichten. [Vollständige Messungen und Grenzen](2026-11-03-npc-prepared-clips-results.md).
+
+## N12: Primitive Pose-Zwischenergebnisse (4. November)
+
+[Host#245](https://github.com/groundsgg/minestom-lobby/pull/245) entfernt nur boxed
+Quaternion-Zwischenwerte und die temporäre reziproke Skalierungsliste. 204lizenzierte
+und204Tests gegen das fertigeStageJAR,723456bitgleicheZustände; unabhängigesReview
+ohneProduktionsfehler. Komponente160→32Byte/Quaternion, Gesamt-JVM−0,6bis−1,7%
+Allokation in einem20/60Client-Paar. RuheCPU−2,3bis−2,4%, BewegungCPU+0,9% und
+Tickmittel+4,2%; tatsächlicheTCP-Nutzdaten+1,6bis+5,3%. KleineSpeicheroptimierung,
+keinallgemeinerCPU/TPS/Netzwerkgewinn; begrenzterStage-Testqualifiziert, tatsächlicher
+Rollout undnativeAbnahme separat. EinekleineGrenzfall-Testverstärkung bleibt als
+Reviewnachtrag offen. N01Modellkonsolidierung bleibt dernächstegrößereHebel, mit
+eigenerAsset-/Clientabnahme. [MessungenundGegenwerte](2026-11-04-npc-primitive-pose-results.md).
