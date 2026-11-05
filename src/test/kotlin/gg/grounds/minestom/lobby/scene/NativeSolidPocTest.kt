@@ -1,6 +1,9 @@
 package gg.grounds.minestom.lobby.scene
 
 import gg.grounds.scene.format.*
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.locks.LockSupport
 import kotlin.math.abs
 import net.minestom.server.MinecraftServer
 import net.minestom.server.coordinate.Pos
@@ -234,13 +237,7 @@ class NativeSolidPocTest {
             fixture.instance.eventNode().addChild(observer)
             val probes = stations.map { NativeSolidPoc(fixture.instance, it) }
             val ready = probes.map { it.start() }
-            repeat(200) { tick ->
-                if (ready.any { !it.isDone }) {
-                    fixture.instance.tick(tick * 50L)
-                    Thread.yield()
-                }
-            }
-            ready.forEach { it.join() }
+            awaitReady(fixture, ready)
             val bodies = nativeBodies(fixture)
             val carriers = bodies.map { requireNotNull(it.vehicle) }
             assertEquals(probes.sumOf { it.cubes.size }, bodies.size)
@@ -278,21 +275,48 @@ class NativeSolidPocTest {
         }
     }
 
+    @Test
+    fun `probe readiness keeps ticking after delayed chunk loading`() {
+        MinecraftServer.init()
+        RendererFixture().use { fixture ->
+            ChunkGate().use { gate ->
+                gate.install(fixture.instance, 0)
+                NativeSolidPoc(fixture.instance, npc()).use { probe ->
+                    val ready = probe.start()
+                    assertTrue(gate.entered.await(3, TimeUnit.SECONDS))
+                    // Exceed the former fixed tick budget while chunk I/O is still pending.
+                    repeat(200) { fixture.instance.tick(it * 50L) }
+                    assertFalse(ready.isDone)
+                    gate.close()
+                    assertTrue(gate.settled.await(3, TimeUnit.SECONDS))
+                    awaitReady(fixture, listOf(ready))
+                    assertTrue(ready.isDone)
+                    assertEquals(probe.cubes.size, nativeBodies(fixture).size)
+                }
+            }
+        }
+    }
+
     private fun nativeBodies(fixture: RendererFixture) =
         fixture.instance.entities.filterIsInstance<LivingEntity>().filter {
             it.entityType == EntityType.SHULKER
         }
 
+    private fun awaitReady(fixture: RendererFixture, ready: List<CompletableFuture<Void>>) {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        var tick = 0L
+        while (ready.any { !it.isDone } && System.nanoTime() < deadline) {
+            fixture.instance.tick(tick++ * 50L)
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1))
+        }
+        assertTrue(ready.all { it.isDone }, "Native probes did not become ready within five seconds")
+        ready.forEach { it.get(1, TimeUnit.SECONDS) }
+    }
+
     private fun readyProbe(fixture: RendererFixture): NativeSolidPoc {
         val probe = NativeSolidPoc(fixture.instance, npc())
         val ready = probe.start()
-        repeat(200) {
-            if (!ready.isDone) {
-                fixture.instance.tick(it * 50L)
-                Thread.yield()
-            }
-        }
-        ready.join()
+        awaitReady(fixture, listOf(ready))
         return probe
     }
 
@@ -312,13 +336,7 @@ class NativeSolidPocTest {
             fixture.instance.eventNode().addChild(observer)
             val probe = NativeSolidPoc(fixture.instance, npc())
             val ready = probe.start()
-            repeat(200) {
-                if (!ready.isDone) {
-                    fixture.instance.tick(it * 50L)
-                    Thread.yield()
-                }
-            }
-            ready.join()
+            awaitReady(fixture, listOf(ready))
             fixture.instance.tick(10_000L)
             val bodies =
                 fixture.instance.entities.filterIsInstance<LivingEntity>().filter {
