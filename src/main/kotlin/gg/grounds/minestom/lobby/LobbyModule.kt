@@ -39,12 +39,14 @@ internal class LobbyModule(
     private var pinEvents: Connection? = null
     private var demoAccess: StageNpcDemoAccess? = null
     private var demoCommand: StageNpcDemoCommand? = null
-    private var nativeSolidPoc: gg.grounds.minestom.lobby.scene.NativeSolidPoc? = null
+    private var nativeSolidPocs = emptyList<gg.grounds.minestom.lobby.scene.NativeSolidPoc>()
 
     override val id: String = "grounds.lobby"
 
     override fun install(ctx: GroundsServerContext) {
         val demoEnabled = stageNpcDemoEnabled()
+        val nativeSolidEnabled = System.getenv("GROUNDS_NPC_NATIVE_SOLID_POC") == "true"
+        require(!nativeSolidEnabled || demoEnabled) { "Native SOLID probe requires the Stage demo" }
         val demoPack = if (demoEnabled) NpcDemoPack.configured() else null
         val created = createWorld()
         world = created
@@ -53,6 +55,16 @@ internal class LobbyModule(
             try {
                 LobbySceneLoader()
                     .load(loaded)
+                    ?.let { prepared ->
+                        if (nativeSolidEnabled)
+                            prepared.copy(
+                                scene =
+                                    gg.grounds.minestom.lobby.scene.nativeSolidDemoScene(
+                                        prepared.scene
+                                    )
+                            )
+                        else prepared
+                    }
                     ?.runtimeRequest(instanceContainer, ctx.services)
                     .also {
                         if (demoEnabled)
@@ -91,13 +103,16 @@ internal class LobbyModule(
             }
         val host =
             prepared?.let { request -> LobbySceneHost({ createRuntime(request) }, fatalStop) }
-        if (System.getenv("GROUNDS_NPC_NATIVE_SOLID_POC") == "true") {
-            require(demoEnabled) { "Native SOLID probe requires the Stage demo" }
-            val npc =
-                prepared!!.scene.elements.filterIsInstance<gg.grounds.scene.format.Npc>().single {
-                    it.id.value == "demo-solid"
+        if (nativeSolidEnabled) {
+            val stations =
+                prepared!!.scene.elements.filterIsInstance<gg.grounds.scene.format.Npc>().filter {
+                    it.id.value in gg.grounds.minestom.lobby.scene.NATIVE_SOLID_DEMO_IDS
                 }
-            nativeSolidPoc = gg.grounds.minestom.lobby.scene.NativeSolidPoc(instanceContainer, npc)
+            require(stations.size == 3) { "Native SOLID demo stations missing" }
+            nativeSolidPocs =
+                stations.map {
+                    gg.grounds.minestom.lobby.scene.NativeSolidPoc(instanceContainer, it)
+                }
         }
         sceneHost = host
         if (prepared != null)
@@ -160,7 +175,7 @@ internal class LobbyModule(
     override fun start() {
         // GroundsServer invokes module start only after MinecraftServer.start has enabled ticks.
         sceneHost?.start()
-        nativeSolidPoc?.let { probe ->
+        nativeSolidPocs.forEach { probe ->
             sceneHost!!
                 .ready
                 .thenCompose { probe.start() }
@@ -168,7 +183,8 @@ internal class LobbyModule(
                     if (error != null) logger.warn("Native SOLID probe could not start", error)
                     else
                         logger.info(
-                            "Native SOLID probe ready (station=demo-solid, cubes={})",
+                            "Native SOLID probe ready (station={}, cubes={})",
+                            probe.stationId,
                             probe.cubes.size,
                         )
                 }
@@ -213,8 +229,8 @@ internal class LobbyModule(
     }
 
     override fun stop() {
-        nativeSolidPoc?.close()
-        nativeSolidPoc = null
+        nativeSolidPocs.forEach { it.close() }
+        nativeSolidPocs = emptyList()
         demoCommand?.let(MinecraftServer.getCommandManager()::unregister)
         demoCommand = null
         demoAccess?.close()

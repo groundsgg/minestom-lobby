@@ -23,9 +23,10 @@ import net.minestom.server.network.packet.server.play.data.PositionPath
 import net.minestom.server.utils.Direction
 import net.minestom.server.utils.entity.EntityUtils
 
-/** Stage spike: only the fixed demo-solid station. The Scene collision guard stays active. */
+/** Stage native collision for fixed body/prop volumes. The Scene body guard stays active. */
 internal class NativeSolidPoc(private val instance: Instance, private val npc: Npc) :
     AutoCloseable {
+    val stationId = npc.id.value
     val cubes = nativeSolidCubes(npc)
 
     private data class Pairing(val anchor: Entity, val body: LivingEntity, val position: Pos)
@@ -104,7 +105,7 @@ internal class NativeSolidPoc(private val instance: Instance, private val npc: N
             Pairing(anchor, body, Pos(cube.x, cube.y, cube.z))
         }
     private val bodies = pairs.map { it.body.uuid }.toSet()
-    private val node = EventNode.type("native-solid-poc", EventFilter.INSTANCE)
+    private val node = EventNode.type("native-solid-poc-${npc.id.value}", EventFilter.INSTANCE)
     @Volatile private var closed = false
     private var started = false
     val ready = CompletableFuture<Void>()
@@ -211,7 +212,10 @@ internal class NativeSolidPoc(private val instance: Instance, private val npc: N
 
 internal data class NativeSolidCube(val x: Double, val y: Double, val z: Double, val side: Double)
 
-private fun nativeSolidBounds(npc: Npc): Pair<Vec3, Vec3> {
+private fun nativeSolidBounds(
+    npc: Npc,
+    bounds: LocalBounds = npc.interactionBounds,
+): Pair<Vec3, Vec3> {
     require(npc.look == LookBehavior.Fixed && npc.collision.mode == NpcCollisionMode.SOLID)
     val t = npc.transform
     require(t.rotation.pitch == 0.0 && t.rotation.roll == 0.0)
@@ -220,7 +224,7 @@ private fun nativeSolidBounds(npc: Npc): Pair<Vec3, Vec3> {
     val s = sin(yaw)
     val points = buildList {
         for (x in listOf(-0.5, 0.5)) for (y in listOf(-0.5, 0.5)) for (z in listOf(-0.5, 0.5)) {
-            val b = npc.interactionBounds
+            val b = bounds
             val px = (b.center.x + b.size.x * x) * t.scale.x
             val py = (b.center.y + b.size.y * y) * t.scale.y
             val pz = (b.center.z + b.size.z * z) * t.scale.z
@@ -242,8 +246,13 @@ private fun nativeSolidCenter(npc: Npc): Pos {
     return Pos((a.x + b.x) / 2, a.y, (a.z + b.z) / 2)
 }
 
-internal fun nativeSolidCubes(npc: Npc): List<NativeSolidCube> {
-    val (a, b) = nativeSolidBounds(npc)
+internal fun nativeSolidCubes(npc: Npc): List<NativeSolidCube> =
+    (listOf(npc.interactionBounds) + nativeSolidPropBounds(npc))
+        .flatMap { bounds -> nativeSolidCubesForBounds(npc, bounds) }
+        .also { require(it.size <= 32) { "Native collision station supports at most 32 cubes" } }
+
+private fun nativeSolidCubesForBounds(npc: Npc, bounds: LocalBounds): List<NativeSolidCube> {
+    val (a, b) = nativeSolidBounds(npc, bounds)
     // A tiny contact skin keeps legitimate client sliding outside the legacy correction guard.
     val skin = 0.004
     val width = b.x - a.x + skin * 2

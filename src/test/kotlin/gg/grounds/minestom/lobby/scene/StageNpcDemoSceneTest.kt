@@ -6,6 +6,7 @@ import gg.grounds.resourcepacks.catalog.GroundsAssetCatalog
 import gg.grounds.scene.format.*
 import java.nio.file.Files
 import java.nio.file.Path
+import net.minestom.server.MinecraftServer
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.BeforeEach
@@ -21,6 +22,56 @@ class StageNpcDemoSceneTest {
             AssetKey("grounds:npc/townfolk/builder") in GroundsAssetCatalog.catalog.assets,
             "Licensed model variant not selected",
         )
+        MinecraftServer.init()
+    }
+
+    @Test
+    fun `native Stage policy upgrades old authored stations and preserves all other elements`() {
+        val assets = GroundsAssetCatalog.catalog
+        val authored =
+            stageNpcDemoScene(
+                lobbySceneFixture(assets, Vec3(100.0, 140.0, 100.0), Vec3(102.0, 140.0, 100.0)),
+                assets,
+            )
+        val targets = setOf("demo-fixed", "demo-hands")
+        val legacy =
+            SceneDocument(
+                authored.schemaVersion,
+                authored.id,
+                authored.metadata,
+                authored.catalogs,
+                authored.groups,
+                authored.elements.map { element ->
+                    if (element is Npc && element.id.value in targets)
+                        Npc(
+                            element.id,
+                            element.group,
+                            element.transform,
+                            element.visible,
+                            element.activation,
+                            element.body,
+                            element.label,
+                            element.labelOffset,
+                            element.look,
+                            element.initialAnimation,
+                            element.interactionBounds,
+                            element.proximity,
+                            element.bindings,
+                            NpcCollision(),
+                        )
+                    else element
+                },
+            )
+        val effective = nativeSolidDemoScene(legacy)
+        for (id in targets) assertEquals(
+            NpcCollisionMode.SOLID,
+            effective.elements.filterIsInstance<Npc>().single { it.id.value == id }.collision.mode,
+        )
+        assertEquals(
+            legacy.elements.filterNot { it.id.value in targets },
+            effective.elements.filterNot { it.id.value in targets },
+        )
+        assertEquals(effective, nativeSolidDemoScene(effective))
     }
 
     @Test
@@ -33,6 +84,13 @@ class StageNpcDemoSceneTest {
         val demos =
             scene.elements.filterIsInstance<Npc>().filter { it.id.value.startsWith("demo-") }
         assertEquals(15, demos.size)
+        for (id in listOf("demo-fixed", "demo-hands")) {
+            assertEquals(NpcCollisionMode.SOLID, demos.single { it.id.value == id }.collision.mode)
+        }
+        assertEquals(
+            NpcCollisionMode.NONE,
+            demos.single { it.id.value == "demo-none" }.collision.mode,
+        )
         assertEquals(15, demos.map { it.body }.toSet().size)
         assertTrue(demos.all { it.transform.position.y == 173.0 })
         assertEquals(
