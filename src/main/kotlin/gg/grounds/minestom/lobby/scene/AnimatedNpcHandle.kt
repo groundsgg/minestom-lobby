@@ -111,7 +111,9 @@ internal class AnimatedNpcHandle(
         if (resuming || next.any { (id, interval) -> previous[id] != interval })
             advance(elapsed, true, false, false)
         displays.forEach { display ->
-            val previousViewers = display.viewers.toList()
+            // Minestom's iterator already owns a stable per-display snapshot. Copying the
+            // collection with toList() also resolves every player ID during size() calls.
+            val previousViewers = display.viewers.iterator()
             display.updateViewableRule { player ->
                 player.instance === instance && player.uuid in viewerIntervals
             }
