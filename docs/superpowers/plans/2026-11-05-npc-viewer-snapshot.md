@@ -23,5 +23,5 @@ Modify AnimatedNpcHandle.kt and NpcViewerUpdatesTest.kt under src/{main,test}/ko
 
 Use artifacts/npc-viewer-snapshot-2026-11-05 for exact runtime/probes/load evidence.
 - [x] Verify exact accepted baseline and candidate differ only in intended Host runtime entries; run tests against the candidate JAR.
-- [ ] Compare connected20/60 clients with motion, boundary and reentry; retain adverse phases and reverse the comparison when needed.
+- [x] Compare connected20/60 clients with motion, boundary and reentry; retain adverse phases and reverse the comparison when needed.
 - [ ] If qualified, create reviewed PRs, roll out only Stage Lobby image/pin, verify both lobbies and obtain native acceptance before final Source integration.
