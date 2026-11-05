@@ -17,12 +17,57 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
 class NativeSolidPocTest {
-    private fun npc() =
-        Npc(
-            LocalId("demo-solid"),
-            null,
+    @Test
+    fun `smith and table include separate solid prop volumes without enclosing empty space`() {
+        val cases =
+            listOf(
+                Triple(
+                    "grounds:npc/guildfolk/forge_master",
+                    Vec3(0.0, 0.5, 1.0),
+                    Vec3(0.0, 1.7, 1.0),
+                ),
+                Triple(
+                    "grounds:npc/craftmasters/dismantler",
+                    Vec3(0.75, 0.6, 1.0),
+                    Vec3(0.75, 1.7, 1.0),
+                ),
+            )
+        for ((asset, occupied, free) in cases) {
+            val station =
+                npc(
+                    asset,
+                    Transform(
+                        Vec3(0.0, 0.0, 0.0),
+                        EulerRotation(0.0, 0.0, 0.0),
+                        Vec3(1.0, 1.0, 1.0),
+                    ),
+                )
+            val cubes = nativeSolidCubes(station)
+            fun covered(p: Vec3) =
+                cubes.any {
+                    abs(p.x - it.x) <= it.side / 2 &&
+                        p.y >= it.y &&
+                        p.y <= it.y + it.side &&
+                        abs(p.z - it.z) <= it.side / 2
+                }
+            assertTrue(covered(occupied), "Missing solid prop for $asset")
+            assertFalse(covered(free), "Combined body/prop box blocks empty space for $asset")
+            assertTrue(covered(Vec3(0.0, 1.7, 0.0)), "NPC body must remain solid")
+            assertTrue(cubes.size <= 32)
+        }
+    }
+
+    private fun npc(
+        asset: String = "test:body",
+        at: Transform =
             Transform(Vec3(1.25, 173.0, 2.75), EulerRotation(180.0, 0.0, 0.0), Vec3(1.0, 1.0, 1.0)),
-            body = AssetKey("test:body"),
+        id: String = "demo-solid",
+    ) =
+        Npc(
+            LocalId(id),
+            null,
+            at,
+            body = AssetKey(asset),
             label = null,
             labelOffset = Vec3(0.0, 2.0, 0.0),
             look = LookBehavior.Fixed,
@@ -141,6 +186,95 @@ class NativeSolidPocTest {
                     assertTrue(spawn >= 0 && mount > spawn && poses.single().index > mount)
                 }
             }
+        }
+    }
+
+    @Test
+    fun `multiple native stations forward to their own anchors and remove every collider`() {
+        MinecraftServer.init()
+        RendererFixture().use { fixture ->
+            val player = fixture.player(Pos(2.5, 0.0, 5.0))
+            val stations =
+                listOf(
+                    npc(
+                        "grounds:npc/guildfolk/forge_master",
+                        Transform(
+                            Vec3(0.0, 0.0, 0.0),
+                            EulerRotation(0.0, 0.0, 0.0),
+                            Vec3(1.0, 1.0, 1.0),
+                        ),
+                        "demo-fixed",
+                    ),
+                    npc(
+                        "grounds:npc/craftmasters/dismantler",
+                        Transform(
+                            Vec3(5.0, 0.0, 0.0),
+                            EulerRotation(0.0, 0.0, 0.0),
+                            Vec3(1.0, 1.0, 1.0),
+                        ),
+                        "demo-hands",
+                    ),
+                )
+            val anchors =
+                stations.map { station ->
+                    Entity(EntityType.INTERACTION).also {
+                        it.setBoundingBox(1.0, 2.0, 0.625)
+                        it.setInstance(
+                                fixture.instance,
+                                Pos(station.transform.position.x, 0.0, 0.0),
+                            )
+                            .join()
+                    }
+                }
+            val counts = IntArray(2)
+            val observer = EventNode.type("multi-probe-observer", EventFilter.INSTANCE)
+            observer.addListener(PlayerEntityInteractEvent::class.java) { event ->
+                anchors.indexOf(event.target).takeIf { it >= 0 }?.let { counts[it]++ }
+            }
+            fixture.instance.eventNode().addChild(observer)
+            val probes = stations.map { NativeSolidPoc(fixture.instance, it) }
+            val ready = probes.map { it.start() }
+            repeat(200) { tick ->
+                if (ready.any { !it.isDone }) {
+                    fixture.instance.tick(tick * 50L)
+                    Thread.yield()
+                }
+            }
+            ready.forEach { it.join() }
+            val bodies = nativeBodies(fixture)
+            val carriers = bodies.map { requireNotNull(it.vehicle) }
+            assertEquals(probes.sumOf { it.cubes.size }, bodies.size)
+            val first = bodies.first { it.position.x() < 2.5 }
+            val second = bodies.first { it.position.x() > 2.5 }
+            EventDispatcher.call(
+                PlayerEntityInteractEvent(
+                    player,
+                    first,
+                    PlayerHand.MAIN,
+                    net.minestom.server.coordinate.Vec.ZERO,
+                )
+            )
+            assertArrayEquals(intArrayOf(1, 0), counts)
+            EventDispatcher.call(
+                PlayerEntityInteractEvent(
+                    player,
+                    second,
+                    PlayerHand.MAIN,
+                    net.minestom.server.coordinate.Vec.ZERO,
+                )
+            )
+            assertArrayEquals(intArrayOf(1, 1), counts)
+            probes.forEach { it.close() }
+            assertTrue((bodies + carriers).all { it.isRemoved })
+            EventDispatcher.call(
+                PlayerEntityInteractEvent(
+                    player,
+                    first,
+                    PlayerHand.MAIN,
+                    net.minestom.server.coordinate.Vec.ZERO,
+                )
+            )
+            assertArrayEquals(intArrayOf(1, 1), counts)
         }
     }
 

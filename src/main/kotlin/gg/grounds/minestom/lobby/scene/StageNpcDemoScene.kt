@@ -352,7 +352,9 @@ internal fun stageNpcDemoScene(input: SceneDocument, assets: AssetCatalog): Scen
                 bindings = bindings,
                 collision =
                     when (station.id) {
-                        "solid" -> NpcCollision(NpcCollisionMode.SOLID)
+                        "solid",
+                        "fixed",
+                        "hands" -> NpcCollision(NpcCollisionMode.SOLID)
                         "bounce" -> NpcCollision(NpcCollisionMode.BOUNCE, 6.0, 1.5)
                         else -> NpcCollision()
                     },
