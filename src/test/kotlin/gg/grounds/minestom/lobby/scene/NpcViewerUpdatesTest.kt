@@ -639,6 +639,105 @@ class NpcViewerUpdatesTest {
         }
     }
 
+    @Test
+    fun `cohort transition bounds player resolution to two traversals per display`() {
+        class CountingInstance : InstanceContainer(UUID.randomUUID(), DimensionType.OVERWORLD) {
+            var counting = false
+            var resolutions = 0
+
+            override fun getEntityById(entityId: Int): net.minestom.server.entity.Entity? {
+                if (counting) resolutions++
+                return super.getEntityById(entityId)
+            }
+        }
+        val instance = CountingInstance()
+        MinecraftServer.getInstanceManager().registerInstance(instance)
+        RendererFixture(instance = instance).use { fixture ->
+            val viewers = List(12) { fixture.player() }
+            val handle = create(fixture)
+            try {
+                handle.startAnimation(LocalId("wave"), 0)
+                val displays = instance.entities.filterIsInstance<NpcItemDisplay>()
+                viewers.forEach { it.teleport(Pos(24.0, 0.0, 0.0)).join() }
+                viewers.forEach { it.connection.packets.clear() }
+                instance.resolutions = 0
+                instance.counting = true
+                try {
+                    handle.advanceAnimation(250)
+                } finally {
+                    instance.counting = false
+                }
+                val budget = 2 * viewers.size * displays.size
+                assertTrue(
+                    instance.resolutions <= budget,
+                    "Viewer transition resolved player IDs ${instance.resolutions} times; budget=$budget",
+                )
+                val duration = MetadataDef.Display.TRANSFORMATION_INTERPOLATION_DURATION.index()
+                viewers.forEach { viewer ->
+                    displays.forEach { display ->
+                        assertTrue(viewer in display.viewers)
+                        val state =
+                            viewer.updates().last {
+                                it.entityId() == display.entityId && duration in it.entries()
+                            }
+                        assertEquals(5, state.entries()[duration]!!.value())
+                    }
+                }
+            } finally {
+                instance.counting = false
+                handle.close()
+            }
+        }
+    }
+
+    @Test
+    fun `rate transition snapshots each displays old viewers before admitting missing parts`() {
+        RendererFixture().use { fixture ->
+            val viewer = fixture.player(Pos(50.0, 0.0, 0.0))
+            val handle = create(fixture)
+            try {
+                handle.startAnimation(LocalId("wave"), 0)
+                val displays = fixture.instance.entities.filterIsInstance<NpcItemDisplay>()
+                assertEquals(2, displays.size)
+                val missing = displays.minBy { it.entityId }
+                missing.updateViewableRule { false }
+                assertFalse(viewer in missing.viewers)
+                viewer.teleport(Pos.ZERO).join()
+                viewer.connection.packets.clear()
+                handle.advanceAnimation(200)
+                val duration = MetadataDef.Display.TRANSFORMATION_INTERPOLATION_DURATION.index()
+                val poseFields =
+                    setOf(
+                        0,
+                        MetadataDef.Display.INTERPOLATION_DELAY.index(),
+                        duration,
+                        MetadataDef.Display.TRANSLATION.index(),
+                        MetadataDef.Display.SCALE.index(),
+                        MetadataDef.Display.ROTATION_LEFT.index(),
+                        MetadataDef.Display.ROTATION_RIGHT.index(),
+                    )
+                for (display in displays) {
+                    assertTrue(viewer in display.viewers)
+                    // Native spawn metadata can also have seven fields; distinguish the
+                    // complete pose by its actual fields, including default scale/rotations.
+                    val full =
+                        viewer.updates().filter {
+                            it.entityId() == display.entityId && it.entries().keys == poseFields
+                        }
+                    assertEquals(
+                        1,
+                        full.size,
+                        "Only one explicit full pose per display on the transition",
+                    )
+                    assertEquals(7, full.single().entries().size)
+                    assertEquals(4, full.single().entries()[duration]!!.value())
+                }
+            } finally {
+                handle.close()
+            }
+        }
+    }
+
     companion object {
         @JvmStatic
         @BeforeAll
