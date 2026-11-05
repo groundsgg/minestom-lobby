@@ -215,3 +215,11 @@ keinallgemeinerCPU/TPS/Netzwerkgewinn; begrenzterStage-Testqualifiziert, tatsäc
 Rollout undnativeAbnahme separat. EinekleineGrenzfall-Testverstärkung bleibt als
 Reviewnachtrag offen. N01Modellkonsolidierung bleibt dernächstegrößereHebel, mit
 eigenerAsset-/Clientabnahme. [MessungenundGegenwerte](2026-11-04-npc-primitive-pose-results.md).
+
+## Abgenommener Stand und nächster Kandidat (5. November 2026)
+
+Die älteren Abschnitte bleiben als Messhistorie erhalten. Aktuell abgenommen sind die konservativen Scale-Composites aus Resourcepacks#63:348 Displays auf der Testplattform und451 in der vollständigen Test-Scene. Der aggressivere Konsolidierungsversuch blieb wegen sichtbarer Skalierungsfehler unaktiviert. Die früher verworfenen Entwürfe Host#233/#236/#238/#241 und Resourcepacks#62 sind geschlossen.
+
+Die zusätzliche primitive Hover-Strahlprüfung aus [Scene#26](https://github.com/groundsgg/library-scene/pull/26) ist gemerged und auf beiden Stage-Lobbys bestätigt. Vier verbundene20/60Client-Läufe: Bei60Clients sinken JVM-Allokationen im Stand/in Bewegung um18,9/18,4%, nach Wiedereintritt um26,6–26,7%; an Sichtbarkeitsgrenzen nur etwa2%. CPU/Tickzeiten sind gemischt und teilweise höher. Das ist eine Speicher-/GC-Druck-Optimierung; keine allgemeine TPS-/Netzwerkverbesserung.
+
+**Aktueller Folgekandidat N17:** [Host#246](https://github.com/groundsgg/minestom-lobby/pull/246) nutzt Minestoms bereits stabilen Snapshot-Iterator pro Display direkt. Die bisherige toList-Kopie löst für12Spieler/2Displays72Spieler-IDs auf; der Kandidat besteht ein48erBudget.206lizenzierte und206Tests gegen das exakteStage-abgeleiteteJAR ohneSkips sind grün; frisches unabhängiges Review ohne Befund. Der verbundene20/60Client-Vergleich läuft. Noch kein gemessener Gesamtgewinn und noch kein neuerStage-Rollout. Bei Minestom-Upgrades muss die Snapshot-Eigenschaft erneut geprüft werden.
