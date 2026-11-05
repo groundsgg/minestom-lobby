@@ -309,7 +309,10 @@ class NativeSolidPocTest {
             fixture.instance.tick(tick++ * 50L)
             LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1))
         }
-        assertTrue(ready.all { it.isDone }, "Native probes did not become ready within five seconds")
+        assertTrue(
+            ready.all { it.isDone },
+            "Native probes did not become ready within five seconds",
+        )
         ready.forEach { it.get(1, TimeUnit.SECONDS) }
     }
 
