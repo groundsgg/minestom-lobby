@@ -38,12 +38,12 @@ class DistributionTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'clean'):
             distribution.verify_checkout(repo, commit)
 
-    def pair(self, changed=False, duplicate=False, extra=False, empty=False):
+    def pair(self, changed=False, duplicate=False, extra=False, empty=False, corrupt_metadata=False):
         addon = self.root / 'addon.zip'
         payload = b'compiled geometry'
         path = 'assets/grounds/models/npc_parts/example.json'
         with zipfile.ZipFile(addon, 'w') as archive:
-            archive.writestr('pack.mcmeta', '{}')
+            archive.writestr('pack.mcmeta', '{"pack":{"description":"test","pack_format":75}}')
             archive.writestr(path, b'wrong' if changed else payload)
             if duplicate:
                 with warnings.catch_warnings():
@@ -51,6 +51,13 @@ class DistributionTest(unittest.TestCase):
                     archive.writestr(path, payload)
             if extra:
                 archive.writestr('stale.json', '{}')
+        if corrupt_metadata:
+            with zipfile.ZipFile(addon) as archive:
+                info = archive.getinfo('pack.mcmeta')
+                offset = info.header_offset + 30 + len(info.filename.encode()) + len(info.extra)
+            data = bytearray(addon.read_bytes())
+            data[offset] ^= 1
+            addon.write_bytes(data)
         sha1 = hashlib.sha1(addon.read_bytes()).hexdigest()
         jar = self.root / 'host.jar'
         with zipfile.ZipFile(jar, 'w') as archive:
@@ -84,6 +91,11 @@ class DistributionTest(unittest.TestCase):
         with zipfile.ZipFile(jar, 'a') as archive:
             archive.writestr('gg/grounds/resourcepacks/npc/stale.json', '{}')
         with self.assertRaisesRegex(ValueError, 'Unexpected NPC'):
+            distribution.verify_pair(jar, addon, sha1)
+
+    def test_rejects_corrupted_metadata_even_when_pinned_zip_hash_matches(self):
+        jar, addon, sha1 = self.pair(corrupt_metadata=True)
+        with self.assertRaises(zipfile.BadZipFile):
             distribution.verify_pair(jar, addon, sha1)
 
 

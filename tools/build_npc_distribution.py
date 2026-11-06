@@ -67,6 +67,10 @@ def verify_pair(jar, addon, sha1):
             raise ValueError('Duplicate addon ZIP entries')
         if set(names) != set(contract) | {'pack.mcmeta'}:
             raise ValueError('Missing or unexpected addon files')
+        # Reading also validates the metadata entry's ZIP CRC (it is not a model digest).
+        metadata = json.loads(pack.read('pack.mcmeta'))
+        if not isinstance(metadata, dict) or not isinstance(metadata.get('pack'), dict):
+            raise ValueError('Invalid addon pack.mcmeta')
         for name, expected in contract.items():
             with pack.open(name) as stream:
                 actual = hashlib.file_digest(stream, 'sha256').hexdigest()
