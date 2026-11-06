@@ -5,13 +5,21 @@ description: Priorisierter Umsetzungsstand und weitere übertragbare Ansätze f�
 
 # NPC Optimierungen aus anderen Plugins
 
-Stand: 3. November 2026. Ziel sind weniger Serverarbeit, weniger tatsächlich übertragene Daten und weniger Clientarbeit bei erhaltener Geometrie, Animation und Interaktion. Die Liste ist der Arbeitsbacklog für die geprüften Ansätze aus ModelEngine, MythicMobs, Oraxen, ItemsAdder und BetterModel.
+Stand: 6. November 2026. Ziel sind weniger Serverarbeit, weniger tatsächlich übertragene Daten und weniger Clientarbeit bei erhaltener Geometrie, Animation und Interaktion. Die Liste ist der Arbeitsbacklog für die geprüften Ansätze aus ModelEngine, MythicMobs, Oraxen, ItemsAdder und BetterModel.
 
 **Status:** „Umgesetzt“ bezeichnet den geprüften Performance-Kandidaten; der Live-Stand wird im Rollout-Nachweis geführt. „Teilweise“ bedeutet, dass der Grundmechanismus existiert, die beschriebene Erweiterung noch fehlt. „Offen“ ist keine Zusage eines bereits gemessenen Gewinns.
 
 **Priorität:** P1 zuerst untersuchen/umsetzen, P2 danach, P3 nur bei nachgewiesenem Bedarf. **Aufwand:** S isolierte Änderung, M Änderung über mehrere Komponenten, L Architektur- oder Formatänderung. Exakte Prozentgewinne werden erst nach kontrollierten Vergleichsmessungen eingetragen.
 
 **Quellen:** Die Links belegen die ausdrücklich genannten Plugin- oder Formatfunktionen. Akzeptanzkriterien und Übertragungen auf Grounds sind unsere Engineering-Entscheidungen. Proprietäre Interna werden nicht vorausgesetzt.
+
+## Maßgeblicher Stand (6. November 2026)
+
+Die folgenden älteren Tabellen und Nachträge bleiben als Messhistorie erhalten. Maßgeblich ist dieser jüngste Abschnitt: Die konservativen Composites (348 Plattform-/451 Scene-Displays), Hover-/Viewer- und Kollisionskorrekturen sind integriert und auf beiden Stage-Lobbys abgenommen. Host#250 ersetzt Klassenüberlagerungen durch einen vollständig geprüften privaten Source-Build; Maps#100 erhält den passenden unveränderlichen Katalog als begrenzten zusätzlichen Kandidaten. Map 12 mit vorberechneter Beleuchtung läuft über deploy#580/#581 auf beiden Lobbys, auf allen drei Proxys registriert und vom Nutzer bestätigt. Öffentliche PackSet-Kanäle und Production-Pins wurden nicht umgestellt.
+
+**N24-Folgeversuch, nicht übernommen:** Host#251 bereitet den visuellen Standardzustand einmal je Metadatenpublikation vor.24 → 0 persönliche Lookup-Aufrufe im 12-Betrachter-/2-Teile-Test,214 reguläre Tests und kompletter privater Build sind korrekt. Die vier vollständigen21/61-Verbindungs-Läufe (20/60 Animationsclients + 1 fester Queue-Beobachter; 451 Displays) zeigen jedoch CPU+3,33 % stehend / +6,06 % bewegt bei 20 Animationsclients. Der 60-Bewegungsvorteil wiederholt sich nicht: CPU -14,08 % im ersten, +3,31 % im umgekehrten Paar. Kandidat geschlossen; Stage bleibt unverändert. [Alle günstigen/ungünstigen Fenster und Grenzen](2026-11-06-npc-common-visual-dispatch-results.md).
+
+Weitere Arbeit wird anhand eines Profils des abgenommenen vollständigen Source-Builds priorisiert. Offene Ansätze wie WorldBounds-Caches (N32), räumliche Viewer-Kandidaten (N20) oder Sichtkegel-/Verdeckungsarbeit bleiben eigenständige Kandidaten; die korrigierte konstante Messanordnung ist dafür wiederverwendbar. Es wird kein weiterer Gewinn ohne getrennte Messung als umgesetzt verbucht.
 
 ## Bereits umgesetzt oder vorhanden
 
