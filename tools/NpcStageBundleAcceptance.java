@@ -39,6 +39,11 @@ public final class NpcStageBundleAcceptance {
         if (!HexFormat.of().formatHex(sha256.digest()).equals(args[2]) ||
             !HexFormat.of().formatHex(sha1.digest()).equals(args[3]))
             throw new AssertionError("Addon ZIP differs from the pinned deployment hashes");
+        gg.grounds.minestom.lobby.NpcAddonBinding.Companion.load().requireMatches(args[3]);
+        net.minestom.server.MinecraftServer.init();
+        gg.grounds.minestom.lobby.NpcDemoPack.Companion.configured(java.util.Map.of(
+            "GROUNDS_NPC_ADDON_URL", "https://example.invalid/npc-addon.zip",
+            "GROUNDS_NPC_ADDON_SHA1", args[3]));
         var catalog = GroundsAssetCatalog.INSTANCE.getCatalog();
         var models = NpcModels.INSTANCE.load(catalog);
         if (models.size() != 15) throw new AssertionError("Expected fifteen complete NPC models");
@@ -53,6 +58,9 @@ public final class NpcStageBundleAcceptance {
         }
         int checked = 0;
         try (var addon = new ZipFile(args[1])) {
+            if (addon.stream().map(e -> e.getName()).distinct().count() != addon.size())
+                throw new AssertionError("Duplicate addon entries");
+            if (digests.size() == 0) throw new AssertionError("Empty compiled client pack contract");
             for (var entry : digests.entrySet()) {
                 var file = addon.getEntry(entry.getKey());
                 if (file == null) throw new AssertionError("Addon missing " + entry.getKey());
