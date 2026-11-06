@@ -161,6 +161,56 @@ discovery can initialize `ServerFlag`. Grounds owns signal-driven shutdown so it
 runs while instance ticks remain alive, before it stops Minestom. Custom launchers must enter the
 lobby bootstrap first; startup fails if another launcher already cached the competing hook flag.
 
+### Private Stage NPC distribution
+
+Public Maven NPC artifacts deliberately contain no purchased model data. An ordinary lobby build
+therefore cannot run the Stage NPC demo. Build the private variant from a clean Resourcepacks
+checkout and the licensed source archives, using the exact accepted composite policy and addon.
+The host checkout must also be clean:
+
+```shell
+python3 tools/build_npc_distribution.py \
+  --resourcepacks /private/resourcepacks --resourcepacks-commit FULL_COMMIT_SHA \
+  --catalog-build-number UNIQUE_POSITIVE_BUILD_NUMBER \
+  --lobby-source /private/plugin-lobby --lobby-source-commit EXACT_ACCEPTED_LOBBY_COMMIT \
+  --sources /private/licensed-npcs --composite-policy /private/qualified-policy.json \
+  --addon /private/npc-addon.zip --addon-sha256 EXACT_SHA256 --addon-sha1 EXACT_SHA1 \
+  --map /private/selected-stage-map --output /private/new-distribution
+```
+
+Requires Python 3.12+, Git, Java 25 and the usual Gradle Maven credentials. `--offline` uses
+existing dependency caches; `--gradle` and `--java` accept explicit executable paths. The map's
+scene must select `0.0.0-edge.<build-number>.g<first-12-source-commit-characters>`; the tool never
+rewrites a map. Allocate a fresh build number for the private catalog (for example, a recorded
+UTC timestamp) and keep it in the receipt. The generated definitions must not reuse a public
+neutral catalog's version or overwrite a canonical public PackSet build path.
+The acceptance probe targets the current 15-model, 22-element Stage scene and preserves its
+announcement ownership contract. Until that already accepted implementation is released,
+pin its clean Lobby source checkout with both `--lobby-source` and `--lobby-source-commit`.
+
+The tool exports committed host and Resourcepacks sources into fresh, private temporary
+directories and snapshots the licensed archives, policy, addon and scene. This avoids shared
+composite-build outputs and records all archive hashes. It runs a clean host build and the
+entire host test suite. Only `resourcepacks-catalog` and
+`resourcepacks-npc-runtime` use source substitution by default; an explicit pinned Lobby source
+also substitutes its two modules. Scene and Chat use their published pinned versions.
+Private host outputs live under the snapshot's `build/private-npc`, separate from ordinary builds.
+After checking ZIP completeness and hashes, the final executable JAR loads the supplied scene
+through the production loader and verifies the addon file contract. Only then is the new output
+directory created, with `minestom-lobby.jar`, `npc-addon.zip`, the standalone neutral `catalog.jar`,
+logs and `receipt.json`. The receipt pins the catalog coordinate, version, size and SHA-256. Failed
+attempts keep their temporary logs and produce no qualification receipt.
+
+The JAR contains the addon SHA-1 binding. When the Stage demo is enabled, startup rejects a
+missing binding, missing models or a different `GROUNDS_NPC_ADDON_SHA1` before creating the world.
+The addon remains an additive required pack; proxy base-pack delivery is unchanged. No network
+requests are added to login or scene loading.
+
+Keep the complete distribution and all inputs private. This command does not publish Maven,
+upload a client pack, deploy an image or activate a map. Its receipt covers server-side build and
+asset contracts; native client acceptance, real multi-proxy routing and deployment remain
+separate checks.
+
 ### Generate a review fixture (test-only)
 
 Supply both positions explicitly; these example coordinates are not derived from any map or spawn:

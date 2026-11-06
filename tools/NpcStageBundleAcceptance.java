@@ -39,6 +39,18 @@ public final class NpcStageBundleAcceptance {
         if (!HexFormat.of().formatHex(sha256.digest()).equals(args[2]) ||
             !HexFormat.of().formatHex(sha1.digest()).equals(args[3]))
             throw new AssertionError("Addon ZIP differs from the pinned deployment hashes");
+        gg.grounds.minestom.lobby.NpcAddonBinding.Companion.load().requireMatches(args[3]);
+        net.minestom.server.MinecraftServer.init();
+        // The accepted Stage disables the legacy bars in favour of the proxy owner.
+        var ownership = Class.forName("gg.grounds.lobby.AnnouncementOwnership");
+        var instance = ownership.getField("INSTANCE").get(null);
+        var enabled = ownership.getMethod("legacyEnabled", String.class);
+        if (!Boolean.FALSE.equals(enabled.invoke(instance, "disabled")) ||
+            !Boolean.TRUE.equals(enabled.invoke(instance, "legacy")))
+            throw new AssertionError("Accepted announcement ownership contract missing");
+        gg.grounds.minestom.lobby.NpcDemoPack.Companion.configured(java.util.Map.of(
+            "GROUNDS_NPC_ADDON_URL", "https://example.invalid/npc-addon.zip",
+            "GROUNDS_NPC_ADDON_SHA1", args[3]));
         var catalog = GroundsAssetCatalog.INSTANCE.getCatalog();
         var models = NpcModels.INSTANCE.load(catalog);
         if (models.size() != 15) throw new AssertionError("Expected fifteen complete NPC models");
@@ -53,6 +65,19 @@ public final class NpcStageBundleAcceptance {
         }
         int checked = 0;
         try (var addon = new ZipFile(args[1])) {
+            if (addon.stream().map(e -> e.getName()).distinct().count() != addon.size())
+                throw new AssertionError("Duplicate addon entries");
+            if (digests.size() == 0) throw new AssertionError("Empty compiled client pack contract");
+            var metadataEntry = addon.getEntry("pack.mcmeta");
+            if (metadataEntry == null) throw new AssertionError("Missing pack.mcmeta");
+            byte[] metadata;
+            try (var input = addon.getInputStream(metadataEntry)) { metadata = input.readAllBytes(); }
+            var crc = new java.util.zip.CRC32();
+            crc.update(metadata);
+            if (crc.getValue() != metadataEntry.getCrc()) throw new AssertionError("Corrupt pack.mcmeta");
+            if (!JsonParser.parseString(new String(metadata, java.nio.charset.StandardCharsets.UTF_8))
+                .getAsJsonObject().get("pack").isJsonObject())
+                throw new AssertionError("Invalid pack.mcmeta");
             for (var entry : digests.entrySet()) {
                 var file = addon.getEntry(entry.getKey());
                 if (file == null) throw new AssertionError("Addon missing " + entry.getKey());

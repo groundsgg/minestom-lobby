@@ -35,14 +35,26 @@ internal class NpcDemoPack(url: String, sha1: String) {
     }
 
     companion object {
-        fun configured(environment: Map<String, String> = System.getenv()) =
-            NpcDemoPack(
+        fun configured(environment: Map<String, String> = System.getenv()): NpcDemoPack {
+            val sha1 =
+                requireNotNull(environment["GROUNDS_NPC_ADDON_SHA1"]) {
+                    "NPC demo addon digest missing"
+                }
+            NpcAddonBinding.load().requireMatches(sha1)
+            require(
+                gg.grounds.resourcepacks.npc.NpcModels.load(
+                        gg.grounds.resourcepacks.catalog.GroundsAssetCatalog.catalog
+                    )
+                    .isNotEmpty()
+            ) {
+                "Private NPC models missing from this distribution"
+            }
+            return NpcDemoPack(
                 requireNotNull(environment["GROUNDS_NPC_ADDON_URL"]) {
                     "NPC demo addon URL missing"
                 },
-                requireNotNull(environment["GROUNDS_NPC_ADDON_SHA1"]) {
-                    "NPC demo addon digest missing"
-                },
+                sha1,
             )
+        }
     }
 }

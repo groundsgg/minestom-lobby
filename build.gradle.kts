@@ -1,10 +1,17 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import java.security.MessageDigest
+import java.util.HexFormat
 import org.gradle.api.file.DuplicatesStrategy
 
 plugins {
     id("gg.grounds.root") version "0.1.1"
     id("com.gradleup.shadow") version "8.3.6"
     application
+}
+
+// Keep private resources out of subsequent ordinary builds, including incremental ones.
+if (providers.gradleProperty("npcResourcepacksDirectory").isPresent) {
+    layout.buildDirectory.set(layout.projectDirectory.dir("build/private-npc"))
 }
 
 tasks.register<JavaExec>("generateLobbySceneFixture") {
@@ -48,6 +55,36 @@ tasks.register<JavaExec>("migrateQueueNpcScene") {
 
 application { mainClass.set("gg.grounds.minestom.lobby.MainKt") }
 
+providers.gradleProperty("npcAddonZip").orNull?.let { addon ->
+    require(providers.gradleProperty("npcResourcepacksDirectory").isPresent) {
+        "NPC addon binding requires the private Resourcepacks source build"
+    }
+    val bindingDirectory = layout.buildDirectory.dir("generated/resources/npc-distribution")
+    val bindingFile =
+        bindingDirectory.map { it.file("gg/grounds/minestom/lobby/npc-addon-sha1.txt") }
+    val generateNpcAddonBinding =
+        tasks.register("generateNpcAddonBinding") {
+            inputs.file(file(addon))
+            outputs.file(bindingFile)
+            doLast {
+                val digest = MessageDigest.getInstance("SHA-1")
+                file(addon).inputStream().use { input ->
+                    val buffer = ByteArray(8192)
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        digest.update(buffer, 0, count)
+                    }
+                }
+                val target = bindingFile.get().asFile
+                target.parentFile.mkdirs()
+                target.writeText(HexFormat.of().formatHex(digest.digest()) + "\n")
+            }
+        }
+    sourceSets.main { resources.srcDir(bindingDirectory) }
+    tasks.processResources { dependsOn(generateNpcAddonBinding) }
+}
+
 tasks.test {
     doFirst {
         systemProperty("lobby.test.runtimeClasspath", sourceSets.test.get().runtimeClasspath.asPath)
@@ -56,9 +93,23 @@ tasks.test {
 }
 
 tasks.named<ShadowJar>("shadowJar") {
-    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    // Project classes win deterministically. Duplicate ZIP directory records can otherwise
+    // point at different occurrences on different builds, even with identical payloads.
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     mergeServiceFiles()
     append("META-INF/grounds/permissions.index")
+    val appendedResources =
+        listOf(
+            "META-INF/grounds/permissions.index",
+            "META-INF/LICENSE",
+            "META-INF/NOTICE",
+            "META-INF/LICENSE.txt",
+            "META-INF/NOTICE.txt",
+        )
+    appendedResources.drop(1).forEach { append(it) }
+    filesMatching(listOf("META-INF/services/**") + appendedResources) {
+        duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    }
 }
 
 repositories {
@@ -122,7 +173,7 @@ dependencies {
     // 0.2.0 is also the first version with the shared chat line, so a message looks the same
     // whether it crossed the proxy or was broadcast inside this lobby.
     // 2.6.0 applies sender permissions to chat formatting and emoji aliases.
-    implementation("gg.grounds:plugin-chat-minestom:2.18.2")
+    implementation("gg.grounds:plugin-chat-minestom:2.20.1")
     // Shared Mini-CD context and message-level colours for every loaded module.
     implementation("gg.grounds:library-i18n:0.4.4")
     implementation("gg.grounds:plugin-notifications-minestom:0.4.0")

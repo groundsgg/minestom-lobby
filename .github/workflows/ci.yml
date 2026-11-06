@@ -7,6 +7,12 @@ on:
     branches: [main]
 
 jobs:
+  private-npc-tool-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 -B -m unittest discover -s tools -p 'test_*.py'
+
   reusable:
     uses: groundsgg/.github/.github/workflows/gradle-ci.yml@main
     secrets:
