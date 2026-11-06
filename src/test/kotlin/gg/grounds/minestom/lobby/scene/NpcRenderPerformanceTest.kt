@@ -52,6 +52,90 @@ class NpcRenderPerformanceTest {
     }
 
     @Test
+    fun `ordinary animation has no per-viewer visual override lookup cost`() {
+        RendererFixture().use { fixture ->
+            val players = List(12) { fixture.player() }
+            val handle = create(fixture)
+            var reads = 0
+            val overrides =
+                object : LinkedHashMap<java.util.UUID, Pair<Double, Boolean>>() {
+                    override fun get(key: java.util.UUID): Pair<Double, Boolean>? {
+                        reads++
+                        return super.get(key)
+                    }
+                }
+            val field =
+                handle.javaClass.getDeclaredField("viewerVisuals").apply { isAccessible = true }
+            field.set(handle, overrides)
+            handle.startAnimation(LocalId("wave"), 0)
+            players.forEach { it.connection.packets.clear() }
+            reads = 0
+
+            handle.advanceAnimation(200)
+
+            players.forEach { player ->
+                val packets = player.connection.packets.filterIsInstance<EntityMetaDataPacket>()
+                assertEquals(2, packets.size, "Both animated parts must still reach every viewer")
+                assertTrue(packets.all { MetadataDef.Display.TRANSLATION.index() in it.entries() })
+            }
+            assertEquals(
+                0,
+                reads,
+                "Default animation must not look up visual overrides per viewer and part",
+            )
+
+            val body =
+                fixture.instance.entities.filterIsInstance<NpcItemDisplay>().minBy { it.entityId }
+            fun checkFrame(
+                time: Long,
+                ordinaryY: Double,
+                firstY: Double,
+                secondY: Double,
+                noOverrides: Boolean,
+            ) {
+                players.forEach { it.connection.packets.clear() }
+                reads = 0
+                handle.advanceAnimation(time)
+                players.forEachIndexed { index, player ->
+                    val packet =
+                        player.connection.packets.filterIsInstance<EntityMetaDataPacket>().single {
+                            it.entityId() == body.entityId
+                        }
+                    val translation =
+                        packet.entries()[MetadataDef.Display.TRANSLATION.index()]!!.value()
+                            as net.minestom.server.coordinate.Point
+                    assertEquals(
+                        when (index) {
+                            0 -> firstY
+                            1 -> secondY
+                            else -> ordinaryY
+                        },
+                        translation.y(),
+                        1e-6,
+                    )
+                }
+                if (noOverrides)
+                    assertEquals(
+                        0,
+                        reads,
+                        "Clearing the final override must also restore the default lookup budget",
+                    )
+            }
+            handle.applyViewerState(
+                players[0],
+                SceneViewerVisualState(scaleMultiplier = 2.0, highlighted = true),
+            )
+            handle.applyViewerState(players[1], SceneViewerVisualState(scaleMultiplier = 3.0))
+            checkFrame(400, 1.1, 2.2, 3.3, false)
+            handle.clearViewerState(players[0])
+            checkFrame(600, 1.3, 1.3, 3.9, false)
+            handle.clearViewerState(players[1])
+            checkFrame(800, 1.5, 1.5, 1.5, true)
+            handle.close()
+        }
+    }
+
+    @Test
     fun `translation animation does not resend unchanged rotations`() {
         RendererFixture().use { fixture ->
             val player = fixture.player()

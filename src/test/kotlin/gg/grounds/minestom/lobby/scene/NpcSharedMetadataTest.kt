@@ -28,6 +28,24 @@ class NpcSharedMetadataTest {
         }
 
     @Test
+    fun `default visual state clears base glow while retaining other entity flags`() {
+        RendererFixture().use { fixture ->
+            val first = fixture.player()
+            val second = fixture.player()
+            val display = display(fixture, first, second)
+            display.editEntityMeta(ItemDisplayMeta::class.java) {
+                it.setOnFire(true)
+                it.setHasGlowingEffect(true)
+            }
+            for (player in listOf(first, second)) {
+                val packet = player.connection.packets.single() as EntityMetaDataPacket
+                assertEquals(1.toByte(), packet.entries()[0]!!.value())
+            }
+            assertSame(first.connection.envelopes.single(), second.connection.envelopes.single())
+        }
+    }
+
+    @Test
     fun `default viewers share a serialized frame while personalized pose stays independent`() {
         RendererFixture().use { fixture ->
             val first = fixture.player()

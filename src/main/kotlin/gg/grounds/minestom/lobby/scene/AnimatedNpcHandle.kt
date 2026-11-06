@@ -26,6 +26,9 @@ internal class AnimatedNpcHandle(
     private var variationStarted: Long? = null
     private var nextVariation = 20_000L
     private val viewerVisuals = mutableMapOf<UUID, Pair<Double, Boolean>>()
+    private val viewerVisualState: (Player) -> Pair<Double, Boolean> = { player ->
+        viewerVisuals[player.uuid] ?: DEFAULT_NPC_VISUAL
+    }
     private var viewerIntervals = emptyMap<UUID, NpcViewerRate>()
     private var viewerPlayers = emptyMap<UUID, Player>()
     private val nextViewerUpdate = mutableMapOf<NpcViewerRate, Long>()
@@ -57,7 +60,6 @@ internal class AnimatedNpcHandle(
     init {
         displays.forEach { display ->
             display.viewerState = { player -> sendViewerState(display, player) }
-            display.visualState = { player -> viewerVisuals[player.uuid] ?: DEFAULT_NPC_VISUAL }
         }
         render(null, 0.0)
         refreshViewers()
@@ -344,6 +346,7 @@ internal class AnimatedNpcHandle(
             if (state.scaleMultiplier == 1.0 && !state.highlighted)
                 viewerVisuals.remove(player.uuid)
             else viewerVisuals[player.uuid] = state.scaleMultiplier to state.highlighted
+            updateVisualStateProvider()
             refreshViewers()
             displays.forEach {
                 if (player in it.viewers)
@@ -358,6 +361,7 @@ internal class AnimatedNpcHandle(
         synchronized(lock) {
             if (!closed) {
                 val changed = viewerVisuals.remove(player.uuid)?.first?.let { it != 1.0 } ?: false
+                updateVisualStateProvider()
                 displays.forEach {
                     if (player in it.viewers) {
                         if (changed) it.sendPoseState(player, viewerDuration(player))
@@ -366,6 +370,11 @@ internal class AnimatedNpcHandle(
                 }
             }
         }
+    }
+
+    private fun updateVisualStateProvider() {
+        val provider = if (viewerVisuals.isEmpty()) null else viewerVisualState
+        displays.forEach { it.visualState = provider }
     }
 
     private fun viewerDuration(player: Player): Int =

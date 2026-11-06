@@ -56,12 +56,15 @@ internal class NpcItemDisplay(private val lock: Any) : Entity(EntityType.ITEM_DI
         recipients: Collection<Player>,
         checkMembership: Boolean = false,
     ) {
-        val common = EntityMetaDataPacket(entityId, changes)
+        // Default visuals are identical for every recipient, including clearing base glow.
+        val defaults = if (visualState == null) personalized(DEFAULT_NPC_VISUAL, changes) else null
+        val commonChanges = defaults ?: changes
+        val common = EntityMetaDataPacket(entityId, commonChanges)
         val commonViewers = ArrayList<Player>()
         recipients.forEach { player ->
             if (checkMembership && player !in viewers) return@forEach
-            val entries = personalized(player, changes)
-            if (entries === changes) commonViewers += player
+            val entries = defaults ?: personalized(player, changes)
+            if (entries === commonChanges) commonViewers += player
             else player.sendPacket(EntityMetaDataPacket(entityId, entries))
         }
         if (commonViewers.size == 1) commonViewers[0].sendPacket(common)
@@ -71,8 +74,13 @@ internal class NpcItemDisplay(private val lock: Any) : Entity(EntityType.ITEM_DI
     private fun personalized(
         player: Player,
         changes: Map<Int, Metadata.Entry<*>>,
+    ): Map<Int, Metadata.Entry<*>> =
+        personalized(visualState?.invoke(player) ?: DEFAULT_NPC_VISUAL, changes)
+
+    private fun personalized(
+        state: Pair<Double, Boolean>,
+        changes: Map<Int, Metadata.Entry<*>>,
     ): Map<Int, Metadata.Entry<*>> {
-        val state = visualState?.invoke(player) ?: DEFAULT_NPC_VISUAL
         val flags = (changes[0]?.value() as? Byte ?: 0).toInt()
         val desiredFlags = if (state.second) flags or 0x40 else flags and 0xBF
         val translation = MetadataDef.Display.TRANSLATION.index()
