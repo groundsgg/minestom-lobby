@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.15.1](https://github.com/groundsgg/minestom-lobby/compare/v2.15.0...v2.15.1) (2026-11-06)
+
+
+### Bug Fixes
+
+* **lobby:** consume prelit maps and prepare NPC terrain before admission ([#234](https://github.com/groundsgg/minestom-lobby/issues/234)) ([a0eea16](https://github.com/groundsgg/minestom-lobby/commit/a0eea169eea6e43164abe80f6d50b9adf44d0dba))
+* **npc:** initialize mounted collider poses for each viewer ([#232](https://github.com/groundsgg/minestom-lobby/issues/232)) ([aac1a30](https://github.com/groundsgg/minestom-lobby/commit/aac1a30e618d645c2f82beefb06ee69a184da99e))
+* **npc:** synchronize personal scale interpolation across parts ([#230](https://github.com/groundsgg/minestom-lobby/issues/230)) ([4a517f8](https://github.com/groundsgg/minestom-lobby/commit/4a517f8ee397d703168c3299d52b802f309d1676))
+* **stage:** make smith and sales props physically solid ([#247](https://github.com/groundsgg/minestom-lobby/issues/247)) ([38b0993](https://github.com/groundsgg/minestom-lobby/commit/38b0993bb8b989fddefcfbfa140fbb4f9d8c5a7d))
+
+
+### Performance Improvements
+
+* **npc:** avoid boxed pose conversion intermediates ([#245](https://github.com/groundsgg/minestom-lobby/issues/245)) ([d68f1e9](https://github.com/groundsgg/minestom-lobby/commit/d68f1e9de47baca31e8a45f3e052482b5315bbfe))
+* **npc:** avoid per-viewer interval boxing ([#240](https://github.com/groundsgg/minestom-lobby/issues/240)) ([751edf6](https://github.com/groundsgg/minestom-lobby/commit/751edf6545951b4be360d59e7ea00145a78a539c))
+* **npc:** prepare model parts and bound initial activation work ([#243](https://github.com/groundsgg/minestom-lobby/issues/243)) ([795ab00](https://github.com/groundsgg/minestom-lobby/commit/795ab002ad9d94e1a2df038332a2fbba4b9cf269))
+* **npc:** reuse stable per-display viewer snapshot iterators ([#246](https://github.com/groundsgg/minestom-lobby/issues/246)) ([154f302](https://github.com/groundsgg/minestom-lobby/commit/154f30200ab2eab5b9889a22084598e9d47b095c))
+* **npc:** serialize common metadata once for viewers ([#237](https://github.com/groundsgg/minestom-lobby/issues/237)) ([83e1fba](https://github.com/groundsgg/minestom-lobby/commit/83e1fbaad23142c24dc0dee6c728bc453851b672))
+* **npc:** share serialized delivery within viewer distance cohorts ([#239](https://github.com/groundsgg/minestom-lobby/issues/239)) ([ac9b33a](https://github.com/groundsgg/minestom-lobby/commit/ac9b33a292d4dc2b238ef67169b1a7cebf4bce40))
+* **npc:** skip rebuilding unchanged viewer maps ([#242](https://github.com/groundsgg/minestom-lobby/issues/242)) ([4b2b664](https://github.com/groundsgg/minestom-lobby/commit/4b2b6647912ba3d17d00aead5d0335c4ae7c45a7))
+
 ## [2.15.0](https://github.com/groundsgg/minestom-lobby/compare/v2.14.3...v2.15.0) (2026-11-01)
 
 
