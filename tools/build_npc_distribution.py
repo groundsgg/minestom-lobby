@@ -86,7 +86,7 @@ def main():
     parser.add_argument('--addon-sha1', required=True)
     parser.add_argument('--map', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--gradle', default=str(Path(__file__).resolve().parents[1] / 'gradlew'))
+    parser.add_argument('--gradle')
     parser.add_argument('--java', default='java')
     parser.add_argument('--offline', action='store_true')
     args = parser.parse_args()
@@ -140,7 +140,7 @@ def main():
         shutil.copyfile(args.addon, addon)
         if digest(addon) != args.addon_sha256 or digest(addon, 'sha1') != args.addon_sha1:
             raise ValueError('Addon changed during snapshot')
-        command = [args.gradle, '--no-daemon', '--no-build-cache']
+        command = [args.gradle or str(host_source / 'gradlew'), '--no-daemon', '--no-build-cache']
         if args.offline:
             command.append('--offline')
         command += [
