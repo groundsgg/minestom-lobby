@@ -153,7 +153,7 @@ def main():
             '-PnpcGeometryMode=composite',
             '-PnpcCompositePolicy=' + str(policy),
             '-PnpcAddonZip=' + str(addon),
-            'clean', 'test', 'shadowJar',
+            'clean', 'build', 'shadowJar',
         ]
         with (staging / 'build.log').open('w') as log:
             subprocess.run(command, cwd=host_source, check=True, stdout=log, stderr=subprocess.STDOUT, timeout=1800)

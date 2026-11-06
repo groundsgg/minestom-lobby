@@ -60,25 +60,27 @@ providers.gradleProperty("npcAddonZip").orNull?.let { addon ->
         "NPC addon binding requires the private Resourcepacks source build"
     }
     val bindingDirectory = layout.buildDirectory.dir("generated/resources/npc-distribution")
-    val bindingFile = bindingDirectory.map { it.file("gg/grounds/minestom/lobby/npc-addon-sha1.txt") }
-    val generateNpcAddonBinding = tasks.register("generateNpcAddonBinding") {
-        inputs.file(file(addon))
-        outputs.file(bindingFile)
-        doLast {
-            val digest = MessageDigest.getInstance("SHA-1")
-            file(addon).inputStream().use { input ->
-                val buffer = ByteArray(8192)
-                while (true) {
-                    val count = input.read(buffer)
-                    if (count < 0) break
-                    digest.update(buffer, 0, count)
+    val bindingFile =
+        bindingDirectory.map { it.file("gg/grounds/minestom/lobby/npc-addon-sha1.txt") }
+    val generateNpcAddonBinding =
+        tasks.register("generateNpcAddonBinding") {
+            inputs.file(file(addon))
+            outputs.file(bindingFile)
+            doLast {
+                val digest = MessageDigest.getInstance("SHA-1")
+                file(addon).inputStream().use { input ->
+                    val buffer = ByteArray(8192)
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        digest.update(buffer, 0, count)
+                    }
                 }
+                val target = bindingFile.get().asFile
+                target.parentFile.mkdirs()
+                target.writeText(HexFormat.of().formatHex(digest.digest()) + "\n")
             }
-            val target = bindingFile.get().asFile
-            target.parentFile.mkdirs()
-            target.writeText(HexFormat.of().formatHex(digest.digest()) + "\n")
         }
-    }
     sourceSets.main { resources.srcDir(bindingDirectory) }
     tasks.processResources { dependsOn(generateNpcAddonBinding) }
 }

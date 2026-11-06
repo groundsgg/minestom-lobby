@@ -7,7 +7,9 @@ internal class NpcAddonBinding(private val sha1: String) {
     }
 
     fun requireMatches(configuredSha1: String) {
-        require(sha1 == configuredSha1) { "Configured NPC addon differs from the packaged distribution" }
+        require(sha1 == configuredSha1) {
+            "Configured NPC addon differs from the packaged distribution"
+        }
     }
 
     companion object {
@@ -15,12 +17,13 @@ internal class NpcAddonBinding(private val sha1: String) {
             val resource = "/gg/grounds/minestom/lobby/npc-addon-sha1.txt"
             val text =
                 requireNotNull(NpcAddonBinding::class.java.getResourceAsStream(resource)) {
-                    "NPC addon binding missing; build a qualified private NPC distribution"
-                }.use { stream ->
-                    val bytes = stream.readNBytes(42)
-                    require(bytes.size <= 41) { "NPC addon binding exceeds size limit" }
-                    bytes.toString(Charsets.US_ASCII).removeSuffix("\n")
-                }
+                        "NPC addon binding missing; build a qualified private NPC distribution"
+                    }
+                    .use { stream ->
+                        val bytes = stream.readNBytes(42)
+                        require(bytes.size <= 41) { "NPC addon binding exceeds size limit" }
+                        bytes.toString(Charsets.US_ASCII).removeSuffix("\n")
+                    }
             return NpcAddonBinding(text)
         }
     }
