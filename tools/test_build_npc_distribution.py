@@ -98,6 +98,15 @@ class DistributionTest(unittest.TestCase):
         with self.assertRaises(zipfile.BadZipFile):
             distribution.verify_pair(jar, addon, sha1)
 
+    def test_rejects_ambiguous_duplicate_host_entries(self):
+        jar, addon, sha1 = self.pair()
+        with zipfile.ZipFile(jar, 'a') as archive, warnings.catch_warnings():
+            warnings.simplefilter('ignore', UserWarning)
+            archive.writestr('META-INF/example.kotlin_module', b'first')
+            archive.writestr('META-INF/example.kotlin_module', b'second')
+        with self.assertRaisesRegex(ValueError, 'Duplicate executable JAR'):
+            distribution.verify_pair(jar, addon, sha1)
+
 
 if __name__ == '__main__':
     unittest.main()

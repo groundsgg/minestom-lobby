@@ -43,9 +43,9 @@ def snapshot_checkout(directory, commit, target):
 
 def verify_pair(jar, addon, sha1):
     with zipfile.ZipFile(jar) as host, zipfile.ZipFile(addon) as pack:
+        if len(set(host.namelist())) != len(host.namelist()):
+            raise ValueError('Duplicate executable JAR entries')
         resources = [name for name in host.namelist() if name.startswith(NPC) or name == BINDING]
-        if len(set(resources)) != len(resources):
-            raise ValueError('Duplicate NPC resources in executable JAR')
         if host.read(BINDING).decode('ascii').strip() != sha1 or digest(addon, 'sha1') != sha1:
             raise ValueError('Addon binding differs from pinned SHA-1')
         index = json.loads(host.read(NPC + 'index.json'))

@@ -91,9 +91,23 @@ tasks.test {
 }
 
 tasks.named<ShadowJar>("shadowJar") {
-    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    // Project classes win deterministically. Duplicate ZIP directory records can otherwise
+    // point at different occurrences on different builds, even with identical payloads.
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     mergeServiceFiles()
     append("META-INF/grounds/permissions.index")
+    val appendedResources =
+        listOf(
+            "META-INF/grounds/permissions.index",
+            "META-INF/LICENSE",
+            "META-INF/NOTICE",
+            "META-INF/LICENSE.txt",
+            "META-INF/NOTICE.txt",
+        )
+    appendedResources.drop(1).forEach { append(it) }
+    filesMatching(listOf("META-INF/services/**") + appendedResources) {
+        duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    }
 }
 
 repositories {
