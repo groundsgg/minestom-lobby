@@ -111,6 +111,8 @@ def main():
     parser.add_argument('--resourcepacks', type=Path, required=True)
     parser.add_argument('--resourcepacks-commit', required=True)
     parser.add_argument('--catalog-build-number', type=int, required=True)
+    parser.add_argument('--lobby-source', type=Path)
+    parser.add_argument('--lobby-source-commit')
     parser.add_argument('--sources', type=Path, required=True)
     parser.add_argument('--composite-policy', type=Path, required=True)
     parser.add_argument('--addon', type=Path, required=True)
@@ -131,6 +133,11 @@ def main():
     catalog_version = private_catalog_version(args.resourcepacks_commit, args.catalog_build_number)
     host_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo, text=True).strip()
     verify_checkout(repo, host_commit)
+    if bool(args.lobby_source) != bool(args.lobby_source_commit):
+        raise ValueError('Pinned Lobby sources require both directory and exact commit')
+    if args.lobby_source:
+        args.lobby_source = args.lobby_source.resolve()
+        verify_checkout(args.lobby_source, args.lobby_source_commit)
     for expected, algorithm in ((args.addon_sha256, 'sha256'), (args.addon_sha1, 'sha1')):
         if not re.fullmatch('[0-9a-f]{' + str(hashlib.new(algorithm).digest_size * 2) + '}', expected):
             raise ValueError('An exact addon digest is required')
@@ -154,6 +161,9 @@ def main():
         pack_source = inputs / 'resourcepacks'
         snapshot_checkout(repo, host_commit, host_source)
         snapshot_checkout(args.resourcepacks, args.resourcepacks_commit, pack_source)
+        lobby_source = inputs / 'plugin-lobby'
+        if args.lobby_source:
+            snapshot_checkout(args.lobby_source, args.lobby_source_commit, lobby_source)
         sources = inputs / 'licensed-sources'
         sources.mkdir()
         source_hashes = {}
@@ -179,6 +189,8 @@ def main():
         command = [args.gradle or str(host_source / 'gradlew'), '--no-daemon', '--no-build-cache']
         if args.offline:
             command.append('--offline')
+        if args.lobby_source:
+            command.append('-PnpcLobbySourceDirectory=' + str(lobby_source))
         command += [
             '-PnpcResourcepacksDirectory=' + str(pack_source),
             '-PnpcSourceDirectory=' + str(sources),
@@ -221,6 +233,7 @@ def main():
             'hostCommit': host_commit,
             'hostDirty': False,
             'resourcepacksCommit': args.resourcepacks_commit,
+            'lobbySourceCommit': args.lobby_source_commit,
             'policySha256': policy_sha256,
             'sourceArchivesSha256': source_hashes,
             'sceneSha256': scene_sha256,

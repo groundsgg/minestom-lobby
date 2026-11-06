@@ -41,6 +41,13 @@ public final class NpcStageBundleAcceptance {
             throw new AssertionError("Addon ZIP differs from the pinned deployment hashes");
         gg.grounds.minestom.lobby.NpcAddonBinding.Companion.load().requireMatches(args[3]);
         net.minestom.server.MinecraftServer.init();
+        // The accepted Stage disables the legacy bars in favour of the proxy owner.
+        var ownership = Class.forName("gg.grounds.lobby.AnnouncementOwnership");
+        var instance = ownership.getField("INSTANCE").get(null);
+        var enabled = ownership.getMethod("legacyEnabled", String.class);
+        if (!Boolean.FALSE.equals(enabled.invoke(instance, "disabled")) ||
+            !Boolean.TRUE.equals(enabled.invoke(instance, "legacy")))
+            throw new AssertionError("Accepted announcement ownership contract missing");
         gg.grounds.minestom.lobby.NpcDemoPack.Companion.configured(java.util.Map.of(
             "GROUNDS_NPC_ADDON_URL", "https://example.invalid/npc-addon.zip",
             "GROUNDS_NPC_ADDON_SHA1", args[3]));

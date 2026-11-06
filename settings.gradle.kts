@@ -32,3 +32,17 @@ providers.gradleProperty("npcResourcepacksDirectory").orNull?.let { directory ->
         }
     }
 }
+
+// Preserve the accepted Stage announcement-ownership implementation until its release.
+providers.gradleProperty("npcLobbySourceDirectory").orNull?.let { directory ->
+    require(providers.gradleProperty("npcResourcepacksDirectory").isPresent) {
+        "Pinned Lobby sources belong to the private NPC distribution"
+    }
+    includeBuild(file(directory)) {
+        dependencySubstitution {
+            substitute(module("gg.grounds:plugin-lobby-minestom")).using(project(":minestom"))
+            substitute(module("gg.grounds:plugin-lobby-scene-catalog"))
+                .using(project(":scene-catalog"))
+        }
+    }
+}

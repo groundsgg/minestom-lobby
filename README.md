@@ -172,6 +172,7 @@ The host checkout must also be clean:
 python3 tools/build_npc_distribution.py \
   --resourcepacks /private/resourcepacks --resourcepacks-commit FULL_COMMIT_SHA \
   --catalog-build-number UNIQUE_POSITIVE_BUILD_NUMBER \
+  --lobby-source /private/plugin-lobby --lobby-source-commit EXACT_ACCEPTED_LOBBY_COMMIT \
   --sources /private/licensed-npcs --composite-policy /private/qualified-policy.json \
   --addon /private/npc-addon.zip --addon-sha256 EXACT_SHA256 --addon-sha1 EXACT_SHA1 \
   --map /private/selected-stage-map --output /private/new-distribution
@@ -183,13 +184,16 @@ scene must select `0.0.0-edge.<build-number>.g<first-12-source-commit-characters
 rewrites a map. Allocate a fresh build number for the private catalog (for example, a recorded
 UTC timestamp) and keep it in the receipt. The generated definitions must not reuse a public
 neutral catalog's version or overwrite a canonical public PackSet build path.
-The acceptance probe targets the current 15-model, 22-element Stage scene.
+The acceptance probe targets the current 15-model, 22-element Stage scene and preserves its
+announcement ownership contract. Until that already accepted implementation is released,
+pin its clean Lobby source checkout with both `--lobby-source` and `--lobby-source-commit`.
 
 The tool exports committed host and Resourcepacks sources into fresh, private temporary
 directories and snapshots the licensed archives, policy, addon and scene. This avoids shared
 composite-build outputs and records all archive hashes. It runs a clean host build and the
 entire host test suite. Only `resourcepacks-catalog` and
-`resourcepacks-npc-runtime` use source substitution; Scene uses the published pinned versions.
+`resourcepacks-npc-runtime` use source substitution by default; an explicit pinned Lobby source
+also substitutes its two modules. Scene and Chat use their published pinned versions.
 Private host outputs live under the snapshot's `build/private-npc`, separate from ordinary builds.
 After checking ZIP completeness and hashes, the final executable JAR loads the supplied scene
 through the production loader and verifies the addon file contract. Only then is the new output
