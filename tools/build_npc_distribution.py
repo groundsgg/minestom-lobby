@@ -14,6 +14,29 @@ NPC = 'gg/grounds/resourcepacks/npc/'
 BINDING = 'gg/grounds/minestom/lobby/npc-addon-sha1.txt'
 
 
+def private_catalog_version(commit, number):
+    if not re.fullmatch('[0-9a-f]{40}', commit) or not isinstance(number, int) or number < 1:
+        raise ValueError('Private catalog requires the full source commit and a positive build number')
+    return '0.0.0-edge.' + str(number) + '.g' + commit[:12]
+
+
+def verify_catalog_metadata(jar, version):
+    with zipfile.ZipFile(jar) as archive:
+        names = archive.namelist()
+        if len(set(names)) != len(names) or archive.testzip() is not None:
+            raise ValueError('Invalid neutral catalog archive')
+        for name in names:
+            if name.endswith('/'):
+                continue
+            neutral = (name.startswith('gg/grounds/resourcepacks/catalog/') and name.endswith('.class'))
+            neutral |= name == 'gg/grounds/resourcepacks/catalog/catalog-version.txt'
+            neutral |= name.startswith('META-INF/') and not name.endswith(('.json', '.png', '.ogg'))
+            if not neutral:
+                raise ValueError('Catalog export contains non-neutral payload: ' + name)
+        if archive.read('gg/grounds/resourcepacks/catalog/catalog-version.txt').decode().strip() != version:
+            raise ValueError('Catalog export identity differs from the private build')
+
+
 def digest(path, algorithm='sha256'):
     with Path(path).open('rb') as stream:
         return hashlib.file_digest(stream, algorithm).hexdigest()
@@ -83,6 +106,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--resourcepacks', type=Path, required=True)
     parser.add_argument('--resourcepacks-commit', required=True)
+    parser.add_argument('--catalog-build-number', type=int, required=True)
     parser.add_argument('--sources', type=Path, required=True)
     parser.add_argument('--composite-policy', type=Path, required=True)
     parser.add_argument('--addon', type=Path, required=True)
@@ -100,6 +124,7 @@ def main():
     if args.output.exists():
         raise ValueError('Distribution output must not exist')
     verify_checkout(args.resourcepacks, args.resourcepacks_commit)
+    catalog_version = private_catalog_version(args.resourcepacks_commit, args.catalog_build_number)
     host_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo, text=True).strip()
     verify_checkout(repo, host_commit)
     for expected, algorithm in ((args.addon_sha256, 'sha256'), (args.addon_sha1, 'sha1')):
@@ -109,6 +134,9 @@ def main():
             raise ValueError('Addon differs from pinned ' + algorithm)
     if not (args.map / 'scene.json').is_file():
         raise ValueError('Map scene.json missing')
+    scene = json.loads((args.map / 'scene.json').read_text())
+    if scene['catalogs']['assets']['version'] != catalog_version:
+        raise ValueError('Map must select the exact private catalog build identity: ' + catalog_version)
     policy_sha256 = digest(args.composite_policy)
     scene_sha256 = digest(args.map / 'scene.json')
     args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -153,6 +181,10 @@ def main():
             '-PnpcGeometryMode=composite',
             '-PnpcCompositePolicy=' + str(policy),
             '-PnpcAddonZip=' + str(addon),
+            '-PpackSetVersion=' + catalog_version,
+            '-PpublicationType=build',
+            '-PpublicationId=' + args.resourcepacks_commit,
+            '-PprovenanceCommit=' + args.resourcepacks_commit,
             'clean', 'build', 'shadowJar',
         ]
         with (staging / 'build.log').open('w') as log:
@@ -173,6 +205,13 @@ def main():
             ], check=True, stdout=log, stderr=subprocess.STDOUT, text=True, timeout=120)
         acceptance = (staging / 'acceptance.log').read_text()
         verify_pair(jar, addon, args.addon_sha1)
+        catalog_jars = [p for p in (pack_source / 'resourcepacks-catalog/build/libs').glob('*.jar')
+                        if not p.name.endswith('-sources.jar')]
+        if len(catalog_jars) != 1:
+            raise ValueError('Expected one source-built standalone catalog JAR')
+        catalog = staging / 'catalog.jar'
+        shutil.copyfile(catalog_jars[0], catalog)
+        verify_catalog_metadata(catalog, catalog_version)
         receipt = {
             'qualified': True,
             'hostCommit': host_commit,
@@ -184,6 +223,15 @@ def main():
             'addonSha256': digest(staging / 'npc-addon.zip'),
             'addonSha1': args.addon_sha1,
             'jarSha256': digest(staging / 'minestom-lobby.jar'),
+            'catalog': {
+                'channel': 'pinned',
+                'id': 'grounds:resourcepacks',
+                'version': catalog_version,
+                'coordinate': 'gg.grounds:resourcepacks-catalog:' + catalog_version,
+                'file': 'catalog.jar',
+                'sha256': digest(catalog),
+                'size': catalog.stat().st_size,
+            },
             'models': models,
             'acceptance': acceptance.strip(),
             'scope': 'Source build, full host tests, production scene loader and exact addon contract; native client acceptance and deployment are separate.',

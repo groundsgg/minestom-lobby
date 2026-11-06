@@ -171,6 +171,7 @@ The host checkout must also be clean:
 ```shell
 python3 tools/build_npc_distribution.py \
   --resourcepacks /private/resourcepacks --resourcepacks-commit FULL_COMMIT_SHA \
+  --catalog-build-number UNIQUE_POSITIVE_BUILD_NUMBER \
   --sources /private/licensed-npcs --composite-policy /private/qualified-policy.json \
   --addon /private/npc-addon.zip --addon-sha256 EXACT_SHA256 --addon-sha1 EXACT_SHA1 \
   --map /private/selected-stage-map --output /private/new-distribution
@@ -178,7 +179,10 @@ python3 tools/build_npc_distribution.py \
 
 Requires Python 3.12+, Git, Java 25 and the usual Gradle Maven credentials. `--offline` uses
 existing dependency caches; `--gradle` and `--java` accept explicit executable paths. The map's
-scene must already select the exact generated catalog version; the tool never rewrites a map.
+scene must select `0.0.0-edge.<build-number>.g<first-12-source-commit-characters>`; the tool never
+rewrites a map. Allocate a fresh build number for the private catalog (for example, a recorded
+UTC timestamp) and keep it in the receipt. The generated definitions must not reuse a public
+neutral catalog's version or overwrite a canonical public PackSet build path.
 The acceptance probe targets the current 15-model, 22-element Stage scene.
 
 The tool exports committed host and Resourcepacks sources into fresh, private temporary
@@ -189,7 +193,8 @@ entire host test suite. Only `resourcepacks-catalog` and
 Private host outputs live under the snapshot's `build/private-npc`, separate from ordinary builds.
 After checking ZIP completeness and hashes, the final executable JAR loads the supplied scene
 through the production loader and verifies the addon file contract. Only then is the new output
-directory created, with `minestom-lobby.jar`, `npc-addon.zip`, logs and `receipt.json`. Failed
+directory created, with `minestom-lobby.jar`, `npc-addon.zip`, the standalone neutral `catalog.jar`,
+logs and `receipt.json`. The receipt pins the catalog coordinate, version, size and SHA-256. Failed
 attempts keep their temporary logs and produce no qualification receipt.
 
 The JAR contains the addon SHA-1 binding. When the Stage demo is enabled, startup rejects a

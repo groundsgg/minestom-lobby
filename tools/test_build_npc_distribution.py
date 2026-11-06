@@ -16,6 +16,29 @@ class DistributionTest(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
 
+    def test_private_catalog_has_a_distinct_source_build_identity(self):
+        commit = '0123456789abcdef0123456789abcdef01234567'
+        self.assertEqual(distribution.private_catalog_version(commit, 42),
+                         '0.0.0-edge.42.g0123456789ab')
+        for number in [0, -1]:
+            with self.assertRaises(ValueError):
+                distribution.private_catalog_version(commit, number)
+        with self.assertRaises(ValueError):
+            distribution.private_catalog_version('short', 42)
+
+    def test_catalog_export_rejects_licensed_payload_and_wrong_identity(self):
+        catalog = self.root / 'catalog.jar'
+        with zipfile.ZipFile(catalog, 'w') as archive:
+            archive.writestr('gg/grounds/resourcepacks/catalog/catalog-version.txt', '0.0.0-edge.42.g0123456789ab\n')
+            archive.writestr('gg/grounds/resourcepacks/catalog/GroundsAssetCatalog.class', b'compiled metadata')
+        distribution.verify_catalog_metadata(catalog, '0.0.0-edge.42.g0123456789ab')
+        with self.assertRaisesRegex(ValueError, 'identity'):
+            distribution.verify_catalog_metadata(catalog, '1.3.0')
+        with zipfile.ZipFile(catalog, 'a') as archive:
+            archive.writestr('gg/grounds/resourcepacks/npc/example.json', '{"bones":[]}')
+        with self.assertRaisesRegex(ValueError, 'payload'):
+            distribution.verify_catalog_metadata(catalog, '0.0.0-edge.42.g0123456789ab')
+
     def test_refuses_wrong_commit_and_uncommitted_model_compiler(self):
         repo = self.root / 'source'
         repo.mkdir()
