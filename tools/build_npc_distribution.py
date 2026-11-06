@@ -30,7 +30,11 @@ def verify_catalog_metadata(jar, version):
                 continue
             neutral = (name.startswith('gg/grounds/resourcepacks/catalog/') and name.endswith('.class'))
             neutral |= name == 'gg/grounds/resourcepacks/catalog/catalog-version.txt'
-            neutral |= name.startswith('META-INF/') and not name.endswith(('.json', '.png', '.ogg'))
+            neutral |= name in {
+                'META-INF/MANIFEST.MF',
+                'META-INF/LICENSE',
+                'META-INF/resourcepacks-catalog.kotlin_module',
+            }
             if not neutral:
                 raise ValueError('Catalog export contains non-neutral payload: ' + name)
         if archive.read('gg/grounds/resourcepacks/catalog/catalog-version.txt').decode().strip() != version:

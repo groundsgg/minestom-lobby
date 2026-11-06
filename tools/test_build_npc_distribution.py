@@ -39,6 +39,15 @@ class DistributionTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'payload'):
             distribution.verify_catalog_metadata(catalog, '0.0.0-edge.42.g0123456789ab')
 
+    def test_catalog_export_rejects_unexpected_meta_inf_payload(self):
+        for name in ['META-INF/licensed-models.zip', 'META-INF/model.bbmodel', 'META-INF/texture.PNG']:
+            catalog = self.root / 'catalog-metadata.jar'
+            with zipfile.ZipFile(catalog, 'w') as archive:
+                archive.writestr('gg/grounds/resourcepacks/catalog/catalog-version.txt', '1.2.3\n')
+                archive.writestr(name, b'private model payload')
+            with self.assertRaisesRegex(ValueError, 'payload'):
+                distribution.verify_catalog_metadata(catalog, '1.2.3')
+
     def test_refuses_wrong_commit_and_uncommitted_model_compiler(self):
         repo = self.root / 'source'
         repo.mkdir()
