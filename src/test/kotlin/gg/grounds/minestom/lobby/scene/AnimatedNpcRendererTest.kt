@@ -12,6 +12,192 @@ import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 
 class AnimatedNpcRendererTest {
+    @Test
+    fun `reservation blocks automatic and direct starts and voiced loops cannot bypass admission`() {
+        RendererFixture().use { fixture ->
+            var now = 0L
+            val player = fixture.player(net.minestom.server.coordinate.Pos(8.0, 1.0, 0.0))
+            val original = model()
+            val loop = original.animations.getValue("wave").copy(loop = "loop")
+            val model =
+                original.copy(
+                    animations =
+                        original.animations +
+                            ("wave" to loop) +
+                            ("idle2" to original.animations.getValue("wave")),
+                    sounds =
+                        mapOf(
+                            "wave" to NpcClipSound("grounds:test/wave", 0.8, 1.0, 12.0, 2500),
+                            "idle2" to NpcClipSound("grounds:test/idle2", 0.8, 1.0, 12.0, 2500),
+                        ),
+                )
+            val handle = voicedHandle(fixture, model) { now }
+            val gate = handle as AnimationAdmissionRenderedAssetHandle
+            fun sounds() =
+                player.connection.packets.count { it.javaClass.simpleName == "SoundEffectPacket" }
+            handle.startAnimation(LocalId("idle"), 0)
+            val cancelled = requireNotNull(gate.reserveAnimation("wave"))
+            assertFalse(gate.canStartAnimation("wave"))
+            cancelled.close()
+            cancelled.close()
+            assertTrue(gate.canStartAnimation("wave"))
+            val admission = requireNotNull(gate.reserveAnimation("wave"))
+            now = 20_000_000_000
+            handle.advanceAnimation(20_000)
+            handle.startAnimation(LocalId("wave"), 0)
+            assertEquals(0, sounds(), "A direct or automatic start stole the reservation")
+            admission.startAnimation(0)
+            assertEquals(1, sounds())
+            assertThrows(IllegalStateException::class.java) { admission.startAnimation(0) }
+            admission.close()
+            assertFalse(gate.canStartAnimation("wave"), "Voiced loop bypassed active audio")
+            now += 2_600_000_000
+            assertTrue(gate.canStartAnimation("wave"))
+            val closed = requireNotNull(gate.reserveAnimation("wave"))
+            handle.close()
+            assertThrows(IllegalStateException::class.java) { closed.startAnimation(0) }
+            closed.close()
+            assertEquals(1, sounds())
+        }
+    }
+
+    private fun voicedHandle(
+        fixture: RendererFixture,
+        model: NpcModel,
+        clock: () -> Long,
+    ): RenderedAssetHandle {
+        val definitions =
+            model.sounds.values.associate {
+                AssetKey(it.key) to
+                    AssetDefinition(AssetKey(it.key), AssetKind.SOUND, emptySet(), null, emptyMap())
+            } +
+                (model.asset to
+                    AssetDefinition(
+                        model.asset,
+                        AssetKind.NPC_BODY,
+                        model.animations.keys.map(::LocalId).toSet(),
+                        model.bounds,
+                        emptyMap(),
+                    ))
+        val assets =
+            AssetCatalog(
+                CatalogId("grounds:assets"),
+                "1.0.0",
+                CatalogVersionRange(CatalogId("grounds:pack"), "1.0.0", "1.0.0"),
+                definitions,
+            )
+        return LobbyNpcModelRenderers(assets, mapOf(model.asset to model), clock)
+            .rendererFor(model.asset, AssetKind.NPC_BODY)!!
+            .create(
+                SceneAssetRenderContext(
+                    fixture.instance,
+                    LocalId("npc"),
+                    null,
+                    model.asset,
+                    sceneTransform(),
+                )
+            )
+            .toCompletableFuture()
+            .join()
+    }
+
+    @Test
+    fun `voiced gestures reject retrigger until audio and animation finish and stop retains audio hold`() {
+        for ((animationSeconds, audioMillis, pitch, holdMillis) in
+            listOf(
+                listOf(1.0, 2500.0, 1.0, 2600.0),
+                listOf(3.0, 1000.0, 1.0, 3100.0),
+                listOf(1.0, 1500.0, 0.5, 3100.0),
+            )) {
+            RendererFixture().use { fixture ->
+                var now = 0L
+                val near = fixture.player(net.minestom.server.coordinate.Pos(1.0, 1.0, 1.0))
+                val original = model()
+                val model =
+                    original.copy(
+                        animations =
+                            original.animations +
+                                ("wave" to
+                                    original.animations
+                                        .getValue("wave")
+                                        .copy(length = animationSeconds)),
+                        sounds =
+                            mapOf(
+                                "wave" to
+                                    NpcClipSound(
+                                        "grounds:test/wave",
+                                        0.8,
+                                        pitch,
+                                        12.0,
+                                        audioMillis.toLong(),
+                                    )
+                            ),
+                    )
+                val handle = voicedHandle(fixture, model) { now }
+                val gate =
+                    assertInstanceOf(AnimationAdmissionRenderedAssetHandle::class.java, handle)
+                fun sounds() =
+                    near.connection.packets.count { it.javaClass.simpleName == "SoundEffectPacket" }
+                handle.startAnimation(LocalId("wave"), 0)
+                handle.advanceAnimation(500)
+                val display =
+                    fixture.instance.entities.single { it.entityType == EntityType.ITEM_DISPLAY }
+                val meta = display.entityMeta as ItemDisplayMeta
+                val before = meta.translation
+                assertFalse(gate.canStartAnimation("wave"))
+                handle.startAnimation(LocalId("wave"), 0)
+                assertEquals(1, sounds())
+                assertEquals(before, meta.translation, "Rejected start changed the running pose")
+                now = (holdMillis.toLong() - 1) * 1_000_000
+                handle.stopAnimation(null)
+                assertFalse(gate.canStartAnimation("wave"), "Visual stop released audible audio")
+                now += 1_000_000
+                assertTrue(gate.canStartAnimation("wave"))
+                handle.startAnimation(LocalId("wave"), 0)
+                assertEquals(2, sounds())
+                handle.close()
+                assertFalse(gate.canStartAnimation("wave"))
+            }
+        }
+    }
+
+    @Test
+    fun `automatic idle gesture and restored gesture share the audio admission deadline without replay`() {
+        RendererFixture().use { fixture ->
+            var now = 0L
+            val near = fixture.player(net.minestom.server.coordinate.Pos(8.0, 1.0, 0.0))
+            val original = model()
+            val model =
+                original.copy(
+                    animations =
+                        original.animations + ("idle2" to original.animations.getValue("wave")),
+                    sounds =
+                        mapOf(
+                            "idle2" to NpcClipSound("grounds:test/idle2", 0.8, 1.0, 12.0, 2500),
+                            "wave" to NpcClipSound("grounds:test/wave", 0.8, 1.0, 12.0, 2500),
+                        ),
+                )
+            val handle = voicedHandle(fixture, model) { now }
+            val gate = assertInstanceOf(AnimationAdmissionRenderedAssetHandle::class.java, handle)
+            fun sounds() =
+                near.connection.packets.count { it.javaClass.simpleName == "SoundEffectPacket" }
+            handle.startAnimation(LocalId("idle"), 0)
+            now = 20_000_000_000
+            handle.advanceAnimation(20_000)
+            assertEquals(1, sounds())
+            assertFalse(gate.canStartAnimation("wave"))
+            now += 2_600_000_000
+            assertTrue(gate.canStartAnimation("wave"))
+            handle.startAnimation(LocalId("wave"), 1000)
+            assertEquals(1, sounds(), "Restoring an elapsed clip replayed audio")
+            now += 1_599_000_000
+            assertFalse(gate.canStartAnimation("wave"))
+            now += 1_000_000
+            assertTrue(gate.canStartAnimation("wave"))
+            handle.close()
+        }
+    }
+
     private fun model() =
         NpcModel.parse(
             """{"schemaVersion":1,"asset":"grounds:npc/test/worker","bounds":{"center":[0,1,0],"size":[1,2,1]},"bones":[{"id":"root","name":"root","parent":null,"origin":[0,0,0],"rotation":[0,0,0]}],"parts":[{"bone":"root","model":"grounds:npc_parts/test/worker/part_000","center":[0,1,0],"pivot":[0,1,0],"rotation":[0,0,0]}],"animations":{"idle":{"loop":"loop","length":2,"tracks":{}},"wave":{"loop":"once","length":1,"tracks":{"root":{"position":[{"time":0,"value":[0,0,0],"interpolation":"linear"},{"time":1,"value":[0,1,0],"interpolation":"linear"}]}}},"hidden":{"loop":"once","length":1,"tracks":{"root":{"scale":[{"time":0,"value":[0,0,0],"interpolation":"linear"}]}}}},"sounds":{}}"""

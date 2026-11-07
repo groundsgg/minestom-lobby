@@ -5,6 +5,7 @@ import gg.grounds.scene.format.*
 import gg.grounds.scene.minestom.*
 import java.util.UUID
 import kotlin.math.abs
+import kotlin.math.ceil
 import net.minestom.server.coordinate.Pos
 import net.minestom.server.entity.Player
 import net.minestom.server.entity.metadata.display.ItemDisplayMeta
@@ -17,7 +18,8 @@ internal class AnimatedNpcHandle(
     private val displays: List<NpcItemDisplay>,
     private var transform: SceneRenderTransform,
     private val effects: LobbySceneEffects,
-) : HeadLookRenderedAssetHandle {
+    private val nanoTime: () -> Long,
+) : HeadLookRenderedAssetHandle, AnimationAdmissionRenderedAssetHandle {
     private var closed = false
     private var revision = 0L
     private var requested: String? = null
@@ -25,6 +27,9 @@ internal class AnimatedNpcHandle(
     private var lastRendered = Long.MIN_VALUE
     private var variationStarted: Long? = null
     private var nextVariation = 20_000L
+    private var gestureStartedNanos = 0L
+    private var gestureHoldNanos = 0L
+    private var animationReservation: Any? = null
     private val viewerVisuals = mutableMapOf<UUID, Pair<Double, Boolean>>()
     private var viewerIntervals = emptyMap<UUID, NpcViewerRate>()
     private var viewerPlayers = emptyMap<UUID, Player>()
@@ -182,18 +187,85 @@ internal class AnimatedNpcHandle(
         }
     }
 
+    override fun canStartAnimation(animation: String): Boolean =
+        synchronized(lock) {
+            val clip = model.animations[animation]
+            !closed &&
+                animationReservation == null &&
+                clip != null &&
+                ((clip.loop == "loop" && animation !in model.sounds) || !gestureBusy())
+        }
+
+    override fun reserveAnimation(animation: String): SceneAnimationAdmission? =
+        synchronized(lock) {
+            if (!canStartAnimation(animation)) return@synchronized null
+            val token = Any()
+            animationReservation = token
+            object : SceneAnimationAdmission {
+                private var used = false
+                private var released = false
+
+                override fun startAnimation(elapsedMillis: Long) {
+                    synchronized(lock) {
+                        check(!closed && !used && !released && animationReservation === token)
+                        used = true
+                        startAnimationLocked(animation, elapsedMillis)
+                    }
+                }
+
+                override fun close() {
+                    synchronized(lock) {
+                        if (!released) {
+                            released = true
+                            if (animationReservation === token) animationReservation = null
+                        }
+                    }
+                }
+            }
+        }
+
+    private fun gestureBusy() =
+        gestureHoldNanos > 0 && nanoTime() - gestureStartedNanos < gestureHoldNanos
+
+    private fun holdGesture(name: String, elapsedMillis: Long = 0) {
+        val clip = model.animations.getValue(name)
+        val sound = model.sounds[name] ?: return
+        // Keep fast-pitched audio conservative; slow pitch extends its physical duration.
+        val duration = maxOf(clip.length * 1000, sound.durationMillis / minOf(sound.pitch, 1.0))
+        val bounded =
+            ceil(duration).coerceAtMost((Long.MAX_VALUE / 4 / 1_000_000 - 200).toDouble()).toLong()
+        // Match the vendor's gesture aura: round up to a client tick and leave 100ms tail room.
+        val holdMillis = ((bounded + 49) / 50) * 50 + 100
+        val remaining = holdMillis - elapsedMillis.coerceAtLeast(0)
+        if (remaining > 0) {
+            val now = nanoTime()
+            val previous =
+                if (gestureHoldNanos > 0)
+                    (gestureHoldNanos - (now - gestureStartedNanos)).coerceAtLeast(0)
+                else 0
+            gestureStartedNanos = now
+            gestureHoldNanos = maxOf(previous, remaining * 1_000_000)
+        }
+    }
+
     override fun startAnimation(animation: LocalId, elapsedMillis: Long) {
         synchronized(lock) {
             if (closed) return
-            val clip =
-                requireNotNull(model.animations[animation.value]) { "Unknown NPC clip $animation" }
-            requested = animation.value
-            elapsed = elapsedMillis
-            variationStarted = null
-            nextVariation = elapsedMillis + 20_000
-            if (elapsedMillis == 0L) playSound(animation.value)
-            advance(elapsedMillis, true)
+            requireNotNull(model.animations[animation.value]) { "Unknown NPC clip $animation" }
+            if (animationReservation != null) return
+            if (elapsedMillis == 0L && !canStartAnimation(animation.value)) return
+            startAnimationLocked(animation.value, elapsedMillis)
         }
+    }
+
+    private fun startAnimationLocked(animation: String, elapsedMillis: Long) {
+        requested = animation
+        elapsed = elapsedMillis
+        variationStarted = null
+        nextVariation = elapsedMillis + 20_000
+        holdGesture(animation, elapsedMillis)
+        if (elapsedMillis == 0L) playSound(animation)
+        advance(elapsedMillis, true)
     }
 
     override fun stopAnimation(animation: LocalId?) {
@@ -268,10 +340,11 @@ internal class AnimatedNpcHandle(
                             (pos.y() - anchor.y) * (pos.y() - anchor.y) +
                             (pos.z() - anchor.z) * (pos.z() - anchor.z) <= 25
                     }
-                if (!near) {
+                if (!near && canStartAnimation("idle2")) {
                     variationStarted = time
                     displayed = "idle2"
                     seconds = 0.0
+                    holdGesture("idle2")
                     playSound("idle2")
                 }
             }
@@ -380,6 +453,7 @@ internal class AnimatedNpcHandle(
         synchronized(lock) {
             if (!closed) {
                 closed = true
+                animationReservation = null
                 revision++
                 visibilityTask.cancel()
                 viewerVisuals.clear()

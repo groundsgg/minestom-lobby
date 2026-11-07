@@ -14,6 +14,7 @@ import net.minestom.server.item.Material
 internal class LobbyNpcModelRenderers(
     private val assets: AssetCatalog,
     private val models: Map<AssetKey, NpcModel> = NpcModels.load(assets),
+    private val nanoTime: () -> Long = System::nanoTime,
 ) : AnimatedSceneRenderers {
     init {
         models.forEach { (key, model) ->
@@ -99,6 +100,7 @@ internal class LobbyNpcModelRenderers(
                                 displays,
                                 context.transform,
                                 LobbySceneEffects(assets),
+                                nanoTime,
                             )
                         if (!result.complete(handle)) handle.close()
                     } catch (error: Throwable) {
