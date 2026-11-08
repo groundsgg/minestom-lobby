@@ -9,7 +9,9 @@ internal sealed interface LobbyMapSource {
     data class Local(val root: Path) : LobbyMapSource
 }
 
-internal data class LoadedLobbyMap(
+internal data class LoadedLobbyMap
+@JvmOverloads
+constructor(
     val root: Path,
     val source: LobbyMapSource,
     val transportSha256: String? = null,
