@@ -2,6 +2,7 @@ package gg.grounds.minestom.lobby
 
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import gg.grounds.runtime.core.world.MapLight
 import java.io.BufferedInputStream
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
@@ -221,11 +222,17 @@ class MapDistributionTest {
         @TempDir cache: Path
     ) {
         val source = "a".repeat(64)
-        val lit = archive(".grounds-lit-v1" to "", "scene.json" to "unchanged-scene")
+        val lit = archive(MapLight.MARKER to "", "scene.json" to "unchanged-scene")
         val litDigest = sha256(lit)
         server(
                 pin = { base ->
-                    litPin(source, "$base/raw-must-not-load", 1, litDigest, "$base/bundle")
+                    litPin(
+                        source,
+                        "$base/raw-must-not-load",
+                        MapLight.FORMAT,
+                        litDigest,
+                        "$base/bundle",
+                    )
                 },
                 bundle = lit,
             )
@@ -234,7 +241,7 @@ class MapDistributionTest {
                 val loaded = distribution.mapFor("lobby/main")!!
                 assertEquals(LobbyMapSource.Published("lobby/main", 42, source), loaded.source)
                 assertEquals(cache.resolve("verified-v1").resolve(litDigest), loaded.root)
-                assertTrue(Files.isRegularFile(loaded.root.resolve(".grounds-lit-v1")))
+                assertTrue(Files.isRegularFile(loaded.root.resolve(MapLight.MARKER)))
                 assertEquals("unchanged-scene", Files.readString(loaded.root.resolve("scene.json")))
                 assertEquals(
                     source,
@@ -277,7 +284,13 @@ class MapDistributionTest {
         val digest = sha256(bytes)
         server(
                 pin = { base ->
-                    litPin("a".repeat(64), "$base/raw-must-not-load", 1, digest, "$base/bundle")
+                    litPin(
+                        "a".repeat(64),
+                        "$base/raw-must-not-load",
+                        MapLight.FORMAT,
+                        digest,
+                        "$base/bundle",
+                    )
                 },
                 bundle = bytes,
             )
@@ -289,13 +302,13 @@ class MapDistributionTest {
 
     @Test
     fun `tampered lit bytes are rejected against the lit digest`(@TempDir cache: Path) {
-        val bytes = archive(".grounds-lit-v1" to "", "scene.json" to "{}")
+        val bytes = archive(MapLight.MARKER to "", "scene.json" to "{}")
         server(
                 pin = { base ->
                     litPin(
                         "a".repeat(64),
                         "$base/raw-must-not-load",
-                        1,
+                        MapLight.FORMAT,
                         "b".repeat(64),
                         "$base/bundle",
                     )
