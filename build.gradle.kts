@@ -151,6 +151,7 @@ dependencies {
     implementation(platform("gg.grounds:grounds-dependencies:1.0.0"))
 
     implementation("gg.grounds:grounds-minestom-runtime-runtime-core:0.13.0")
+    implementation("gg.grounds:grounds-minestom-runtime-runtime-world:0.15.1")
     implementation("gg.grounds:scene-minestom:0.4.5")
     implementation("gg.grounds:scene-interaction:0.4.5")
     implementation("gg.grounds:resourcepacks-catalog:1.3.0")
@@ -159,7 +160,7 @@ dependencies {
     // Minecraft 26.3. Overrides the 26.2 Minestom in grounds-dependencies 1.0.0 until that
     // platform carries an upstream 26.3 release. Keep in step with grounds-vanilla's 26.3 line,
     // which is built on this exact version.
-    implementation("net.minestom:minestom:2026.10.25b-26.3-grounds")
+    implementation("net.minestom:minestom:2026.11.08-26.3-grounds")
     implementation("gg.grounds:plugin-agones-minestom:3.2.0")
     implementation("io.nats:jnats")
     implementation("gg.grounds:plugin-permissions-minestom:1.6.1")
