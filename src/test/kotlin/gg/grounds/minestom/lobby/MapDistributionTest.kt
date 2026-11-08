@@ -226,7 +226,13 @@ class MapDistributionTest {
         val litDigest = sha256(lit)
         server(
                 pin = { base ->
-                    litPin(source, "$base/raw-must-not-load", MapLight.FORMAT, litDigest, "$base/bundle")
+                    litPin(
+                        source,
+                        "$base/raw-must-not-load",
+                        MapLight.FORMAT,
+                        litDigest,
+                        "$base/bundle",
+                    )
                 },
                 bundle = lit,
             )
@@ -278,7 +284,13 @@ class MapDistributionTest {
         val digest = sha256(bytes)
         server(
                 pin = { base ->
-                    litPin("a".repeat(64), "$base/raw-must-not-load", MapLight.FORMAT, digest, "$base/bundle")
+                    litPin(
+                        "a".repeat(64),
+                        "$base/raw-must-not-load",
+                        MapLight.FORMAT,
+                        digest,
+                        "$base/bundle",
+                    )
                 },
                 bundle = bytes,
             )
