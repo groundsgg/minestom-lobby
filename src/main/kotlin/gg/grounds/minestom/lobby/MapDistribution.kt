@@ -79,6 +79,9 @@ internal class MapDistribution(
                     return LoadedLobbyMap(
                         unpacked,
                         LobbyMapSource.Published(address, pinned.version, pinned.sourceSha256),
+                        transportSha256 = pinned.bundleSha256,
+                        prelit = pinned.prelit,
+                        environment = environment,
                     )
                 }
                 download(pinned, unpacked)
@@ -91,6 +94,9 @@ internal class MapDistribution(
                 LoadedLobbyMap(
                     unpacked,
                     LobbyMapSource.Published(address, pinned.version, pinned.sourceSha256),
+                    transportSha256 = pinned.bundleSha256,
+                    prelit = pinned.prelit,
+                    environment = environment,
                 )
             }
             .onFailure { logger.warn("Could not get {} from the map service", address, it) }

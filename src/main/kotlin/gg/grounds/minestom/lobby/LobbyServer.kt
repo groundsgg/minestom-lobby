@@ -28,7 +28,7 @@ internal fun buildLobbyServer(env: Map<String, String> = System.getenv()): Groun
             .config(runtimeConfig)
             .discoverProviders()
             .use(MapBlockRenderingModule())
-            .use(LobbyModule(fatalStop = { server.stop() }))
+            .use(LobbyModule(fatalStop = { server.stop() }, lodEnvironment = env))
 
     // On unless switched off: analytics is a fire-and-forget publisher that becomes a no-op
     // when NATS is unreachable, so there is no backend whose absence should keep it out.

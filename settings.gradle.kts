@@ -46,3 +46,13 @@ providers.gradleProperty("npcLobbySourceDirectory").orNull?.let { directory ->
         }
     }
 }
+
+// Local qualification uses the exact reviewed sources before the library release exists.
+providers.gradleProperty("lodSourceDirectory").orNull?.let { directory ->
+    includeBuild(file(directory)) {
+        dependencySubstitution {
+            substitute(module("gg.grounds:service-maps-lod-runtime")).using(project(":lod-runtime"))
+            substitute(module("gg.grounds:service-maps-lod-format")).using(project(":lod-format"))
+        }
+    }
+}
