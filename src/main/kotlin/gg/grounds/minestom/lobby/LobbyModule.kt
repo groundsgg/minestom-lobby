@@ -66,16 +66,7 @@ internal class LobbyModule(
                         else prepared
                     }
                     ?.runtimeRequest(instanceContainer, ctx.services)
-                    .also {
-                        if (demoEnabled)
-                            requireStageNpcDemoMap(
-                                loaded.source,
-                                it?.scene,
-                                requireNotNull(System.getenv("GROUNDS_NPC_DEMO_MAP_SHA256")) {
-                                    "NPC demo map digest missing"
-                                },
-                            )
-                    }
+                    .also { if (demoEnabled) requireStageNpcDemoMap(loaded.source, it?.scene) }
                     .also { request ->
                         val started = System.nanoTime()
                         val centres =

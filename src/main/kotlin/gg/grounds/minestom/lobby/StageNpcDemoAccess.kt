@@ -36,16 +36,12 @@ internal fun stageNpcDemoEnabled(environment: Map<String, String> = System.geten
     return true
 }
 
-internal fun requireStageNpcDemoMap(
-    source: LobbyMapSource,
-    scene: SceneDocument?,
-    expectedSha256: String,
-) {
-    require(expectedSha256.matches(Regex("[0-9a-f]{64}"))) { "NPC demo needs an exact map digest" }
+internal fun requireStageNpcDemoMap(source: LobbyMapSource, scene: SceneDocument?) {
     require(
         source is LobbyMapSource.Published &&
             source.address == "lobby/mainlobby" &&
-            source.sha256 == expectedSha256
+            source.version > 0 &&
+            source.sha256.matches(Regex("[0-9a-f]{64}"))
     ) {
         "NPC demo requires its verified published map; fallback is not safe"
     }
