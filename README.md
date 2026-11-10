@@ -258,3 +258,6 @@ registration, Minecraft framing, compression, TLS, TCP and remote acknowledgemen
 retries. Shared server reservations remain conservative and are never refunded.
 The queue gauge is `grounds.lod.delivery.queued.frames`. No player, map hash or
 version is a metric label. Retiring the adapter removes its meters.
+
+Ordinary Stage LOD serving, permission checks and its server-only configuration are documented in
+[docs/lod-serving.md](docs/lod-serving.md). The older finite pilot remains separately opt-in.

@@ -173,7 +173,7 @@ repositories {
 dependencies {
     testImplementation(kotlin("test"))
     implementation("io.micrometer:micrometer-core:1.16.6")
-    implementation("gg.grounds:service-maps-lod-runtime:1.15.0")
+    implementation("gg.grounds:service-maps-lod-runtime:1.16.0")
     implementation(platform("gg.grounds:grounds-dependencies:1.0.0"))
 
     implementation("gg.grounds:grounds-minestom-runtime-runtime-core:0.13.0")

@@ -140,13 +140,22 @@ internal class LobbyModule(
 
         val node = ctx.eventNode("grounds-lobby")
         lodPilot =
-            LobbyLodPilot.install(
-                node,
-                created,
-                lodEnvironment,
-                { ctx.services.get<Permissions>() },
-                { ctx.services.get<MeterRegistry>() },
-            )
+            if (lodEnvironment["GROUNDS_LOD_SERVING_ENABLED"] == "true")
+                LobbyLodServing.install(
+                    node,
+                    created,
+                    lodEnvironment,
+                    { ctx.services.get<Permissions>() },
+                    { ctx.services.get<MeterRegistry>() },
+                )
+            else
+                LobbyLodPilot.install(
+                    node,
+                    created,
+                    lodEnvironment,
+                    { ctx.services.get<Permissions>() },
+                    { ctx.services.get<MeterRegistry>() },
+                )
         if (demo != null) {
             val testCommand = StageNpcDemoCommand(demo)
             MinecraftServer.getCommandManager().register(testCommand)

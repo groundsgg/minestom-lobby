@@ -14,7 +14,7 @@ Real-client compatibility, two-proxy behavior and actual network cost remain acc
 
 ## Build dependency
 
-The typed dependency is `gg.grounds:service-maps-lod-runtime:1.15.0`, with the shared format
+The typed dependency is `gg.grounds:service-maps-lod-runtime:1.16.0`, with the shared format
 dependency of the same Maps version. Both artifacts must exist before merging/building the host normally. If release
 ordering changes, pin the actual reviewed published version before host integration.
 
