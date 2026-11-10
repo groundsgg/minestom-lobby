@@ -1,0 +1,10 @@
+{
+  "source": "minestom-lobby",
+  "sourceVersion": "${version}",
+  "permissions": [{
+    "key": "grounds.lod.receive",
+    "label": "Receive distant terrain",
+    "description": "Receive server-provided LOD terrain through LSS on supported maps.",
+    "supportedScopes": ["GLOBAL", "SERVER_TYPE", "SERVER"]
+  }]
+}

@@ -91,7 +91,12 @@ class MapDistributionTest {
 
                 val root = cache.resolve("verified-v1").resolve(digest)
                 assertEquals(
-                    LoadedLobbyMap(root, LobbyMapSource.Published("lobby/main", 42, digest)),
+                    LoadedLobbyMap(
+                        root,
+                        LobbyMapSource.Published("lobby/main", 42, digest),
+                        transportSha256 = digest,
+                        environment = "test",
+                    ),
                     first,
                 )
                 assertEquals(first, second)
@@ -242,6 +247,8 @@ class MapDistributionTest {
                 assertEquals(LobbyMapSource.Published("lobby/main", 42, source), loaded.source)
                 assertEquals(cache.resolve("verified-v1").resolve(litDigest), loaded.root)
                 assertTrue(Files.isRegularFile(loaded.root.resolve(MapLight.MARKER)))
+                assertEquals(litDigest, loaded.transportSha256)
+                assertTrue(loaded.prelit)
                 assertEquals("unchanged-scene", Files.readString(loaded.root.resolve("scene.json")))
                 assertEquals(
                     source,

@@ -11,6 +11,7 @@ import gg.grounds.runtime.GroundsServerContext
 import gg.grounds.scene.minestom.SceneRuntimeCreationResult
 import gg.grounds.scene.minestom.SceneRuntimeFactory
 import gg.grounds.scene.minestom.SceneRuntimeRequest
+import io.micrometer.core.instrument.MeterRegistry
 import io.nats.client.Connection
 import io.nats.client.Nats
 import io.nats.client.Options
@@ -26,6 +27,7 @@ import org.slf4j.LoggerFactory
 
 internal class LobbyModule(
     private val fatalStop: () -> Unit,
+    private val lodEnvironment: Map<String, String> = System.getenv(),
     private val createWorld: () -> LobbyMap = LobbyWorld::createInstance,
     private val createRuntime:
         (SceneRuntimeRequest) -> CompletionStage<SceneRuntimeCreationResult> =
@@ -36,6 +38,7 @@ internal class LobbyModule(
     private var spawnCommand: SpawnCommand? = null
     private var sceneHost: LobbySceneHost? = null
     private var world: LobbyMap? = null
+    private var lodPilot: AutoCloseable? = null
     private var pinEvents: Connection? = null
     private var demoAccess: StageNpcDemoAccess? = null
     private var demoCommand: StageNpcDemoCommand? = null
@@ -136,6 +139,14 @@ internal class LobbyModule(
         spawnCommand = command
 
         val node = ctx.eventNode("grounds-lobby")
+        lodPilot =
+            LobbyLodPilot.install(
+                node,
+                created,
+                lodEnvironment,
+                { ctx.services.get<Permissions>() },
+                { ctx.services.get<MeterRegistry>() },
+            )
         if (demo != null) {
             val testCommand = StageNpcDemoCommand(demo)
             MinecraftServer.getCommandManager().register(testCommand)
@@ -220,6 +231,8 @@ internal class LobbyModule(
     }
 
     override fun stop() {
+        runCatching { lodPilot?.close() }.onFailure { logger.warn("LOD pilot shutdown failed") }
+        lodPilot = null
         nativeSolidPocs.forEach { it.close() }
         nativeSolidPocs = emptyList()
         demoCommand?.let(MinecraftServer.getCommandManager()::unregister)
