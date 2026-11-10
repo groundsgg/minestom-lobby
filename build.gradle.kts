@@ -1,4 +1,5 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import groovy.json.JsonSlurper
 import java.security.MessageDigest
 import java.util.HexFormat
 import org.gradle.api.file.DuplicatesStrategy
@@ -85,6 +86,28 @@ providers.gradleProperty("npcAddonZip").orNull?.let { addon ->
     tasks.processResources { dependsOn(generateNpcAddonBinding) }
 }
 
+val permissionManifestVersion =
+    providers
+        .gradleProperty("versionOverride")
+        .orElse(
+            providers
+                .fileContents(layout.projectDirectory.file(".release-please-manifest.json"))
+                .asText
+                .map { text ->
+                    val manifest = JsonSlurper().parseText(text) as Map<*, *>
+                    requireNotNull((manifest["."] as? String)?.takeIf { it.isNotBlank() }) {
+                        "Missing Lobby release version for permission catalog"
+                    }
+                }
+        )
+
+tasks.processResources {
+    inputs.property("permissionManifestVersion", permissionManifestVersion)
+    filesMatching("META-INF/grounds/permissions/minestom-lobby.json") {
+        expand("version" to permissionManifestVersion.get())
+    }
+}
+
 tasks.test {
     doFirst {
         systemProperty("lobby.test.runtimeClasspath", sourceSets.test.get().runtimeClasspath.asPath)
@@ -149,10 +172,12 @@ repositories {
 
 dependencies {
     testImplementation(kotlin("test"))
-    implementation("gg.grounds:service-maps-lod-runtime:1.12.0")
+    implementation("io.micrometer:micrometer-core:1.16.6")
+    implementation("gg.grounds:service-maps-lod-runtime:1.15.0")
     implementation(platform("gg.grounds:grounds-dependencies:1.0.0"))
 
     implementation("gg.grounds:grounds-minestom-runtime-runtime-core:0.13.0")
+    implementation("gg.grounds:grounds-minestom-runtime-runtime-world:0.15.1")
     implementation("gg.grounds:scene-minestom:0.4.5")
     implementation("gg.grounds:scene-interaction:0.4.5")
     implementation("gg.grounds:resourcepacks-catalog:1.3.0")
@@ -161,7 +186,7 @@ dependencies {
     // Minecraft 26.3. Overrides the 26.2 Minestom in grounds-dependencies 1.0.0 until that
     // platform carries an upstream 26.3 release. Keep in step with grounds-vanilla's 26.3 line,
     // which is built on this exact version.
-    implementation("net.minestom:minestom:2026.10.25b-26.3-grounds")
+    implementation("net.minestom:minestom:2026.11.08-26.3-grounds")
     implementation("gg.grounds:plugin-agones-minestom:3.2.0")
     implementation("io.nats:jnats")
     implementation("gg.grounds:plugin-permissions-minestom:1.6.1")

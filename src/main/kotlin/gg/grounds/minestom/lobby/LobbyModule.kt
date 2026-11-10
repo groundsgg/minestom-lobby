@@ -11,6 +11,7 @@ import gg.grounds.runtime.GroundsServerContext
 import gg.grounds.scene.minestom.SceneRuntimeCreationResult
 import gg.grounds.scene.minestom.SceneRuntimeFactory
 import gg.grounds.scene.minestom.SceneRuntimeRequest
+import io.micrometer.core.instrument.MeterRegistry
 import io.nats.client.Connection
 import io.nats.client.Nats
 import io.nats.client.Options
@@ -68,16 +69,7 @@ internal class LobbyModule(
                         else prepared
                     }
                     ?.runtimeRequest(instanceContainer, ctx.services)
-                    .also {
-                        if (demoEnabled)
-                            requireStageNpcDemoMap(
-                                loaded.source,
-                                it?.scene,
-                                requireNotNull(System.getenv("GROUNDS_NPC_DEMO_MAP_SHA256")) {
-                                    "NPC demo map digest missing"
-                                },
-                            )
-                    }
+                    .also { if (demoEnabled) requireStageNpcDemoMap(loaded.source, it?.scene) }
                     .also { request ->
                         val started = System.nanoTime()
                         val centres =
@@ -147,7 +139,14 @@ internal class LobbyModule(
         spawnCommand = command
 
         val node = ctx.eventNode("grounds-lobby")
-        lodPilot = LobbyLodPilot.install(node, created, lodEnvironment)
+        lodPilot =
+            LobbyLodPilot.install(
+                node,
+                created,
+                lodEnvironment,
+                { ctx.services.get<Permissions>() },
+                { ctx.services.get<MeterRegistry>() },
+            )
         if (demo != null) {
             val testCommand = StageNpcDemoCommand(demo)
             MinecraftServer.getCommandManager().register(testCommand)

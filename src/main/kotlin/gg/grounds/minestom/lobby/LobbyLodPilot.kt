@@ -3,6 +3,8 @@ package gg.grounds.minestom.lobby
 import gg.grounds.lod.runtime.LodExpectation
 import gg.grounds.lod.runtime.LodPilotHttpClient
 import gg.grounds.lod.runtime.MinestomLodAdapter
+import gg.grounds.permissions.Permissions
+import io.micrometer.core.instrument.MeterRegistry
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
@@ -18,14 +20,16 @@ private constructor(
     val run: UUID,
     val players: Set<UUID>,
     val generatorSha256: String,
+    val mapAddress: String,
+    val mapVersion: Long,
     private val capabilityFile: Path,
     val cacheDirectory: Path,
 ) {
     fun expectation(loaded: LoadedLobbyMap, registrySha256: String): LodExpectation? {
         val source = loaded.source as? LobbyMapSource.Published ?: return null
         if (
-            source.address != "lobby/mainlobby" ||
-                source.version != 13L ||
+            source.address != mapAddress ||
+                source.version != mapVersion ||
                 !loaded.prelit ||
                 loaded.environment != "stage"
         )
@@ -67,6 +71,17 @@ private constructor(
             val players = raw.map(::uuid).toSet()
             val generator = required("GROUNDS_LOD_PILOT_GENERATOR_SHA256")
             require(sha.matches(generator)) { "Invalid LOD generator identity" }
+            val address = env["GROUNDS_LOD_PILOT_MAP_ADDRESS"]
+            val version = env["GROUNDS_LOD_PILOT_MAP_VERSION"]
+            require((address == null) == (version == null)) { "Incomplete LOD map selection" }
+            val selectedAddress = address ?: "lobby/mainlobby"
+            val selectedVersion = version?.toLongOrNull() ?: if (version == null) 13L else 0L
+            require(
+                Regex("lobby/[a-z0-9][a-z0-9_-]{0,127}").matches(selectedAddress) &&
+                    selectedVersion > 0
+            ) {
+                "Invalid LOD map selection"
+            }
             val origin = URI(env["GROUNDS_LOD_PILOT_SERVICE_ORIGIN"] ?: "https://api.grounds.gg")
             require(
                 origin.scheme == "https" &&
@@ -87,6 +102,8 @@ private constructor(
                 run,
                 players,
                 generator,
+                selectedAddress,
+                selectedVersion,
                 Path.of(required("GROUNDS_LOD_PILOT_CAPABILITY_FILE")),
                 cache,
             )
@@ -101,6 +118,8 @@ internal object LobbyLodPilot {
         parent: EventNode<Event>,
         lobby: LobbyMap,
         env: Map<String, String>,
+        permissions: () -> Permissions?,
+        metrics: () -> MeterRegistry?,
     ): AutoCloseable? =
         configure(env, lobby.loaded, MinestomLodAdapter::registrySha256) { settings, expected ->
             val client =
@@ -110,14 +129,30 @@ internal object LobbyLodPilot {
                     settings.readCapability(),
                     expected.mapSha256,
                 )
-            MinestomLodAdapter.install(
-                parent,
-                lobby.instance,
-                expected,
-                client,
-                settings.players,
-                settings.cacheDirectory,
-            )
+            val adapter =
+                MinestomLodAdapter.install(
+                    parent,
+                    lobby.instance,
+                    expected,
+                    client,
+                    settings.players,
+                    settings.cacheDirectory,
+                    { player -> LobbyLodAccess.allowed(permissions(), player) },
+                )
+            val meters =
+                try {
+                    metrics()?.let { LobbyLodMetrics(it, adapter::stats, adapter::deliveryStats) }
+                } catch (_: Exception) {
+                    logger.warn("LOD delivery metrics unavailable")
+                    null
+                }
+            AutoCloseable {
+                try {
+                    adapter.close()
+                } finally {
+                    meters?.close()
+                }
+            }
         }
 
     fun configure(
@@ -136,7 +171,9 @@ internal object LobbyLodPilot {
         return try {
             val expected = settings.expectation(loaded, registry())
             if (expected == null) {
-                logger.warn("LOD pilot disabled: loaded map is not the prelit stage Lobby v13")
+                logger.warn(
+                    "LOD pilot disabled: loaded map does not match the selected prelit stage Lobby"
+                )
                 null
             } else
                 install(settings, expected).also {

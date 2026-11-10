@@ -6,7 +6,7 @@ WORKDIR /workspace
 
 # copy "static" files first to improve layer caching
 COPY gradle/ gradle/
-COPY gradlew build.gradle.kts settings.gradle.kts ./
+COPY gradlew build.gradle.kts settings.gradle.kts .release-please-manifest.json ./
 COPY src/ src/
 
 # Use locked caches to avoid corruption on parallel builds

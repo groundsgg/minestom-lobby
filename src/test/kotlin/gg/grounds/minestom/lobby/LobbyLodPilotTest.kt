@@ -71,6 +71,55 @@ class LobbyLodPilotTest {
     }
 
     @Test
+    fun `explicit current map version replaces the historical pilot selection`(
+        @TempDir root: Path
+    ) {
+        val config =
+            env(root.resolve("capability")) +
+                mapOf(
+                    "GROUNDS_LOD_PILOT_MAP_ADDRESS" to "lobby/mainlobby",
+                    "GROUNDS_LOD_PILOT_MAP_VERSION" to "17",
+                )
+        val settings = assertNotNull(LobbyLodPilotSettings.fromEnvironment(config))
+        val current =
+            loaded(root).copy(source = LobbyMapSource.Published("lobby/mainlobby", 17, canonical))
+        val expected = assertNotNull(settings.expectation(current, registry))
+        assertEquals(canonical, expected.mapSha256)
+        assertEquals(input, expected.sourceSha256)
+        assertNull(settings.expectation(loaded(root), registry))
+        assertNull(
+            settings.expectation(
+                current.copy(source = LobbyMapSource.Published("lobby/other", 17, canonical)),
+                registry,
+            )
+        )
+    }
+
+    @Test
+    fun `partial or malformed map selection fails closed`(@TempDir root: Path) {
+        val config = env(root.resolve("capability"))
+        for (selection in
+            listOf(
+                mapOf("GROUNDS_LOD_PILOT_MAP_VERSION" to "17"),
+                mapOf("GROUNDS_LOD_PILOT_MAP_ADDRESS" to "lobby/mainlobby"),
+                mapOf(
+                    "GROUNDS_LOD_PILOT_MAP_ADDRESS" to "lobby/mainlobby",
+                    "GROUNDS_LOD_PILOT_MAP_VERSION" to "0",
+                ),
+                mapOf(
+                    "GROUNDS_LOD_PILOT_MAP_ADDRESS" to "../other",
+                    "GROUNDS_LOD_PILOT_MAP_VERSION" to "17",
+                ),
+                mapOf(
+                    "GROUNDS_LOD_PILOT_MAP_ADDRESS" to "u/creator/private",
+                    "GROUNDS_LOD_PILOT_MAP_VERSION" to "17",
+                ),
+            )) {
+            assertFails { LobbyLodPilotSettings.fromEnvironment(config + selection) }
+        }
+    }
+
+    @Test
     fun `invalid configuration or optional adapter failure cannot break lobby installation`(
         @TempDir root: Path
     ) {

@@ -56,6 +56,21 @@ REST permissions provider. In Kubernetes, Forge and the `grounds-gamemode`
 chart supply these values together with the projected workload token. Leaving
 both unset disables the provider; partial configuration fails startup.
 
+### LOD entitlement
+
+The optional LSS terrain delivery requires `grounds.lod.receive` from the current
+Permissions snapshot. Assign this node to the desired Premium role; its name alone
+never grants access. Missing, expired or unavailable permissions deny new LOD delivery.
+The server checks again before queued terrain is serialized, so revocation stops further
+delivery and a later grant works in the same session. Previously downloaded or explored
+Voxy terrain remains in the client cache. Ordinary Lobby access is unaffected.
+The node is declared in the existing permission catalog with global, server type and
+server scopes. The finite Stage run and player allowlist remain additional requirements.
+
+For a current map, configure `GROUNDS_LOD_PILOT_MAP_ADDRESS` and
+`GROUNDS_LOD_PILOT_MAP_VERSION` together. The loaded map and exact source hashes must match;
+without either key, the historical `lobby/mainlobby` version 13 selection is retained.
+
 ### Notifications runtime
 
 Notifications require the permissions provider above. Set `NOTIFICATIONS_SERVICE_URL`,
@@ -229,3 +244,17 @@ directories. It does not load a map or modify a live sidecar. The typed fixture 
 with a 500 ms cooldown, and a marker prop. Review placement before any separately authorized map
 publication. The generator lives exclusively in test sources and is absent from production JARs;
 no scene testkit is a production dependency.
+
+### LOD delivery measurements
+
+Optional LOD delivery uses the existing runtime metrics endpoint. The counters
+`grounds.lod.delivery.serialized.body.bytes` (`kind=terrain|control`) and
+`grounds.lod.delivery.serialized.frames` advance after the actual writer consumes
+the frame and its final cancellation state is known. Buffer retries and cancelled
+frames do not add completed bodies. These are application bytes, excluding channel
+registration, Minecraft framing, compression, TLS, TCP and remote acknowledgement.
+`grounds.lod.delivery.authorized.body.bytes` counts earlier authorization, while
+`grounds.lod.delivery.discarded.frames` counts rejected writer attempts including
+retries. Shared server reservations remain conservative and are never refunded.
+The queue gauge is `grounds.lod.delivery.queued.frames`. No player, map hash or
+version is a metric label. Retiring the adapter removes its meters.
