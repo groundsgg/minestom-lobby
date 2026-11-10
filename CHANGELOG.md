@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.17.0](https://github.com/groundsgg/minestom-lobby/compare/v2.16.0...v2.17.0) (2026-11-10)
+
+
+### Features
+
+* **lod:** enable entitled serving on stage lobby ([#256](https://github.com/groundsgg/minestom-lobby/issues/256)) ([a6e5718](https://github.com/groundsgg/minestom-lobby/commit/a6e5718deeeb04232d18a773d91ad7e5145ab395))
+
 ## [2.16.0](https://github.com/groundsgg/minestom-lobby/compare/v2.15.0...v2.16.0) (2026-11-10)
 
 
