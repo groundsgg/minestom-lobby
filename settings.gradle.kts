@@ -27,8 +27,8 @@ providers.gradleProperty("npcResourcepacksDirectory").orNull?.let { directory ->
         dependencySubstitution {
             substitute(module("gg.grounds:resourcepacks-catalog"))
                 .using(project(":resourcepacks-catalog"))
-            substitute(module("gg.grounds:resourcepacks-npc-runtime"))
-                .using(project(":resourcepacks-npc-runtime"))
+            substitute(module("gg.grounds:resourcepacks-npc-content"))
+                .using(project(":resourcepacks-npc-content"))
         }
     }
 }

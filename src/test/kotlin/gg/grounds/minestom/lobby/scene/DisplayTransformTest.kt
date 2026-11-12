@@ -1,11 +1,13 @@
 package gg.grounds.minestom.lobby.scene
 
-import gg.grounds.resourcepacks.npc.*
+import gg.grounds.npc.core.NpcMatrix
+import gg.grounds.npc.core.NpcVector3
 import gg.grounds.scene.format.EulerRotation
 import gg.grounds.scene.format.LocalBounds
 import gg.grounds.scene.format.Transform
 import gg.grounds.scene.format.Vec3
 import gg.grounds.scene.minestom.SceneRenderTransform
+import gg.grounds.scene.npc.minestom.SceneNpcTransformMapper
 import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 import net.minestom.server.MinecraftServer
@@ -27,8 +29,8 @@ class DisplayTransformTest {
                     fixture.display.entityMeta
                         as net.minestom.server.entity.metadata.display.AbstractDisplayMeta
                 fun pose(delta: Double) =
-                    NpcMatrix.translation(Vec3(1.0 + delta, 2.0, 3.0)) *
-                        NpcMatrix.scale(Vec3(1.0, 2.0 + delta, 3.0))
+                    NpcMatrix.translation(NpcVector3(1.0 + delta, 2.0, 3.0)) *
+                        NpcMatrix.scale(NpcVector3(1.0, 2.0 + delta, 3.0))
 
                 assertTrue(DisplayTransform.fromModel(sceneTransform(), pose(0.0)).apply(meta))
                 // These distinct doubles serialize to the same float components as the first pose.
@@ -41,7 +43,7 @@ class DisplayTransformTest {
 
     @Test
     fun `model display metadata preserves reflected and collapsed animated axes`() {
-        val rotation = NpcMatrix.rotation(Vec3(27.0, 43.0, -19.0))
+        val rotation = NpcMatrix.rotation(NpcVector3(27.0, 43.0, -19.0))
         val scales =
             listOf(
                 Vec3(-1.0, -1.0, -1.0),
@@ -55,7 +57,7 @@ class DisplayTransformTest {
                 Vec3(0.0, 0.0, 0.0),
             )
         for (scale in scales) {
-            val model = rotation * NpcMatrix.scale(scale)
+            val model = rotation * NpcMatrix.scale(SceneNpcTransformMapper.toNpc(scale))
             RendererFixture().use { fixture ->
                 fixture.create(sceneTransform()).get(5, TimeUnit.SECONDS).use {
                     val meta =

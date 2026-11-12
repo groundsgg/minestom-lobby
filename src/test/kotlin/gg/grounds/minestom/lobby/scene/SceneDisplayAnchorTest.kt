@@ -11,7 +11,7 @@ class SceneDisplayAnchorTest {
         MinecraftServer.init()
         RendererFixture().use { fixture ->
             val anchor = Pos(0.0, 173.0, 0.0)
-            for (display in listOf(NpcItemDisplay(Any()), HighlightableBlockDisplay())) {
+            for (display in listOf(HighlightableBlockDisplay())) {
                 display.setInstance(fixture.instance, anchor).join()
                 repeat(20) { display.tick(it * 50L) }
                 assertEquals(

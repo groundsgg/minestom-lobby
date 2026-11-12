@@ -68,6 +68,22 @@ def snapshot_checkout(directory, commit, target):
     archive.unlink()
 
 
+def verify_shared_engine(jar):
+    with zipfile.ZipFile(jar) as archive:
+        names = set(archive.namelist())
+        required = {'gg/grounds/npc/core/NpcModel.class',
+                    'gg/grounds/npc/minestom/NpcRenderer.class',
+                    'gg/grounds/scene/npc/minestom/SceneNpcRenderers.class'}
+        if not required <= names:
+            raise ValueError('Missing shared NPC engine or Scene adapter')
+        legacy = {'AnimatedNpcHandle', 'NpcItemDisplay', 'NpcPendingMetadata',
+                  'NpcRenderPolicy', 'NpcViewerRate', 'LobbyNpcModelRenderers'}
+        if any(name.startswith(NPC) and name.endswith('.class') for name in names) or any(
+            'gg/grounds/minestom/lobby/scene/' + owner + '.class' in names for owner in legacy
+        ):
+            raise ValueError('Legacy NPC engine must not remain in the distribution')
+
+
 def verify_pair(jar, addon, sha1):
     with zipfile.ZipFile(jar) as host, zipfile.ZipFile(addon) as pack:
         if len(set(host.namelist())) != len(host.namelist()):
@@ -211,6 +227,7 @@ def main():
         jar = staging / 'minestom-lobby.jar'
         shutil.copyfile(jars[0], jar)
         models = verify_pair(jar, addon, args.addon_sha1)
+        verify_shared_engine(jar)
         bundle = json.loads((pack_source / 'build/generated/npc-models/bundle.json').read_text())
         if bundle['sourceSha256'] != source_hashes:
             raise ValueError('Compiler source archive identity differs from the snapshot')

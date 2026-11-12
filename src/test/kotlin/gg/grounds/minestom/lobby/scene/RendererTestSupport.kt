@@ -1,6 +1,6 @@
 package gg.grounds.minestom.lobby.scene
 
-import gg.grounds.resourcepacks.npc.*
+import gg.grounds.npc.core.*
 import gg.grounds.scene.format.AssetCatalog
 import gg.grounds.scene.format.AssetDefinition
 import gg.grounds.scene.format.AssetKey
@@ -176,4 +176,53 @@ internal fun awaitBlocked(thread: Thread) {
         thread.state == Thread.State.BLOCKED,
         "Expected lifecycle operation to block behind packet send, got ${thread.state}",
     )
+}
+
+internal fun decodeNpcModel(json: String) =
+    (gg.grounds.npc.core.NpcModelJson.decode(json.toByteArray())
+            as gg.grounds.npc.core.NpcDecodeResult.Success)
+        .model
+
+internal fun gg.grounds.scene.minestom.SceneAssetRendererFactory.createForTest(
+    context: SceneAssetRenderContext
+): java.util.concurrent.CompletionStage<gg.grounds.scene.minestom.RenderedAssetHandle> {
+    val stage =
+        if (this is gg.grounds.scene.minestom.ScopedSceneAssetRendererFactory) {
+            createScoped(
+                context,
+                object : gg.grounds.scene.minestom.SceneRendererLifetime {
+                    override fun trackCleanup(
+                        cleanup: java.util.concurrent.CompletionStage<Void>
+                    ) {}
+
+                    override fun isCurrent() = true
+
+                    override fun runIfCurrent(operation: Runnable): Boolean {
+                        operation.run()
+                        return true
+                    }
+
+                    override fun onInvalidated(callback: Runnable) = AutoCloseable {}
+
+                    override fun reportFailure(failure: Throwable) {
+                        throw AssertionError(failure)
+                    }
+                },
+            )
+        } else create(context)
+    val driven =
+        object : CompletableFuture<gg.grounds.scene.minestom.RenderedAssetHandle>() {
+            override fun join(): gg.grounds.scene.minestom.RenderedAssetHandle {
+                val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+                while (!isDone && System.nanoTime() < deadline) {
+                    context.instance.tick(0)
+                    Thread.yield()
+                }
+                return super.get(1, TimeUnit.SECONDS)
+            }
+        }
+    stage.whenComplete { value, error ->
+        if (error == null) driven.complete(value) else driven.completeExceptionally(error)
+    }
+    return driven
 }

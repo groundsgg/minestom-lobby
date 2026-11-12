@@ -16,6 +16,24 @@ class DistributionTest(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
 
+    def test_distribution_requires_shared_engine_and_rejects_legacy_copies(self):
+        jar = self.root / 'engine.jar'
+        required = ['gg/grounds/npc/core/NpcModel.class',
+                    'gg/grounds/npc/minestom/NpcRenderer.class',
+                    'gg/grounds/scene/npc/minestom/SceneNpcRenderers.class']
+        with zipfile.ZipFile(jar, 'w') as archive:
+            for entry in required:
+                archive.writestr(entry, b'class fixture')
+        distribution.verify_shared_engine(jar)
+        with zipfile.ZipFile(jar, 'a') as archive:
+            archive.writestr('gg/grounds/resourcepacks/npc/NpcModel.class', b'legacy')
+        with self.assertRaisesRegex(ValueError, 'Legacy NPC'):
+            distribution.verify_shared_engine(jar)
+        with zipfile.ZipFile(jar, 'w') as archive:
+            archive.writestr(required[0], b'class fixture')
+        with self.assertRaisesRegex(ValueError, 'Missing shared NPC'):
+            distribution.verify_shared_engine(jar)
+
     def test_private_catalog_has_a_distinct_source_build_identity(self):
         commit = '0123456789abcdef0123456789abcdef01234567'
         self.assertEqual(distribution.private_catalog_version(commit, 42),

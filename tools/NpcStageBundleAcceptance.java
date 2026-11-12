@@ -3,7 +3,7 @@ import gg.grounds.minestom.lobby.LoadedLobbyMap;
 import gg.grounds.minestom.lobby.LobbyMapSource;
 import gg.grounds.minestom.lobby.scene.LobbySceneLoader;
 import gg.grounds.resourcepacks.catalog.GroundsAssetCatalog;
-import gg.grounds.resourcepacks.npc.NpcModels;
+import gg.grounds.minestom.lobby.scene.GroundsNpcModelSource;
 import java.nio.file.Path;
 import java.nio.file.Files;
 import java.security.MessageDigest;
@@ -52,14 +52,14 @@ public final class NpcStageBundleAcceptance {
             "GROUNDS_NPC_ADDON_URL", "https://example.invalid/npc-addon.zip",
             "GROUNDS_NPC_ADDON_SHA1", args[3]));
         var catalog = GroundsAssetCatalog.INSTANCE.getCatalog();
-        var models = NpcModels.INSTANCE.load(catalog);
+        var models = GroundsNpcModelSource.INSTANCE.load(catalog);
         if (models.size() != 15) throw new AssertionError("Expected fifteen complete NPC models");
         var loaded = new LoadedLobbyMap(Path.of(args[0]), new LobbyMapSource.Local(Path.of(args[0])));
         var prepared = new LobbySceneLoader().load(loaded);
         if (prepared == null || prepared.getScene().getElements().size() != 22)
             throw new AssertionError("Expected the existing twenty-two-element Stage scene");
         com.google.gson.JsonObject digests;
-        try (var resource = NpcModels.class.getResourceAsStream("/gg/grounds/resourcepacks/npc/pack-digests.json")) {
+        try (var resource = GroundsNpcModelSource.class.getResourceAsStream("/gg/grounds/resourcepacks/npc/pack-digests.json")) {
             if (resource == null) throw new AssertionError("Missing compiled client pack contract");
             digests = JsonParser.parseString(new String(resource.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)).getAsJsonObject();
         }
