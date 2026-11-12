@@ -152,7 +152,7 @@ The host currently supports these exact catalogs/capabilities:
   by a scene only when that scene references the navigator action. The action rejects arguments,
   disconnected players, and players outside the owning instance. Permission conditions consult
   the installed permissions service; an absent service denies permissions.
-- `gg.grounds:scene-minestom:0.2.1` provides the scene runtime. Placeholder rendering supports
+- `gg.grounds:scene-npc-minestom` provides the Scene runtime and optional shared NPC adapter. Placeholder rendering supports
   authored transforms, including root/local scale, and private viewer highlights. Viewer-scale
   actions, animations, sound, and particle effects are rejected in preflight. This is not a
   general resource-pack/model renderer.
@@ -207,7 +207,7 @@ The tool exports committed host and Resourcepacks sources into fresh, private te
 directories and snapshots the licensed archives, policy, addon and scene. This avoids shared
 composite-build outputs and records all archive hashes. It runs a clean host build and the
 entire host test suite. Only `resourcepacks-catalog` and
-`resourcepacks-npc-runtime` use source substitution by default; an explicit pinned Lobby source
+`resourcepacks-npc-content` use source substitution by default; an explicit pinned Lobby source
 also substitutes its two modules. Scene and Chat use their published pinned versions.
 Private host outputs live under the snapshot's `build/private-npc`, separate from ordinary builds.
 After checking ZIP completeness and hashes, the final executable JAR loads the supplied scene
@@ -261,3 +261,23 @@ version is a metric label. Retiring the adapter removes its meters.
 
 Ordinary Stage LOD serving, permission checks and its server-only configuration are documented in
 [docs/lod-serving.md](docs/lod-serving.md). The older finite pilot remains separately opt-in.
+
+### Shared NPC engine migration candidate
+
+NPC rendering delegates to `groundsgg/library-npc` through the optional
+`scene-npc-minestom` adapter. The host loads and validates numeric content,
+Grounds catalogue bindings, `grounds:npc_parts/` mesh references and sound keys.
+Placeholder transform conversion delegates to the same library math.
+The executable distribution check rejects legacy embedded NPC engine classes.
+
+This branch currently pins local review candidates `scene-npc-minestom:0.4.6-npc-SNAPSHOT`
+and `resourcepacks-npc-content:1.3.0`. Those are explicit local integration inputs,
+not published versions. Before merging, replace them with the actual generated
+Scene and Resourcepacks releases containing the adapter/content modules. The
+optional `-PnpcRepository=file:///...` selects a local review Maven repository.
+The private distribution tool still requires committed, pinned source inputs.
+
+Independent NPC 0.1.0 release, public adapter/content publication, full licensed
+model/pack acceptance, real two-player and proxy/server transfer checks precede
+product activation. Shared clips are preserved; personal clip/head/sound playback
+is a separate follow-up. No new map or Stage/Production switch is enabled here.
