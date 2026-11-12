@@ -178,10 +178,10 @@ dependencies {
 
     implementation("gg.grounds:grounds-minestom-runtime-runtime-core:0.13.0")
     implementation("gg.grounds:grounds-minestom-runtime-runtime-world:0.15.1")
-    implementation("gg.grounds:scene-minestom:0.4.5")
+    implementation("gg.grounds:scene-npc-minestom:0.4.6-npc-SNAPSHOT")
     implementation("gg.grounds:scene-interaction:0.4.5")
     implementation("gg.grounds:resourcepacks-catalog:1.3.0")
-    implementation("gg.grounds:resourcepacks-npc-runtime:1.3.0")
+    implementation("gg.grounds:resourcepacks-npc-content:1.3.0")
     implementation("gg.grounds:plugin-lobby-scene-catalog:2.23.0")
     // Minecraft 26.3. Overrides the 26.2 Minestom in grounds-dependencies 1.0.0 until that
     // platform carries an upstream 26.3 release. Keep in step with grounds-vanilla's 26.3 line,
@@ -234,4 +234,24 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     runtimeOnly("org.slf4j:slf4j-simple")
+}
+
+// Local review candidates only; no composite substitution for the NPC/Scene engines.
+providers.gradleProperty("npcRepository").orNull?.let { location ->
+    val review =
+        repositories.maven {
+            name = "NpcReview"
+            url = uri(location)
+        }
+    repositories.remove(review)
+    repositories.addFirst(review)
+}
+
+tasks.register<JavaCompile>("compileNpcStageAcceptanceTool") {
+    dependsOn(tasks.named("shadowJar"))
+    source(file("tools/NpcStageBundleAcceptance.java"))
+    classpath = files(tasks.named<ShadowJar>("shadowJar").flatMap { it.archiveFile })
+    destinationDirectory = layout.buildDirectory.dir("verification/acceptance-tools")
+    javaCompiler = javaToolchains.compilerFor { languageVersion = JavaLanguageVersion.of(25) }
+    options.release = 25
 }

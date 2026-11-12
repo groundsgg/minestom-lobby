@@ -1,6 +1,6 @@
 package gg.grounds.minestom.lobby.scene
 
-import gg.grounds.resourcepacks.npc.*
+import gg.grounds.npc.core.NpcClipSound
 import gg.grounds.scene.format.*
 import gg.grounds.scene.minestom.SceneEffectSink
 import net.kyori.adventure.key.Key
