@@ -71,14 +71,14 @@ def snapshot_checkout(directory, commit, target):
 def verify_shared_engine(jar):
     with zipfile.ZipFile(jar) as archive:
         names = set(archive.namelist())
-        required = {'gg/grounds/npc/core/NpcModel.class',
+        required = {'gg/grounds/npc/core/model/NpcModel.class',
                     'gg/grounds/npc/minestom/NpcRenderer.class',
                     'gg/grounds/scene/npc/minestom/SceneNpcRenderers.class'}
         if not required <= names:
             raise ValueError('Missing shared NPC engine or Scene adapter')
         legacy = {'AnimatedNpcHandle', 'NpcItemDisplay', 'NpcPendingMetadata',
                   'NpcRenderPolicy', 'NpcViewerRate', 'LobbyNpcModelRenderers'}
-        if any(name.startswith(NPC) and name.endswith('.class') for name in names) or any(
+        if 'gg/grounds/npc/core/NpcModel.class' in names or any(name.startswith(NPC) and name.endswith('.class') for name in names) or any(
             'gg/grounds/minestom/lobby/scene/' + owner + '.class' in names for owner in legacy
         ):
             raise ValueError('Legacy NPC engine must not remain in the distribution')
