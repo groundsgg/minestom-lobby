@@ -1,7 +1,7 @@
 package gg.grounds.minestom.lobby.scene
 
 import com.google.gson.JsonParser
-import gg.grounds.npc.core.*
+import gg.grounds.npc.core.animation.NpcPoseSampler
 import gg.grounds.resourcepacks.catalog.GroundsAssetCatalog
 import gg.grounds.scene.format.*
 import gg.grounds.scene.minestom.SceneAssetRenderContext
@@ -146,10 +146,9 @@ class LicensedNpcBundleTest {
             for ((name, clip) in model.animations) {
                 for (fraction in listOf(0.0, 0.25, 0.5, 0.75, 1.0)) {
                     assertTrue(
-                        NpcPoseSampler.sample(model, name, clip.length * fraction).parts.all { pose
-                            ->
-                            pose.values.all(Double::isFinite)
-                        },
+                        NpcPoseSampler.sample(model, name, clip.lengthSeconds * fraction)
+                            .parts
+                            .all { pose -> pose.values.all(Double::isFinite) },
                         "$path $name $fraction",
                     )
                 }

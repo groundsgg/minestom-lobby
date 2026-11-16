@@ -1,6 +1,5 @@
 package gg.grounds.minestom.lobby.scene
 
-import gg.grounds.npc.core.*
 import gg.grounds.scene.format.AssetKey
 import gg.grounds.scene.format.AssetKind
 import gg.grounds.scene.format.Vec3

@@ -270,7 +270,7 @@ Grounds catalogue bindings, `grounds:npc_parts/` mesh references and sound keys.
 Placeholder transform conversion delegates to the same library math.
 The executable distribution check rejects legacy embedded NPC engine classes.
 
-This branch currently pins local review candidates `scene-npc-minestom:0.4.6-npc-SNAPSHOT`
+This branch currently pins local review candidates `scene-npc-minestom:0.5.0-api-review-SNAPSHOT`
 and `resourcepacks-npc-content:1.3.0`. Those are explicit local integration inputs,
 not published versions. Before merging, replace them with the actual generated
 Scene and Resourcepacks releases containing the adapter/content modules. The
@@ -281,3 +281,12 @@ Independent NPC 0.1.0 release, public adapter/content publication, full licensed
 model/pack acceptance, real two-player and proxy/server transfer checks precede
 product activation. Shared clips are preserved; personal clip/head/sound playback
 is a separate follow-up. No new map or Stage/Production switch is enabled here.
+
+The API-redesign migration uses the same reviewed Scene version for all Scene modules
+and NPC 0.3.0-api-review-SNAPSHOT transitively. `-PsceneVersion=...` selects the
+coordinated Scene candidate; `-PnpcRepository=file:///...` exclusively selects the
+reviewed NPC/Scene artifacts and neutral NPC content. No source substitution is
+used for these engines. The pre-existing neutral resourcepacks-npc-content 1.3.0
+artifact is still required by this integration and must be available before any
+release; its public index is empty. Real licensed-content and proxy/backend
+transfer acceptance remain separate from neutral automated tests.

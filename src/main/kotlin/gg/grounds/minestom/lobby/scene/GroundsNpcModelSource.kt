@@ -1,7 +1,9 @@
 package gg.grounds.minestom.lobby.scene
 
 import com.google.gson.JsonParser
-import gg.grounds.npc.core.*
+import gg.grounds.npc.core.io.NpcDecodeResult
+import gg.grounds.npc.core.io.NpcModelJson
+import gg.grounds.npc.core.model.NpcModel
 import gg.grounds.resourcepacks.catalog.GroundsAssetCatalog
 import gg.grounds.scene.format.*
 import gg.grounds.scene.npc.minestom.SceneNpcTransformMapper

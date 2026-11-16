@@ -54,6 +54,8 @@ tasks.register<JavaExec>("migrateQueueNpcScene") {
     }
 }
 
+val sceneVersion = providers.gradleProperty("sceneVersion").orElse("0.5.0-api-review-SNAPSHOT")
+
 application { mainClass.set("gg.grounds.minestom.lobby.MainKt") }
 
 providers.gradleProperty("npcAddonZip").orNull?.let { addon ->
@@ -136,6 +138,14 @@ tasks.named<ShadowJar>("shadowJar") {
 }
 
 repositories {
+    maven {
+        url = uri("https://maven.pkg.github.com/groundsgg/resourcepacks")
+        credentials {
+            username = providers.gradleProperty("github.user").get()
+            password = providers.gradleProperty("github.token").get()
+        }
+        content { includeModule("gg.grounds", "resourcepacks-npc-content") }
+    }
     mavenCentral()
     // Minestom for Minecraft 26.3: upstream has not released 26.3 yet, so the build comes from
     // our fork's GitHub Packages. Named explicitly, like the other repositories here.
@@ -178,8 +188,8 @@ dependencies {
 
     implementation("gg.grounds:grounds-minestom-runtime-runtime-core:0.13.0")
     implementation("gg.grounds:grounds-minestom-runtime-runtime-world:0.15.1")
-    implementation("gg.grounds:scene-npc-minestom:0.4.6-npc-SNAPSHOT")
-    implementation("gg.grounds:scene-interaction:0.4.5")
+    implementation("gg.grounds:scene-npc-minestom:${sceneVersion.get()}")
+    implementation("gg.grounds:scene-interaction:${sceneVersion.get()}")
     implementation("gg.grounds:resourcepacks-catalog:1.3.0")
     implementation("gg.grounds:resourcepacks-npc-content:1.3.0")
     implementation("gg.grounds:plugin-lobby-scene-catalog:2.23.0")
@@ -245,6 +255,22 @@ providers.gradleProperty("npcRepository").orNull?.let { location ->
         }
     repositories.remove(review)
     repositories.addFirst(review)
+    repositories.exclusiveContent {
+        forRepositories(review)
+        filter {
+            listOf(
+                    "npc-core",
+                    "npc-minestom",
+                    "resourcepacks-npc-content",
+                    "scene-format",
+                    "scene-testkit",
+                    "scene-minestom",
+                    "scene-interaction",
+                    "scene-npc-minestom",
+                )
+                .forEach { includeModule("gg.grounds", it) }
+        }
+    }
 }
 
 tasks.register<JavaCompile>("compileNpcStageAcceptanceTool") {

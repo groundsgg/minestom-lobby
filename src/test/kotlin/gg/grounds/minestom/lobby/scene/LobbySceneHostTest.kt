@@ -1,7 +1,6 @@
 package gg.grounds.minestom.lobby.scene
 
 import gg.grounds.lobby.scene.LobbySceneCatalogs
-import gg.grounds.npc.core.*
 import gg.grounds.resourcepacks.catalog.GroundsAssetCatalog
 import gg.grounds.scene.format.*
 import gg.grounds.scene.minestom.*
