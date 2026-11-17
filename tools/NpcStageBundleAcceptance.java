@@ -1,4 +1,3 @@
-import com.google.gson.JsonParser;
 import gg.grounds.minestom.lobby.LoadedLobbyMap;
 import gg.grounds.minestom.lobby.LobbyMapSource;
 import gg.grounds.minestom.lobby.scene.LobbySceneLoader;
@@ -8,7 +7,6 @@ import java.nio.file.Path;
 import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.util.HexFormat;
-import java.util.zip.ZipFile;
 
 /** Verify the exact deployable Host against an existing Stage scene and its client addon. */
 public final class NpcStageBundleAcceptance {
@@ -25,8 +23,8 @@ public final class NpcStageBundleAcceptance {
     }
 
     private static void verify(String[] args) throws Exception {
-        if (args.length != 4 || !args[2].matches("[0-9a-f]{64}") || !args[3].matches("[0-9a-f]{40}"))
-            throw new IllegalArgumentException("Expected scene directory, addon ZIP, pinned SHA-256 and pinned SHA-1");
+        if (args.length != 5 || !args[2].matches("[0-9a-f]{64}") || !args[3].matches("[0-9a-f]{40}"))
+            throw new IllegalArgumentException("Expected scene directory, addon ZIP, pinned SHA-256, pinned SHA-1 and server-content ZIP");
         var sha256 = MessageDigest.getInstance("SHA-256");
         var sha1 = MessageDigest.getInstance("SHA-1");
         try (var input = Files.newInputStream(Path.of(args[1]))) {
@@ -48,6 +46,8 @@ public final class NpcStageBundleAcceptance {
         if (!Boolean.FALSE.equals(enabled.invoke(instance, "disabled")) ||
             !Boolean.TRUE.equals(enabled.invoke(instance, "legacy")))
             throw new AssertionError("Accepted announcement ownership contract missing");
+        System.setProperty("grounds.npc.content", args[4]);
+        gg.grounds.npc.core.io.content.NpcContentLoader.load(Path.of(args[4])).verifyResourcePack(Path.of(args[1]));
         gg.grounds.minestom.lobby.NpcDemoPack.Companion.configured(java.util.Map.of(
             "GROUNDS_NPC_ADDON_URL", "https://example.invalid/npc-addon.zip",
             "GROUNDS_NPC_ADDON_SHA1", args[3]));
@@ -58,41 +58,9 @@ public final class NpcStageBundleAcceptance {
         var prepared = new LobbySceneLoader().load(loaded);
         if (prepared == null || prepared.getScene().getElements().size() != 22)
             throw new AssertionError("Expected the existing twenty-two-element Stage scene");
-        com.google.gson.JsonObject digests;
-        try (var resource = GroundsNpcModelSource.class.getResourceAsStream("/gg/grounds/resourcepacks/npc/pack-digests.json")) {
-            if (resource == null) throw new AssertionError("Missing compiled client pack contract");
-            digests = JsonParser.parseString(new String(resource.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)).getAsJsonObject();
-        }
-        int checked = 0;
-        try (var addon = new ZipFile(args[1])) {
-            if (addon.stream().map(e -> e.getName()).distinct().count() != addon.size())
-                throw new AssertionError("Duplicate addon entries");
-            if (digests.size() == 0) throw new AssertionError("Empty compiled client pack contract");
-            var metadataEntry = addon.getEntry("pack.mcmeta");
-            if (metadataEntry == null) throw new AssertionError("Missing pack.mcmeta");
-            byte[] metadata;
-            try (var input = addon.getInputStream(metadataEntry)) { metadata = input.readAllBytes(); }
-            var crc = new java.util.zip.CRC32();
-            crc.update(metadata);
-            if (crc.getValue() != metadataEntry.getCrc()) throw new AssertionError("Corrupt pack.mcmeta");
-            if (!JsonParser.parseString(new String(metadata, java.nio.charset.StandardCharsets.UTF_8))
-                .getAsJsonObject().get("pack").isJsonObject())
-                throw new AssertionError("Invalid pack.mcmeta");
-            for (var entry : digests.entrySet()) {
-                var file = addon.getEntry(entry.getKey());
-                if (file == null) throw new AssertionError("Addon missing " + entry.getKey());
-                String actual;
-                try (var input = addon.getInputStream(file)) {
-                    actual = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(input.readAllBytes()));
-                }
-                if (!actual.equals(entry.getValue().getAsString()))
-                    throw new AssertionError("Addon differs from Host contract: " + entry.getKey());
-                checked++;
-            }
-            if (addon.size() != checked + 1 || addon.getEntry("pack.mcmeta") == null)
-                throw new AssertionError("Unexpected addon entries");
-        }
+        var content = gg.grounds.npc.core.io.content.NpcContentLoader.load(Path.of(args[4]));
+        content.verifyResourcePack(Path.of(args[1]));
         int parts = models.values().stream().mapToInt(m -> m.getParts().size()).sum();
-        System.out.println("PASS: existing Stage scene accepted by production loader; catalog=" + catalog.getVersion() + "; models=" + models.size() + "; displays=" + parts + "; checked_addon_files=" + checked + "; zip_sha256=" + args[2] + "; zip_sha1=" + args[3]);
+        System.out.println("PASS: existing Stage scene accepted by production loader; catalog=" + catalog.getVersion() + "; models=" + models.size() + "; displays=" + parts + "; content_id=" + content.getContentId() + "; zip_sha256=" + args[2] + "; zip_sha1=" + args[3]);
     }
 }

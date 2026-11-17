@@ -99,6 +99,7 @@ class DistributionTest(unittest.TestCase):
         with zipfile.ZipFile(addon, 'w') as archive:
             archive.writestr('pack.mcmeta', '{"pack":{"description":"test","pack_format":75}}')
             archive.writestr(path, b'wrong' if changed else payload)
+            archive.writestr('assets/grounds/sounds.json', '{}')
             if duplicate:
                 with warnings.catch_warnings():
                     warnings.simplefilter('ignore', UserWarning)
@@ -116,50 +117,65 @@ class DistributionTest(unittest.TestCase):
         jar = self.root / 'host.jar'
         with zipfile.ZipFile(jar, 'w') as archive:
             archive.writestr('gg/grounds/minestom/lobby/npc-addon-sha1.txt', sha1 + '\n')
-            archive.writestr('gg/grounds/resourcepacks/npc/pack-digests.json', json.dumps(
-                {} if empty else {path: hashlib.sha256(payload).hexdigest()}))
-            archive.writestr('gg/grounds/resourcepacks/npc/index.json', json.dumps({
-                'schemaVersion': 1, 'models': [] if empty else [
-                    {'asset': 'grounds:npc/example', 'resource': '/gg/grounds/resourcepacks/npc/example.json'}]}))
-            archive.writestr('gg/grounds/resourcepacks/npc/example.json', '{}')
-        return jar, addon, sha1
+            archive.writestr('gg/grounds/minestom/lobby/npc-content-id.txt', 'a' * 64)
+        content = self.root / 'server-content.zip'
+        model = b'{"asset":"grounds:npc/example"}'
+        contract = {'bundleSchema': 1, 'contentId': 'a' * 64,
+            'models': [] if empty else [{'id': 'grounds:npc/example', 'resource': 'models/example.json', 'sha256': hashlib.sha256(model).hexdigest()}],
+            'clientFiles': {} if empty else {path: hashlib.sha256(payload).hexdigest()}, 'soundEvents': {}}
+        with zipfile.ZipFile(content, 'w') as archive:
+            archive.writestr('bundle.json', json.dumps(contract))
+            archive.writestr('models/example.json', model)
+        return jar, addon, sha1, content
 
     def test_qualifies_matching_addon_contract(self):
-        jar, addon, sha1 = self.pair()
-        self.assertEqual(distribution.verify_pair(jar, addon, sha1), 1)
+        jar, addon, sha1, content = self.pair()
+        self.assertEqual(distribution.verify_pair(jar, addon, sha1, content), 1)
 
     def test_rejects_corruption_duplicates_stale_files_and_empty_models(self):
         for options in ({'changed': True}, {'duplicate': True}, {'extra': True}, {'empty': True}):
             with self.subTest(options=options):
-                jar, addon, sha1 = self.pair(**options)
+                jar, addon, sha1, content = self.pair(**options)
                 with self.assertRaises(ValueError):
-                    distribution.verify_pair(jar, addon, sha1)
+                    distribution.verify_pair(jar, addon, sha1, content)
 
     def test_rejects_binding_from_another_build(self):
-        jar, addon, _ = self.pair()
+        jar, addon, _, content = self.pair()
         with self.assertRaisesRegex(ValueError, 'binding'):
-            distribution.verify_pair(jar, addon, '0' * 40)
+            distribution.verify_pair(jar, addon, '0' * 40, content)
 
     def test_rejects_stale_unindexed_licensed_payload(self):
-        jar, addon, sha1 = self.pair()
-        with zipfile.ZipFile(jar, 'a') as archive:
-            archive.writestr('gg/grounds/resourcepacks/npc/stale.json', '{}')
+        jar, addon, sha1, content = self.pair()
+        with zipfile.ZipFile(content, 'a') as archive:
+            archive.writestr('models/stale.json', '{}')
         with self.assertRaisesRegex(ValueError, 'Unexpected NPC'):
-            distribution.verify_pair(jar, addon, sha1)
+            distribution.verify_pair(jar, addon, sha1, content)
+
+    def test_requires_the_actual_external_content_and_rejects_model_tampering(self):
+        jar, addon, sha1, content = self.pair()
+        with self.assertRaises(FileNotFoundError):
+            distribution.verify_pair(jar, addon, sha1, self.root / 'missing.zip')
+        with zipfile.ZipFile(content) as archive:
+            entries = {name: archive.read(name) for name in archive.namelist()}
+        entries['models/example.json'] += b' '
+        with zipfile.ZipFile(content, 'w') as archive:
+            for name, payload in entries.items(): archive.writestr(name, payload)
+        with self.assertRaisesRegex(ValueError, 'model.*contract'):
+            distribution.verify_pair(jar, addon, sha1, content)
 
     def test_rejects_corrupted_metadata_even_when_pinned_zip_hash_matches(self):
-        jar, addon, sha1 = self.pair(corrupt_metadata=True)
+        jar, addon, sha1, content = self.pair(corrupt_metadata=True)
         with self.assertRaises(zipfile.BadZipFile):
-            distribution.verify_pair(jar, addon, sha1)
+            distribution.verify_pair(jar, addon, sha1, content)
 
     def test_rejects_ambiguous_duplicate_host_entries(self):
-        jar, addon, sha1 = self.pair()
+        jar, addon, sha1, content = self.pair()
         with zipfile.ZipFile(jar, 'a') as archive, warnings.catch_warnings():
             warnings.simplefilter('ignore', UserWarning)
             archive.writestr('META-INF/example.kotlin_module', b'first')
             archive.writestr('META-INF/example.kotlin_module', b'second')
         with self.assertRaisesRegex(ValueError, 'Duplicate executable JAR'):
-            distribution.verify_pair(jar, addon, sha1)
+            distribution.verify_pair(jar, addon, sha1, content)
 
 
 if __name__ == '__main__':

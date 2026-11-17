@@ -216,6 +216,58 @@ class LobbySceneLoaderTest {
     }
 
     @Test
+    fun `neutral content cannot admit a scene requiring an unavailable imported model`() {
+        val body = AssetKey("grounds:npc/test/missing")
+        val definition =
+            AssetDefinition(
+                body,
+                AssetKind.NPC_BODY,
+                emptySet(),
+                LocalBounds(Vec3(0.0, 0.9, 0.0), Vec3(0.6, 1.8, 0.6)),
+                emptyMap(),
+            )
+        val catalog =
+            AssetCatalog(
+                assets.id,
+                assets.version,
+                assets.resourcePackCompatibility,
+                assets.assets + (body to definition),
+            )
+        val scene = fixture()
+        write(
+            scene.with(
+                elements =
+                    scene.elements.map {
+                        if (it is Npc)
+                            Npc(
+                                id = it.id,
+                                group = it.group,
+                                transform = it.transform,
+                                visible = it.visible,
+                                activation = it.activation,
+                                body = body,
+                                label = it.label,
+                                labelOffset = it.labelOffset,
+                                look = it.look,
+                                initialAnimation = it.initialAnimation,
+                                interactionBounds = it.interactionBounds,
+                                proximity = it.proximity,
+                                bindings = it.bindings,
+                                collision = it.collision,
+                            )
+                        else it
+                    }
+            )
+        )
+        val neutral = GroundsNpcModelSource.load(catalog, null)
+        assertTrue(neutral.isEmpty())
+        assertTrue(
+            rejected(LobbySceneLoader(catalog, LobbySceneRenderers(catalog, neutral)))
+                .contains(body.value)
+        )
+    }
+
+    @Test
     fun `missing renderer is rejected without invoking any factories`() {
         write()
         var lookups = 0
