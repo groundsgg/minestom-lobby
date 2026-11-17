@@ -16,6 +16,21 @@ class DistributionTest(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
 
+    def test_private_distribution_requires_all_licensed_suites_to_run_without_skips(self):
+        results = self.root / 'test-results'; results.mkdir()
+        suites = {'LicensedNpcBundleTest': 3, 'StageNpcDemoSceneTest': 2, 'StageNpcDemoMapGuardTest': 2}
+        for name, count in suites.items():
+            (results / ('TEST-' + name + '.xml')).write_text(
+                f'<testsuite name="gg.grounds.minestom.lobby.scene.{name}" tests="{count}" failures="0" errors="0" skipped="0"/>')
+        self.assertEqual(distribution.verify_host_tests(results)['requiredSuiteTests'], 7)
+        (results / 'TEST-LicensedNpcBundleTest.xml').write_text(
+            '<testsuite name="gg.grounds.minestom.lobby.scene.LicensedNpcBundleTest" tests="3" failures="0" errors="0" skipped="1"/>')
+        with self.assertRaisesRegex(ValueError, 'licensed|Licensed'):
+            distribution.verify_host_tests(results)
+        (results / 'TEST-LicensedNpcBundleTest.xml').unlink()
+        with self.assertRaisesRegex(ValueError, 'licensed|Licensed'):
+            distribution.verify_host_tests(results)
+
     def test_distribution_requires_shared_engine_and_rejects_legacy_copies(self):
         jar = self.root / 'engine.jar'
         required = ['gg/grounds/npc/core/model/NpcModel.class',

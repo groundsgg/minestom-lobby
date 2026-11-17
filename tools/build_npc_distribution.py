@@ -10,6 +10,7 @@ import subprocess
 import tarfile
 import tempfile
 import zipfile
+import xml.etree.ElementTree as ET
 
 NPC = 'gg/grounds/resourcepacks/npc/'
 BINDING = 'gg/grounds/minestom/lobby/npc-addon-sha1.txt'
@@ -131,6 +132,27 @@ def verify_pair(jar, addon, sha1, content):
         return len(contract['models'])
 
 
+def verify_host_tests(directory):
+    suites = {}
+    for path in Path(directory).glob('TEST-*.xml'):
+        suite = ET.parse(path).getroot()
+        name = suite.attrib['name']
+        if name in suites: raise ValueError('Duplicate host test suite: ' + name)
+        suites[name] = {key: int(suite.attrib.get(key, 0)) for key in ('tests', 'failures', 'errors', 'skipped')}
+    required = {'LicensedNpcBundleTest': 3, 'StageNpcDemoSceneTest': 2, 'StageNpcDemoMapGuardTest': 2}
+    qualified = 0
+    for name, minimum in required.items():
+        suite = suites.get('gg.grounds.minestom.lobby.scene.' + name)
+        if suite is None or suite['tests'] < minimum or suite['skipped'] or suite['failures'] or suite['errors']:
+            raise ValueError('Required licensed host suite did not run completely: ' + name)
+        qualified += suite['tests']
+    if any(suite['failures'] or suite['errors'] for suite in suites.values()):
+        raise ValueError('Host test results contain failures')
+    return {'tests': sum(s['tests'] for s in suites.values()),
+            'skipped': sum(s['skipped'] for s in suites.values()),
+            'failures': 0, 'requiredSuiteTests': qualified, 'requiredSuites': sorted(required)}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--resourcepacks', type=Path, required=True)
@@ -248,6 +270,9 @@ def main():
         ]
         with (staging / 'build.log').open('w') as log:
             subprocess.run(command, cwd=host_source, check=True, stdout=log, stderr=subprocess.STDOUT, timeout=1800)
+        results = host_source / 'build/private-npc/test-results/test'
+        host_tests = verify_host_tests(results)
+        shutil.copytree(results, staging / 'test-results')
         jars = list((host_source / 'build/private-npc/libs').glob('*-all.jar'))
         if len(jars) != 1:
             raise ValueError('Expected one private executable host JAR')
@@ -296,6 +321,7 @@ def main():
                 'size': catalog.stat().st_size,
             },
             'models': models,
+            'hostTests': host_tests,
             'serverContentSha256': digest(content),
             'npcVersion': args.npc_version,
             'importerArtifacts': importer_hashes,

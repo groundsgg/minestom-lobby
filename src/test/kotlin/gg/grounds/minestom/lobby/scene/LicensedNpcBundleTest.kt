@@ -1,6 +1,5 @@
 package gg.grounds.minestom.lobby.scene
 
-import com.google.gson.JsonParser
 import gg.grounds.npc.core.animation.NpcPoseSampler
 import gg.grounds.resourcepacks.catalog.GroundsAssetCatalog
 import gg.grounds.scene.format.*
@@ -121,27 +120,15 @@ class LicensedNpcBundleTest {
 
     @Test
     fun `all fifteen original models and all forty five original clips produce finite poses`() {
-        val index =
-            GroundsAssetCatalog::class
-                .java
-                .getResourceAsStream("/gg/grounds/resourcepacks/npc/index.json")
-                ?.bufferedReader()
-                ?.use { it.readText() }
-        assumeTrue(index != null)
-        val entries = JsonParser.parseString(index).asJsonObject.getAsJsonArray("models")
-        assumeTrue(entries.size() > 0, "Licensed model variant not selected")
-        assertEquals(15, entries.size())
+        val assets = GroundsAssetCatalog.catalog
+        assumeTrue(
+            AssetKey("grounds:npc/townfolk/builder") in assets.assets,
+            "Licensed model variant not selected",
+        )
+        val models = GroundsNpcModelSource.load(assets)
+        assertEquals(15, models.size)
         var clips = 0
-        for (entry in entries) {
-            val path = entry.asJsonObject.get("resource").asString
-            val model =
-                decodeNpcModel(
-                    GroundsAssetCatalog::class
-                        .java
-                        .getResourceAsStream(path)!!
-                        .bufferedReader()
-                        .use { it.readText() }
-                )
+        for ((path, model) in models) {
             clips += model.animations.size
             for ((name, clip) in model.animations) {
                 for (fraction in listOf(0.0, 0.25, 0.5, 0.75, 1.0)) {
