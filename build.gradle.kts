@@ -54,7 +54,7 @@ tasks.register<JavaExec>("migrateQueueNpcScene") {
     }
 }
 
-val sceneVersion = providers.gradleProperty("sceneVersion").orElse("0.5.0-api-review-SNAPSHOT")
+val sceneVersion = providers.gradleProperty("sceneVersion").orElse("1.0.0")
 
 application { mainClass.set("gg.grounds.minestom.lobby.MainKt") }
 
