@@ -17,7 +17,7 @@ class SharedNpcIntegrationTest {
         val sound = AssetKey("test:wave")
         val model =
             decodeNpcModel(
-                """{"schemaVersion":1,"asset":"test:bot","bounds":{"center":[0,1,0],"size":[1,2,1]},"bones":[],"parts":[{"bone":null,"model":"grounds:npc_parts/test/cube","center":[0,1,0],"pivot":[0,1,0],"rotation":[0,0,0]}],"animations":{"idle":{"loop":"loop","length":1,"tracks":{}},"wave":{"loop":"once","length":1,"tracks":{}}},"sounds":{"wave":{"key":"test:wave","volume":0.8,"pitch":1,"radius":12}}}"""
+                """{"schemaVersion":1,"asset":"test:bot","bounds":{"center":[0,1,0],"size":[1,2,1]},"bones":[],"parts":[{"bone":null,"model":"grounds:npc_parts/test/cube","center":[0,1,0],"pivot":[0,1,0],"rotation":[0,0,0]}],"animations":{"idle":{"loop":"loop","length":1,"tracks":{}},"wave":{"loop":"once","length":1,"tracks":{}}},"sounds":{"wave":{"key":"test:wave","volume":0.8,"pitch":1,"radius":12,"durationMillis":5000}}}"""
             )
         val assets =
             AssetCatalog(
@@ -72,6 +72,9 @@ class SharedNpcIntegrationTest {
             fixture.instance.tick(0)
             assertEquals(1, sounds(near))
             assertEquals(0, sounds(distant))
+            val admission = handle as AnimationAdmissionRenderedAssetHandle
+            assertFalse(admission.canStartAnimation("wave"))
+            assertNull(admission.reserveAnimation("wave"))
             handle.advanceAnimation(500)
             fixture.instance.tick(0)
             handle.advanceAnimation(1500)

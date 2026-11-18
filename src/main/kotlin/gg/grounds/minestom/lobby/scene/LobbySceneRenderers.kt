@@ -43,7 +43,11 @@ internal class LobbySceneRenderers(
             NpcSoundSink { instance, origin, sound ->
                 effects.playNear(instance, SceneNpcTransformMapper.toScene(origin), sound)
             },
-            NpcRenderConfig.builder().idleClip("idle").variationClip("idle2").build(),
+            NpcRenderConfig.builder()
+                .idleClip("idle")
+                .variationClip("idle2")
+                .protectSoundPlayback(true)
+                .build(),
         )
 
     override fun rendererFor(asset: AssetKey, kind: AssetKind) =
