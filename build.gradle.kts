@@ -2,6 +2,7 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import groovy.json.JsonSlurper
 import java.security.MessageDigest
 import java.util.HexFormat
+import java.util.zip.ZipFile
 import org.gradle.api.file.DuplicatesStrategy
 
 plugins {
@@ -54,6 +55,9 @@ tasks.register<JavaExec>("migrateQueueNpcScene") {
     }
 }
 
+val sceneVersion = providers.gradleProperty("sceneVersion").orElse("1.0.0")
+val npcVersion = providers.gradleProperty("npcVersion").orElse("1.1.0")
+
 application { mainClass.set("gg.grounds.minestom.lobby.MainKt") }
 
 providers.gradleProperty("npcAddonZip").orNull?.let { addon ->
@@ -63,9 +67,17 @@ providers.gradleProperty("npcAddonZip").orNull?.let { addon ->
     val bindingDirectory = layout.buildDirectory.dir("generated/resources/npc-distribution")
     val bindingFile =
         bindingDirectory.map { it.file("gg/grounds/minestom/lobby/npc-addon-sha1.txt") }
+    val contentIdFile =
+        bindingDirectory.map { it.file("gg/grounds/minestom/lobby/npc-content-id.txt") }
+    val contentBundle =
+        file(providers.gradleProperty("npcResourcepacksDirectory").get())
+            .resolve("build/generated/npc-models/server-content.zip")
     val generateNpcAddonBinding =
         tasks.register("generateNpcAddonBinding") {
+            dependsOn(gradle.includedBuild("resourcepacks").task(":compileNpcModels"))
             inputs.file(file(addon))
+            inputs.file(contentBundle)
+            outputs.file(contentIdFile)
             outputs.file(bindingFile)
             doLast {
                 val digest = MessageDigest.getInstance("SHA-1")
@@ -80,8 +92,17 @@ providers.gradleProperty("npcAddonZip").orNull?.let { addon ->
                 val target = bindingFile.get().asFile
                 target.parentFile.mkdirs()
                 target.writeText(HexFormat.of().formatHex(digest.digest()) + "\n")
+                ZipFile(contentBundle).use { archive ->
+                    val contract =
+                        archive
+                            .getInputStream(archive.getEntry("bundle.json"))
+                            .bufferedReader()
+                            .use { JsonSlurper().parse(it) as Map<*, *> }
+                    contentIdFile.get().asFile.writeText(contract["contentId"].toString() + "\n")
+                }
             }
         }
+    tasks.test { systemProperty("grounds.npc.content", contentBundle.absolutePath) }
     sourceSets.main { resources.srcDir(bindingDirectory) }
     tasks.processResources { dependsOn(generateNpcAddonBinding) }
 }
@@ -178,10 +199,11 @@ dependencies {
 
     implementation("gg.grounds:grounds-minestom-runtime-runtime-core:0.13.0")
     implementation("gg.grounds:grounds-minestom-runtime-runtime-world:0.15.1")
-    implementation("gg.grounds:scene-npc-minestom:0.4.6-npc-SNAPSHOT")
-    implementation("gg.grounds:scene-interaction:0.4.5")
+    implementation("gg.grounds:scene-npc-minestom:${sceneVersion.get()}")
+    implementation("gg.grounds:scene-interaction:${sceneVersion.get()}")
     implementation("gg.grounds:resourcepacks-catalog:1.3.0")
-    implementation("gg.grounds:resourcepacks-npc-content:1.3.0")
+    implementation("gg.grounds:npc-core:${npcVersion.get()}")
+    implementation("gg.grounds:npc-minestom:${npcVersion.get()}")
     implementation("gg.grounds:plugin-lobby-scene-catalog:2.23.0")
     // Minecraft 26.3. Overrides the 26.2 Minestom in grounds-dependencies 1.0.0 until that
     // platform carries an upstream 26.3 release. Keep in step with grounds-vanilla's 26.3 line,
@@ -245,6 +267,10 @@ providers.gradleProperty("npcRepository").orNull?.let { location ->
         }
     repositories.remove(review)
     repositories.addFirst(review)
+    repositories.exclusiveContent {
+        forRepositories(review)
+        filter { listOf("npc-core", "npc-minestom").forEach { includeModule("gg.grounds", it) } }
+    }
 }
 
 tasks.register<JavaCompile>("compileNpcStageAcceptanceTool") {

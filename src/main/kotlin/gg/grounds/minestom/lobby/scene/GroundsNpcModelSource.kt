@@ -1,66 +1,50 @@
 package gg.grounds.minestom.lobby.scene
 
-import com.google.gson.JsonParser
-import gg.grounds.npc.core.*
-import gg.grounds.resourcepacks.catalog.GroundsAssetCatalog
+import gg.grounds.npc.core.model.NpcModel
 import gg.grounds.scene.format.*
 import gg.grounds.scene.npc.minestom.SceneNpcTransformMapper
-import java.io.InputStream
-import java.nio.charset.CodingErrorAction
 import java.util.Collections
 
 /** Product content loading and exact catalogue checks stay in the Grounds host. */
 internal object GroundsNpcModelSource {
-    @JvmOverloads
-    fun load(
-        assets: AssetCatalog,
-        resources: (String) -> InputStream? = {
-            GroundsAssetCatalog::class.java.getResourceAsStream(it)
-        },
-    ): Map<AssetKey, NpcModel> {
-        fun read(path: String, max: Int): ByteArray? =
-            resources(path)?.use {
-                it.readNBytes(max + 1).also { bytes ->
-                    require(bytes.size <= max) { "NPC resource exceeds size limit: $path" }
+    private val configuredContent by lazy {
+        val configured =
+            System.getProperty("grounds.npc.content") ?: System.getenv("GROUNDS_NPC_CONTENT")
+        configured?.let {
+            require(it.isNotBlank()) { "NPC content path must not be blank" }
+            read(java.nio.file.Path.of(it)).also(::requireBinding)
+        }
+    }
+
+    /** One immutable snapshot per host startup; absent configuration means neutral content. */
+    fun load(assets: AssetCatalog): Map<AssetKey, NpcModel> = models(assets, configuredContent)
+
+    /** Explicit path for tooling and host tests. Configured errors are never treated as absence. */
+    fun load(assets: AssetCatalog, contentPath: java.nio.file.Path?): Map<AssetKey, NpcModel> =
+        models(assets, contentPath?.let(::read))
+
+    private fun read(path: java.nio.file.Path): gg.grounds.npc.core.io.content.NpcContent {
+        val content = gg.grounds.npc.core.io.content.NpcContentLoader.load(path)
+        require(content.target == "26.3") { "NPC content must target this host's Minecraft 26.3" }
+        return content
+    }
+
+    private fun requireBinding(content: gg.grounds.npc.core.io.content.NpcContent) {
+        GroundsNpcModelSource::class
+            .java
+            .getResourceAsStream("/gg/grounds/minestom/lobby/npc-content-id.txt")
+            ?.use {
+                require(it.bufferedReader().readText().trim() == content.contentId) {
+                    "NPC content differs from this private distribution's addon binding"
                 }
             }
-        val index = read("/gg/grounds/resourcepacks/npc/index.json", 64 * 1024) ?: return emptyMap()
-        val root =
-            JsonParser.parseString(
-                    Charsets.UTF_8.newDecoder()
-                        .onMalformedInput(CodingErrorAction.REPORT)
-                        .decode(java.nio.ByteBuffer.wrap(index))
-                        .toString()
-                )
-                .asJsonObject
-        require(root.get("schemaVersion").asInt == 1)
-        val entries = root.getAsJsonArray("models")
-        require(entries.size() <= 256)
-        val result = linkedMapOf<AssetKey, NpcModel>()
-        entries.forEach { value ->
-            val entry = value.asJsonObject
-            val key = AssetKey(entry.get("asset").asString)
-            val path = entry.get("resource").asString
-            require(
-                path.startsWith("/gg/grounds/resourcepacks/npc/") &&
-                    path.endsWith(".json") &&
-                    ".." !in path &&
-                    '\\' !in path
-            )
-            val decoded =
-                NpcModelJson.decode(
-                    requireNotNull(read(path, 2 * 1024 * 1024)) {
-                        "Missing compiled NPC model $path"
-                    }
-                )
-            require(decoded is NpcDecodeResult.Success) {
-                "Invalid compiled NPC model $path: ${(decoded as? NpcDecodeResult.Failure)?.problems}"
-            }
-            val model = decoded.model
-            require(model.id == key.value && result.put(key, model) == null) {
-                "NPC index/model identity mismatch or duplicate"
-            }
-        }
+    }
+
+    private fun models(
+        assets: AssetCatalog,
+        content: gg.grounds.npc.core.io.content.NpcContent?,
+    ): Map<AssetKey, NpcModel> {
+        val result = content?.models?.mapKeys { AssetKey(it.key) } ?: emptyMap()
         validate(assets, result)
         return Collections.unmodifiableMap(result)
     }

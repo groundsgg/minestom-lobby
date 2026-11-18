@@ -1,6 +1,5 @@
 package gg.grounds.minestom.lobby.scene
 
-import gg.grounds.npc.core.*
 import gg.grounds.scene.format.AssetCatalog
 import gg.grounds.scene.format.AssetDefinition
 import gg.grounds.scene.format.AssetKey
@@ -179,8 +178,8 @@ internal fun awaitBlocked(thread: Thread) {
 }
 
 internal fun decodeNpcModel(json: String) =
-    (gg.grounds.npc.core.NpcModelJson.decode(json.toByteArray())
-            as gg.grounds.npc.core.NpcDecodeResult.Success)
+    (gg.grounds.npc.core.io.NpcModelJson.decode(json.toByteArray())
+            as gg.grounds.npc.core.io.NpcDecodeResult.Success)
         .model
 
 internal fun gg.grounds.scene.minestom.SceneAssetRendererFactory.createForTest(

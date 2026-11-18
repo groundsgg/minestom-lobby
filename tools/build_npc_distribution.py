@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -9,6 +10,7 @@ import subprocess
 import tarfile
 import tempfile
 import zipfile
+import xml.etree.ElementTree as ET
 
 NPC = 'gg/grounds/resourcepacks/npc/'
 BINDING = 'gg/grounds/minestom/lobby/npc-addon-sha1.txt'
@@ -71,55 +73,84 @@ def snapshot_checkout(directory, commit, target):
 def verify_shared_engine(jar):
     with zipfile.ZipFile(jar) as archive:
         names = set(archive.namelist())
-        required = {'gg/grounds/npc/core/NpcModel.class',
+        required = {'gg/grounds/npc/core/model/NpcModel.class',
                     'gg/grounds/npc/minestom/NpcRenderer.class',
                     'gg/grounds/scene/npc/minestom/SceneNpcRenderers.class'}
         if not required <= names:
             raise ValueError('Missing shared NPC engine or Scene adapter')
         legacy = {'AnimatedNpcHandle', 'NpcItemDisplay', 'NpcPendingMetadata',
                   'NpcRenderPolicy', 'NpcViewerRate', 'LobbyNpcModelRenderers'}
-        if any(name.startswith(NPC) and name.endswith('.class') for name in names) or any(
+        if 'gg/grounds/npc/core/NpcModel.class' in names or any(name.startswith(NPC) and name.endswith('.class') for name in names) or any(
             'gg/grounds/minestom/lobby/scene/' + owner + '.class' in names for owner in legacy
         ):
             raise ValueError('Legacy NPC engine must not remain in the distribution')
 
 
-def verify_pair(jar, addon, sha1):
-    with zipfile.ZipFile(jar) as host, zipfile.ZipFile(addon) as pack:
+def verify_pair(jar, addon, sha1, content):
+    """Cheap archive/pinning checks; the Java acceptance tool runs the actual content loader."""
+    with zipfile.ZipFile(jar) as host, zipfile.ZipFile(addon) as pack, zipfile.ZipFile(content) as server:
         if len(set(host.namelist())) != len(host.namelist()):
             raise ValueError('Duplicate executable JAR entries')
-        resources = [name for name in host.namelist() if name.startswith(NPC) or name == BINDING]
+        if any(name.startswith(NPC) for name in host.namelist()):
+            raise ValueError('Unexpected NPC payload embedded in executable JAR')
         if host.read(BINDING).decode('ascii').strip() != sha1 or digest(addon, 'sha1') != sha1:
             raise ValueError('Addon binding differs from pinned SHA-1')
-        index = json.loads(host.read(NPC + 'index.json'))
-        contract = json.loads(host.read(NPC + 'pack-digests.json'))
-        if index.get('schemaVersion') != 1 or not index.get('models') or not contract:
+        if len(set(server.namelist())) != len(server.namelist()):
+            raise ValueError('Duplicate server content entries')
+        contract = json.loads(server.read('bundle.json'))
+        if contract.get('bundleSchema') != 1 or not contract.get('models') or not contract.get('clientFiles'):
             raise ValueError('Private models and client pack contract must not be empty')
-        expected_resources = {NPC + 'index.json', NPC + 'pack-digests.json'}
-        for model in index['models']:
+        if host.read('gg/grounds/minestom/lobby/npc-content-id.txt').decode('ascii').strip() != contract.get('contentId'):
+            raise ValueError('Content differs from pinned addon binding')
+        expected_resources = {'bundle.json'}
+        for model in contract['models']:
             path = model['resource']
-            if not path.startswith('/' + NPC) or '..' in path or '\\' in path:
+            if path.startswith('/') or '..' in path or '\\' in path:
                 raise ValueError('Unsafe compiled model resource')
-            host.read(path[1:])
-            expected_resources.add(path[1:])
-        actual_resources = {name for name in resources if name.endswith('.json')}
-        if actual_resources != expected_resources:
-            raise ValueError('Unexpected NPC model payload outside the compiled index')
-        names = pack.namelist()
-        if len(set(names)) != len(names):
+            if path in expected_resources or hashlib.sha256(server.read(path)).hexdigest() != model['sha256']:
+                raise ValueError('Compiled model differs from content contract')
+            expected_resources.add(path)
+        if set(server.namelist()) != expected_resources:
+            raise ValueError('Unexpected NPC model payload outside the compiled contract')
+        if len(set(pack.namelist())) != len(pack.namelist()):
             raise ValueError('Duplicate addon ZIP entries')
-        if set(names) != set(contract) | {'pack.mcmeta'}:
+        sound_files = {'assets/grounds/sounds.json'}
+        for key in contract['soundEvents']: sound_files.add('assets/' + key.split(':', 1)[0] + '/sounds.json')
+        if set(pack.namelist()) != set(contract['clientFiles']) | sound_files | {'pack.mcmeta'}:
             raise ValueError('Missing or unexpected addon files')
-        # Reading also validates the metadata entry's ZIP CRC (it is not a model digest).
         metadata = json.loads(pack.read('pack.mcmeta'))
         if not isinstance(metadata, dict) or not isinstance(metadata.get('pack'), dict):
             raise ValueError('Invalid addon pack.mcmeta')
-        for name, expected in contract.items():
-            with pack.open(name) as stream:
-                actual = hashlib.file_digest(stream, 'sha256').hexdigest()
-            if actual != expected:
+        for name, expected in contract['clientFiles'].items():
+            if hashlib.sha256(pack.read(name)).hexdigest() != expected:
                 raise ValueError('Addon differs from compiled model contract: ' + name)
-        return len(index['models'])
+        for name in sound_files:
+            namespace = name.split('/')[1]
+            actual = json.loads(pack.read(name))
+            expected = {key.split(':',1)[1]:value for key,value in contract['soundEvents'].items() if key.split(':',1)[0] == namespace}
+            if actual != expected: raise ValueError('Addon sound definitions differ from content contract')
+        return len(contract['models'])
+
+
+def verify_host_tests(directory):
+    suites = {}
+    for path in Path(directory).glob('TEST-*.xml'):
+        suite = ET.parse(path).getroot()
+        name = suite.attrib['name']
+        if name in suites: raise ValueError('Duplicate host test suite: ' + name)
+        suites[name] = {key: int(suite.attrib.get(key, 0)) for key in ('tests', 'failures', 'errors', 'skipped')}
+    required = {'LicensedNpcBundleTest': 3, 'StageNpcDemoSceneTest': 2, 'StageNpcDemoMapGuardTest': 2}
+    qualified = 0
+    for name, minimum in required.items():
+        suite = suites.get('gg.grounds.minestom.lobby.scene.' + name)
+        if suite is None or suite['tests'] < minimum or suite['skipped'] or suite['failures'] or suite['errors']:
+            raise ValueError('Required licensed host suite did not run completely: ' + name)
+        qualified += suite['tests']
+    if any(suite['failures'] or suite['errors'] for suite in suites.values()):
+        raise ValueError('Host test results contain failures')
+    return {'tests': sum(s['tests'] for s in suites.values()),
+            'skipped': sum(s['skipped'] for s in suites.values()),
+            'failures': 0, 'requiredSuiteTests': qualified, 'requiredSuites': sorted(required)}
 
 
 def main():
@@ -139,6 +170,9 @@ def main():
     parser.add_argument('--gradle')
     parser.add_argument('--java', default='java')
     parser.add_argument('--offline', action='store_true')
+    parser.add_argument('--npc-importer-classpath', required=True)
+    parser.add_argument('--npc-version', default='1.1.0')
+    parser.add_argument('--npc-repository', type=Path)
     args = parser.parse_args()
     repo = Path(__file__).resolve().parents[1]
     for name in ('resourcepacks', 'sources', 'composite_policy', 'addon', 'map', 'output'):
@@ -180,6 +214,17 @@ def main():
         lobby_source = inputs / 'plugin-lobby'
         if args.lobby_source:
             snapshot_checkout(args.lobby_source, args.lobby_source_commit, lobby_source)
+        importer_files = []
+        importer_hashes = []
+        for number, entry in enumerate(args.npc_importer_classpath.split(os.pathsep)):
+            original = Path(entry).resolve()
+            expected = digest(original)
+            copied = inputs / 'importer' / str(number) / original.name
+            copied.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(original, copied)
+            if digest(copied) != expected: raise ValueError('Importer changed during snapshot')
+            importer_files.append(str(copied))
+            importer_hashes.append({'file': original.name, 'sha256': expected})
         sources = inputs / 'licensed-sources'
         sources.mkdir()
         source_hashes = {}
@@ -207,7 +252,11 @@ def main():
             command.append('--offline')
         if args.lobby_source:
             command.append('-PnpcLobbySourceDirectory=' + str(lobby_source))
+        if args.npc_repository:
+            command.append('-PnpcRepository=' + str(args.npc_repository.resolve()))
         command += [
+            '-PnpcVersion=' + args.npc_version,
+            '-PnpcImporterClasspath=' + os.pathsep.join(importer_files),
             '-PnpcResourcepacksDirectory=' + str(pack_source),
             '-PnpcSourceDirectory=' + str(sources),
             '-PnpcGeometryMode=composite',
@@ -221,12 +270,17 @@ def main():
         ]
         with (staging / 'build.log').open('w') as log:
             subprocess.run(command, cwd=host_source, check=True, stdout=log, stderr=subprocess.STDOUT, timeout=1800)
+        results = host_source / 'build/private-npc/test-results/test'
+        host_tests = verify_host_tests(results)
+        shutil.copytree(results, staging / 'test-results')
         jars = list((host_source / 'build/private-npc/libs').glob('*-all.jar'))
         if len(jars) != 1:
             raise ValueError('Expected one private executable host JAR')
         jar = staging / 'minestom-lobby.jar'
         shutil.copyfile(jars[0], jar)
-        models = verify_pair(jar, addon, args.addon_sha1)
+        content = staging / 'server-content.zip'
+        shutil.copyfile(pack_source / 'build/generated/npc-models/server-content.zip', content)
+        models = verify_pair(jar, addon, args.addon_sha1, content)
         verify_shared_engine(jar)
         bundle = json.loads((pack_source / 'build/generated/npc-models/bundle.json').read_text())
         if bundle['sourceSha256'] != source_hashes:
@@ -234,10 +288,10 @@ def main():
         with (staging / 'acceptance.log').open('w') as log:
             subprocess.run([
                 args.java, '-cp', str(jar), str(host_source / 'tools/NpcStageBundleAcceptance.java'),
-                str(selected_map), str(addon), args.addon_sha256, args.addon_sha1,
+                str(selected_map), str(addon), args.addon_sha256, args.addon_sha1, str(content),
             ], check=True, stdout=log, stderr=subprocess.STDOUT, text=True, timeout=120)
         acceptance = (staging / 'acceptance.log').read_text()
-        verify_pair(jar, addon, args.addon_sha1)
+        verify_pair(jar, addon, args.addon_sha1, content)
         catalog_jars = [p for p in (pack_source / 'resourcepacks-catalog/build/libs').glob('*.jar')
                         if not p.name.endswith('-sources.jar')]
         if len(catalog_jars) != 1:
@@ -267,6 +321,10 @@ def main():
                 'size': catalog.stat().st_size,
             },
             'models': models,
+            'hostTests': host_tests,
+            'serverContentSha256': digest(content),
+            'npcVersion': args.npc_version,
+            'importerArtifacts': importer_hashes,
             'acceptance': acceptance.strip(),
             'scope': 'Source build, full host tests, production scene loader and exact addon contract; native client acceptance and deployment are separate.',
         }

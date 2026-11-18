@@ -1,9 +1,9 @@
 package gg.grounds.minestom.lobby.scene
 
-import gg.grounds.npc.core.NpcModel
-import gg.grounds.npc.minestom.NpcMeshResolver
-import gg.grounds.npc.minestom.NpcRenderConfig
-import gg.grounds.npc.minestom.NpcSoundSink
+import gg.grounds.npc.core.model.NpcModel
+import gg.grounds.npc.minestom.config.NpcRenderConfig
+import gg.grounds.npc.minestom.spi.NpcMeshResolver
+import gg.grounds.npc.minestom.spi.NpcSoundSink
 import gg.grounds.scene.format.*
 import gg.grounds.scene.minestom.*
 import gg.grounds.scene.npc.minestom.*
@@ -43,7 +43,7 @@ internal class LobbySceneRenderers(
             NpcSoundSink { instance, origin, sound ->
                 effects.playNear(instance, SceneNpcTransformMapper.toScene(origin), sound)
             },
-            NpcRenderConfig(idleClip = "idle", variationClip = "idle2"),
+            NpcRenderConfig.builder().idleClip("idle").variationClip("idle2").build(),
         )
 
     override fun rendererFor(asset: AssetKey, kind: AssetKind) =

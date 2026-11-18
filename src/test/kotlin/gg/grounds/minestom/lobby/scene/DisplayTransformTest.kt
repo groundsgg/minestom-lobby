@@ -1,7 +1,7 @@
 package gg.grounds.minestom.lobby.scene
 
-import gg.grounds.npc.core.NpcMatrix
-import gg.grounds.npc.core.NpcVector3
+import gg.grounds.npc.core.math.NpcMatrix
+import gg.grounds.npc.core.math.NpcVector3
 import gg.grounds.scene.format.EulerRotation
 import gg.grounds.scene.format.LocalBounds
 import gg.grounds.scene.format.Transform

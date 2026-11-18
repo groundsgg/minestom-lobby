@@ -1,8 +1,8 @@
 package gg.grounds.minestom.lobby.scene
 
-import gg.grounds.npc.core.NpcBounds
-import gg.grounds.npc.core.NpcMatrix
-import gg.grounds.npc.minestom.NpcDisplayTransforms
+import gg.grounds.npc.core.math.NpcMatrix
+import gg.grounds.npc.core.model.NpcBounds
+import gg.grounds.npc.minestom.transform.NpcDisplayTransforms
 import gg.grounds.scene.format.LocalBounds
 import gg.grounds.scene.format.Vec3
 import gg.grounds.scene.minestom.SceneRenderTransform
