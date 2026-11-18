@@ -2,7 +2,6 @@ package gg.grounds.minestom.lobby.scene
 
 import gg.grounds.lobby.scene.LobbySceneCatalogs
 import gg.grounds.resourcepacks.catalog.GroundsAssetCatalog
-import gg.grounds.resourcepacks.npc.*
 import gg.grounds.scene.format.*
 import gg.grounds.scene.minestom.*
 import java.util.concurrent.CompletableFuture

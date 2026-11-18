@@ -42,7 +42,7 @@ internal class NpcDemoPack(url: String, sha1: String) {
                 }
             NpcAddonBinding.load().requireMatches(sha1)
             require(
-                gg.grounds.resourcepacks.npc.NpcModels.load(
+                gg.grounds.minestom.lobby.scene.GroundsNpcModelSource.load(
                         gg.grounds.resourcepacks.catalog.GroundsAssetCatalog.catalog
                     )
                     .isNotEmpty()

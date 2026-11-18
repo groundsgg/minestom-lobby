@@ -2,7 +2,6 @@ package gg.grounds.minestom.lobby.scene
 
 import gg.grounds.lobby.scene.LobbySceneCatalogs
 import gg.grounds.resourcepacks.catalog.GroundsAssetCatalog
-import gg.grounds.resourcepacks.npc.NpcModels
 import gg.grounds.scene.format.*
 import java.nio.file.Files
 import java.nio.file.Path
@@ -13,7 +12,7 @@ import net.kyori.adventure.text.format.NamedTextColor
 /** Authored demo data, exported into a map sidecar; never synthesized at server startup. */
 internal fun stageNpcDemoScene(input: SceneDocument, assets: AssetCatalog): SceneDocument {
     val queued = migrateGroundsQueueNpcScene(input, assets)
-    val models = NpcModels.load(assets)
+    val models = GroundsNpcModelSource.load(assets)
     val group = LocalId("npc-demo")
     data class Station(val id: String, val model: String, val title: String, val hint: String)
     val stations =
@@ -125,7 +124,13 @@ internal fun stageNpcDemoScene(input: SceneDocument, assets: AssetCatalog): Scen
             val body = AssetKey("grounds:npc/${station.model}")
             val model = requireNotNull(models[body]) { "Demo model missing: $body" }
             val greeting = LocalId(if ("wave" in model.animations) "wave" else "hello")
-            val bounds = model.bounds
+            val bounds =
+                LocalBounds(
+                    gg.grounds.scene.npc.minestom.SceneNpcTransformMapper.toScene(
+                        model.bounds.center
+                    ),
+                    gg.grounds.scene.npc.minestom.SceneNpcTransformMapper.toScene(model.bounds.size),
+                )
             val bindings =
                 mutableListOf(
                     binding(

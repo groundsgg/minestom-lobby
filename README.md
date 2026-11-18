@@ -152,7 +152,7 @@ The host currently supports these exact catalogs/capabilities:
   by a scene only when that scene references the navigator action. The action rejects arguments,
   disconnected players, and players outside the owning instance. Permission conditions consult
   the installed permissions service; an absent service denies permissions.
-- `gg.grounds:scene-minestom:0.2.1` provides the scene runtime. Placeholder rendering supports
+- `gg.grounds:scene-npc-minestom` provides the Scene runtime and optional shared NPC adapter. Placeholder rendering supports
   authored transforms, including root/local scale, and private viewer highlights. Viewer-scale
   actions, animations, sound, and particle effects are rejected in preflight. This is not a
   general resource-pack/model renderer.
@@ -190,6 +190,8 @@ python3 tools/build_npc_distribution.py \
   --lobby-source /private/plugin-lobby --lobby-source-commit EXACT_ACCEPTED_LOBBY_COMMIT \
   --sources /private/licensed-npcs --composite-policy /private/qualified-policy.json \
   --addon /private/npc-addon.zip --addon-sha256 EXACT_SHA256 --addon-sha1 EXACT_SHA1 \
+  --npc-importer-classpath /private/npc-cli-VERSION-all.jar \
+  --npc-version MATCHING_LIBRARY_VERSION \
   --map /private/selected-stage-map --output /private/new-distribution
 ```
 
@@ -206,17 +208,21 @@ pin its clean Lobby source checkout with both `--lobby-source` and `--lobby-sour
 The tool exports committed host and Resourcepacks sources into fresh, private temporary
 directories and snapshots the licensed archives, policy, addon and scene. This avoids shared
 composite-build outputs and records all archive hashes. It runs a clean host build and the
-entire host test suite. Only `resourcepacks-catalog` and
-`resourcepacks-npc-runtime` use source substitution by default; an explicit pinned Lobby source
+entire host test suite. Only `resourcepacks-catalog` uses source substitution by default; an explicit pinned Lobby source
 also substitutes its two modules. Scene and Chat use their published pinned versions.
 Private host outputs live under the snapshot's `build/private-npc`, separate from ordinary builds.
 After checking ZIP completeness and hashes, the final executable JAR loads the supplied scene
 through the production loader and verifies the addon file contract. Only then is the new output
-directory created, with `minestom-lobby.jar`, `npc-addon.zip`, the standalone neutral `catalog.jar`,
+directory created, with `minestom-lobby.jar`, `server-content.zip`, `npc-addon.zip`, the standalone neutral `catalog.jar`,
 logs and `receipt.json`. The receipt pins the catalog coordinate, version, size and SHA-256. Failed
 attempts keep their temporary logs and produce no qualification receipt.
 
-The JAR contains the addon SHA-1 binding. When the Stage demo is enabled, startup rejects a
+The JAR contains the addon SHA-1 and content-ID bindings. Set
+`GROUNDS_NPC_CONTENT=/absolute/path/server-content.zip` (or `-Dgrounds.npc.content=...`)
+when starting the private host. The file is loaded once per server run and must match
+the built distribution. No path means neutral content; a configured missing, invalid or
+wrong-target file fails startup, and a scene requiring unavailable models is rejected.
+Restart to replace content. The receipt also pins the shared importer JARs. When the Stage demo is enabled, startup rejects a
 missing binding, missing models or a different `GROUNDS_NPC_ADDON_SHA1` before creating the world.
 The addon remains an additive required pack; proxy base-pack delivery is unchanged. No network
 requests are added to login or scene loading.
@@ -261,3 +267,28 @@ version is a metric label. Retiring the adapter removes its meters.
 
 Ordinary Stage LOD serving, permission checks and its server-only configuration are documented in
 [docs/lod-serving.md](docs/lod-serving.md). The older finite pilot remains separately opt-in.
+
+### Shared NPC engine integration
+
+NPC rendering delegates to `groundsgg/library-npc` through `scene-npc-minestom`.
+The host validates the external bundle, exact Grounds catalogue bounds/animations/sounds,
+and `grounds:npc_parts/` mesh references. The executable contains no purchased model JSON
+and the verifier rejects embedded legacy engine copies.
+
+Scene remains on released `1.0.0`. The new content-loader API requires NPC `1.1.0`
+(release dependency: publish the Library before merging this host change).
+`-PnpcVersion=... -PnpcRepository=file:///...` selects exact local NPC Maven candidates;
+Scene continues resolving from its published repository. New importer/CLI modules are
+build tooling and are not bundled into the host. `resourcepacks-npc-content` is no longer
+a required dependency. No empty Maven content artifact or PackSet release is needed.
+
+The product adapter preserves qualified rigid/composite geometry, archive naming,
+original sound metadata and Scene catalog generation. Its eligibility identity includes
+both adapter sources and every selected importer classpath JAR; requalify the policy after
+changing any of these. The private build snapshots these JARs and records their hashes.
+Use the addon generated by the same build: resource IDs deliberately isolate client content.
+
+Private distributions require committed, pinned inputs. The builder runs the complete
+host suite and the actual `NpcContentLoader` plus production Scene loader against the
+external bundle and selected pack. Native client acceptance and real proxy/server transfers
+remain separate product checks. Building does not activate a map, deploy a server or advance a CDN.
