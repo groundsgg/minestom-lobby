@@ -55,8 +55,8 @@ tasks.register<JavaExec>("migrateQueueNpcScene") {
     }
 }
 
-val sceneVersion = providers.gradleProperty("sceneVersion").orElse("1.0.0")
-val npcVersion = providers.gradleProperty("npcVersion").orElse("1.1.0")
+val sceneVersion = providers.gradleProperty("sceneVersion").orElse("1.0.1")
+val npcVersion = providers.gradleProperty("npcVersion").orElse("2.0.0")
 
 application { mainClass.set("gg.grounds.minestom.lobby.MainKt") }
 
@@ -191,6 +191,16 @@ repositories {
     }
 }
 
+// A private source build may retain an already published immutable neutral catalogue.
+val existingNpcCatalog = providers.gradleProperty("npcExistingCatalogJar").orNull?.let(::file)
+
+if (existingNpcCatalog != null) {
+    require(providers.gradleProperty("npcResourcepacksDirectory").isPresent) {
+        "Existing NPC catalogue belongs to an explicit private content build"
+    }
+    configurations.configureEach { exclude(group = "gg.grounds", module = "resourcepacks-catalog") }
+}
+
 dependencies {
     testImplementation(kotlin("test"))
     implementation("io.micrometer:micrometer-core:1.16.6")
@@ -201,10 +211,11 @@ dependencies {
     implementation("gg.grounds:grounds-minestom-runtime-runtime-world:0.15.1")
     implementation("gg.grounds:scene-npc-minestom:${sceneVersion.get()}")
     implementation("gg.grounds:scene-interaction:${sceneVersion.get()}")
-    implementation("gg.grounds:resourcepacks-catalog:1.3.0")
+    if (existingNpcCatalog != null) implementation(files(existingNpcCatalog))
+    else implementation("gg.grounds:resourcepacks-catalog:1.3.0")
     implementation("gg.grounds:npc-core:${npcVersion.get()}")
     implementation("gg.grounds:npc-minestom:${npcVersion.get()}")
-    implementation("gg.grounds:plugin-lobby-scene-catalog:2.23.0")
+    implementation("gg.grounds:plugin-lobby-scene-catalog:2.24.0")
     // Minecraft 26.3. Overrides the 26.2 Minestom in grounds-dependencies 1.0.0 until that
     // platform carries an upstream 26.3 release. Keep in step with grounds-vanilla's 26.3 line,
     // which is built on this exact version.
@@ -222,7 +233,7 @@ dependencies {
     // 0.2.0 is also the first version with the shared chat line, so a message looks the same
     // whether it crossed the proxy or was broadcast inside this lobby.
     // 2.6.0 applies sender permissions to chat formatting and emoji aliases.
-    implementation("gg.grounds:plugin-chat-minestom:2.20.1")
+    implementation("gg.grounds:plugin-chat-minestom:2.22.0")
     // Shared Mini-CD context and message-level colours for every loaded module.
     implementation("gg.grounds:library-i18n:0.4.4")
     implementation("gg.grounds:plugin-notifications-minestom:0.4.0")
@@ -237,7 +248,7 @@ dependencies {
     // so they render as a chest for a Java player and as a native form for a Bedrock one.
     // Before that a Bedrock player reached the lobby and found missing-glyph text where
     // the menu should be — which made this the one dependency a Bedrock rollout waits on.
-    implementation("gg.grounds:plugin-lobby-minestom:2.23.0")
+    implementation("gg.grounds:plugin-lobby-minestom:2.24.0")
     // `/settings` (and a bare `/region`) on this lobby, the same menu every server shows.
     // Selected unconditionally in LobbyServer; since plugin-lobby 2.20.0 the lobby has no menu
     // of its own.
