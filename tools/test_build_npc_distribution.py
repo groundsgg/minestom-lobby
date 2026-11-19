@@ -53,6 +53,61 @@ class DistributionTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Missing shared NPC'):
             distribution.verify_shared_engine(jar)
 
+    def test_existing_immutable_catalog_is_reused_with_its_original_version(self):
+        catalog = self.root / 'existing-catalog.jar'
+        with zipfile.ZipFile(catalog, 'w') as archive:
+            archive.writestr('gg/grounds/resourcepacks/catalog/catalog-version.txt', '0.0.0-edge.7.g0123456789ab\n')
+            archive.writestr('gg/grounds/resourcepacks/catalog/GroundsAssetCatalog.class', b'compiled metadata')
+        before = catalog.read_bytes()
+        self.assertEqual(distribution.existing_catalog_version(catalog, hashlib.sha256(before).hexdigest()),
+                         '0.0.0-edge.7.g0123456789ab')
+        self.assertEqual(catalog.read_bytes(), before)
+        with self.assertRaisesRegex(ValueError, 'hash|digest'):
+            distribution.existing_catalog_version(catalog, '0' * 64)
+        with zipfile.ZipFile(catalog, 'a') as archive:
+            archive.writestr('gg/grounds/resourcepacks/npc/private-model.json', '{}')
+        with self.assertRaisesRegex(ValueError, 'payload'):
+            distribution.existing_catalog_version(catalog, hashlib.sha256(catalog.read_bytes()).hexdigest())
+
+    def test_immutable_catalog_reuse_rejects_reusing_the_generated_build_identity(self):
+        catalog = self.root / 'existing.jar'
+        version = '0.0.0-edge.7.g0123456789ab'
+        with zipfile.ZipFile(catalog, 'w') as archive:
+            archive.writestr('gg/grounds/resourcepacks/catalog/catalog-version.txt', version)
+        sha = hashlib.sha256(catalog.read_bytes()).hexdigest()
+        with self.assertRaisesRegex(ValueError, 'fresh|identity'):
+            distribution.existing_catalog_version(catalog, sha, generated_version=version)
+
+    def test_executable_catalog_must_match_all_selected_immutable_entries(self):
+        catalog = self.root / 'catalog.jar'; host = self.root / 'host.jar'
+        entries = {'gg/grounds/resourcepacks/catalog/GroundsAssetCatalog.class': b'original class',
+                   'gg/grounds/resourcepacks/catalog/catalog-version.txt': b'1.2.3',
+                   'META-INF/resourcepacks-catalog.kotlin_module': b'original metadata'}
+        with zipfile.ZipFile(catalog, 'w') as archive:
+            for name, data in entries.items(): archive.writestr(name, data)
+        for mode in ('exact', 'changed', 'extra', 'missing'):
+            payload = dict(entries)
+            if mode == 'changed': payload['gg/grounds/resourcepacks/catalog/GroundsAssetCatalog.class'] = b'other class'
+            if mode == 'extra': payload['gg/grounds/resourcepacks/catalog/Extra.class'] = b'extra'
+            if mode == 'missing': payload.pop('META-INF/resourcepacks-catalog.kotlin_module')
+            with zipfile.ZipFile(host, 'w') as archive:
+                archive.writestr('app/Main.class', b'unrelated host code')
+                for name, data in payload.items(): archive.writestr(name, data)
+            if mode == 'exact': distribution.verify_embedded_catalog(host, catalog)
+            else:
+                with self.subTest(mode=mode), self.assertRaisesRegex(ValueError, 'catalog'):
+                    distribution.verify_embedded_catalog(host, catalog)
+
+    def test_existing_catalog_requires_an_explicit_valid_digest_and_bounded_metadata(self):
+        catalog = self.root / 'existing-catalog.jar'
+        with zipfile.ZipFile(catalog, 'w') as archive:
+            archive.writestr('gg/grounds/resourcepacks/catalog/catalog-version.txt', '')
+        for digest in ('', 'short', 'f' * 63):
+            with self.assertRaises(ValueError):
+                distribution.existing_catalog_version(catalog, digest)
+        with self.assertRaisesRegex(ValueError, 'version'):
+            distribution.existing_catalog_version(catalog, hashlib.sha256(catalog.read_bytes()).hexdigest())
+
     def test_private_catalog_has_a_distinct_source_build_identity(self):
         commit = '0123456789abcdef0123456789abcdef01234567'
         self.assertEqual(distribution.private_catalog_version(commit, 42),

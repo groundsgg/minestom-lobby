@@ -191,6 +191,16 @@ repositories {
     }
 }
 
+// A private source build may retain an already published immutable neutral catalogue.
+val existingNpcCatalog = providers.gradleProperty("npcExistingCatalogJar").orNull?.let(::file)
+
+if (existingNpcCatalog != null) {
+    require(providers.gradleProperty("npcResourcepacksDirectory").isPresent) {
+        "Existing NPC catalogue belongs to an explicit private content build"
+    }
+    configurations.configureEach { exclude(group = "gg.grounds", module = "resourcepacks-catalog") }
+}
+
 dependencies {
     testImplementation(kotlin("test"))
     implementation("io.micrometer:micrometer-core:1.16.6")
@@ -201,7 +211,8 @@ dependencies {
     implementation("gg.grounds:grounds-minestom-runtime-runtime-world:0.15.1")
     implementation("gg.grounds:scene-npc-minestom:${sceneVersion.get()}")
     implementation("gg.grounds:scene-interaction:${sceneVersion.get()}")
-    implementation("gg.grounds:resourcepacks-catalog:1.3.0")
+    if (existingNpcCatalog != null) implementation(files(existingNpcCatalog))
+    else implementation("gg.grounds:resourcepacks-catalog:1.3.0")
     implementation("gg.grounds:npc-core:${npcVersion.get()}")
     implementation("gg.grounds:npc-minestom:${npcVersion.get()}")
     implementation("gg.grounds:plugin-lobby-scene-catalog:2.23.0")

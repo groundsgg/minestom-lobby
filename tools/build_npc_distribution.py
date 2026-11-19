@@ -43,6 +43,43 @@ def verify_catalog_metadata(jar, version):
             raise ValueError('Catalog export identity differs from the private build')
 
 
+
+def existing_catalog_version(jar, expected_sha256, *, generated_version=None):
+    """Reuse immutable neutral metadata without generating new bytes under its version."""
+    jar = Path(jar)
+    if not re.fullmatch('[0-9a-f]{64}', expected_sha256 or ''):
+        raise ValueError('Existing catalog requires an explicit SHA-256 digest')
+    if not jar.is_file() or jar.stat().st_size > 16 * 1024 * 1024:
+        raise ValueError('Existing catalog file is missing or too large')
+    if digest(jar) != expected_sha256:
+        raise ValueError('Existing catalog hash differs from the pinned digest')
+    with zipfile.ZipFile(jar) as archive:
+        if len(archive.infolist()) > 1024 or sum(i.file_size for i in archive.infolist()) > 64 * 1024 * 1024:
+            raise ValueError('Existing catalog metadata exceeds size limits')
+        version = archive.read('gg/grounds/resourcepacks/catalog/catalog-version.txt').decode('utf-8').strip()
+    if not version or len(version) > 128:
+        raise ValueError('Existing catalog version is missing or too long')
+    verify_catalog_metadata(jar, version)
+    if version == generated_version:
+        raise ValueError("Existing catalog identity must differ from the fresh generated build identity")
+    return version
+
+
+def verify_embedded_catalog(host_jar, catalog_jar):
+    """Prove Shadow embedded exactly the selected catalog's classes and identity."""
+    def entries(path):
+        with zipfile.ZipFile(path) as archive:
+            selected = [name for name in archive.namelist()
+                        if not name.endswith('/') and (
+                            name.startswith('gg/grounds/resourcepacks/catalog/') or
+                            name == 'META-INF/resourcepacks-catalog.kotlin_module')]
+            if len(set(selected)) != len(selected):
+                raise ValueError('Duplicate embedded catalog entries')
+            return {name: archive.read(name) for name in selected}
+    if entries(host_jar) != entries(catalog_jar):
+        raise ValueError('Executable catalog differs from the selected immutable catalog')
+
+
 def digest(path, algorithm='sha256'):
     with Path(path).open('rb') as stream:
         return hashlib.file_digest(stream, algorithm).hexdigest()
@@ -158,6 +195,8 @@ def main():
     parser.add_argument('--resourcepacks', type=Path, required=True)
     parser.add_argument('--resourcepacks-commit', required=True)
     parser.add_argument('--catalog-build-number', type=int, required=True)
+    parser.add_argument('--catalog-jar', type=Path)
+    parser.add_argument('--catalog-sha256')
     parser.add_argument('--lobby-source', type=Path)
     parser.add_argument('--lobby-source-commit')
     parser.add_argument('--sources', type=Path, required=True)
@@ -180,7 +219,13 @@ def main():
     if args.output.exists():
         raise ValueError('Distribution output must not exist')
     verify_checkout(args.resourcepacks, args.resourcepacks_commit)
-    catalog_version = private_catalog_version(args.resourcepacks_commit, args.catalog_build_number)
+    generated_catalog_version = private_catalog_version(args.resourcepacks_commit, args.catalog_build_number)
+    if bool(args.catalog_jar) != bool(args.catalog_sha256):
+        raise ValueError('Existing catalog requires both --catalog-jar and --catalog-sha256')
+    catalog_version = generated_catalog_version
+    if args.catalog_jar:
+        args.catalog_jar = args.catalog_jar.resolve()
+        catalog_version = existing_catalog_version(args.catalog_jar, args.catalog_sha256, generated_version=generated_catalog_version)
     host_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo, text=True).strip()
     verify_checkout(repo, host_commit)
     if bool(args.lobby_source) != bool(args.lobby_source_commit):
@@ -207,6 +252,12 @@ def main():
         print('Build logs: ' + str(staging / 'build.log'), flush=True)
         inputs = staging / 'inputs'
         inputs.mkdir()
+        existing_catalog = None
+        if args.catalog_jar:
+            existing_catalog = inputs / 'existing-catalog.jar'
+            shutil.copyfile(args.catalog_jar, existing_catalog)
+            if existing_catalog_version(existing_catalog, args.catalog_sha256, generated_version=generated_catalog_version) != catalog_version:
+                raise ValueError('Existing catalog identity changed during snapshot')
         host_source = inputs / 'host'
         pack_source = inputs / 'resourcepacks'
         snapshot_checkout(repo, host_commit, host_source)
@@ -252,6 +303,8 @@ def main():
             command.append('--offline')
         if args.lobby_source:
             command.append('-PnpcLobbySourceDirectory=' + str(lobby_source))
+        if existing_catalog:
+            command.append('-PnpcExistingCatalogJar=' + str(existing_catalog))
         if args.npc_repository:
             command.append('-PnpcRepository=' + str(args.npc_repository.resolve()))
         command += [
@@ -262,7 +315,7 @@ def main():
             '-PnpcGeometryMode=composite',
             '-PnpcCompositePolicy=' + str(policy),
             '-PnpcAddonZip=' + str(addon),
-            '-PpackSetVersion=' + catalog_version,
+            '-PpackSetVersion=' + generated_catalog_version,
             '-PpublicationType=build',
             '-PpublicationId=' + args.resourcepacks_commit,
             '-PprovenanceCommit=' + args.resourcepacks_commit,
@@ -292,20 +345,29 @@ def main():
             ], check=True, stdout=log, stderr=subprocess.STDOUT, text=True, timeout=120)
         acceptance = (staging / 'acceptance.log').read_text()
         verify_pair(jar, addon, args.addon_sha1, content)
-        catalog_jars = [p for p in (pack_source / 'resourcepacks-catalog/build/libs').glob('*.jar')
-                        if not p.name.endswith('-sources.jar')]
-        if len(catalog_jars) != 1:
-            raise ValueError('Expected one source-built standalone catalog JAR')
         catalog = staging / 'catalog.jar'
-        shutil.copyfile(catalog_jars[0], catalog)
+        if existing_catalog:
+            shutil.copyfile(existing_catalog, catalog)
+            if digest(catalog) != args.catalog_sha256:
+                raise ValueError('Existing catalog changed before distribution assembly')
+        else:
+            catalog_jars = [p for p in (pack_source / 'resourcepacks-catalog/build/libs').glob('*.jar')
+                            if not p.name.endswith('-sources.jar')]
+            if len(catalog_jars) != 1:
+                raise ValueError('Expected one source-built standalone catalog JAR')
+            shutil.copyfile(catalog_jars[0], catalog)
         verify_catalog_metadata(catalog, catalog_version)
+        verify_embedded_catalog(jar, catalog)
         receipt = {
             'qualified': True,
+            'embeddedCatalogVerified': True,
             'hostCommit': host_commit,
             'hostDirty': False,
             'resourcepacksCommit': args.resourcepacks_commit,
             'lobbySourceCommit': args.lobby_source_commit,
             'policySha256': policy_sha256,
+            'reusedImmutableCatalog': bool(existing_catalog),
+            'generatedCatalogVersion': generated_catalog_version,
             'sourceArchivesSha256': source_hashes,
             'sceneSha256': scene_sha256,
             'addonSha256': digest(staging / 'npc-addon.zip'),

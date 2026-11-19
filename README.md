@@ -292,3 +292,12 @@ Private distributions require committed, pinned inputs. The builder runs the com
 host suite and the actual `NpcContentLoader` plus production Scene loader against the
 external bundle and selected pack. Native client acceptance and real proxy/server transfers
 remain separate product checks. Building does not activate a map, deploy a server or advance a CDN.
+
+When the NPC asset definitions are unchanged, a private build can keep an existing
+immutable neutral catalogue using `--catalog-jar /private/catalog.jar` and
+`--catalog-sha256 EXACT_SHA256`. The builder snapshots and verifies the original
+bytes, builds against that catalogue and validates the complete selected scene
+through the production loader. The receipt preserves its existing version and
+digest. Model compilation still uses a fresh build identity; it never regenerates
+new catalogue bytes under the existing version. This lets a library or model
+packaging update retain a compatible published map without changing its pin.
