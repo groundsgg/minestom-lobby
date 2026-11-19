@@ -79,6 +79,7 @@ class LicensedNpcBundleTest {
         val assets = GroundsAssetCatalog.catalog
         val body = AssetKey("grounds:npc/townfolk/builder")
         assumeTrue(body in assets.assets, "Licensed model variant not selected")
+        net.minestom.server.MinecraftServer.init()
         val scene =
             migrateGroundsQueueNpcScene(
                 lobbySceneFixture(assets, Vec3(30.0, 140.0, 30.0), Vec3(32.0, 140.0, 30.0)),
