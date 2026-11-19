@@ -210,7 +210,7 @@ def main():
     parser.add_argument('--java', default='java')
     parser.add_argument('--offline', action='store_true')
     parser.add_argument('--npc-importer-classpath', required=True)
-    parser.add_argument('--npc-version', default='1.1.0')
+    parser.add_argument('--npc-version', default='2.0.0')
     parser.add_argument('--npc-repository', type=Path)
     args = parser.parse_args()
     repo = Path(__file__).resolve().parents[1]

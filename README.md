@@ -275,7 +275,7 @@ The host validates the external bundle, exact Grounds catalogue bounds/animation
 and `grounds:npc_parts/` mesh references. The executable contains no purchased model JSON
 and the verifier rejects embedded legacy engine copies.
 
-Scene remains on released `1.0.0`. The new content-loader API requires NPC `1.1.0`
+Scene uses released `1.0.1`. The sound-admission adapter requires NPC `2.0.0`
 (release dependency: publish the Library before merging this host change).
 `-PnpcVersion=... -PnpcRepository=file:///...` selects exact local NPC Maven candidates;
 Scene continues resolving from its published repository. New importer/CLI modules are
@@ -301,3 +301,12 @@ through the production loader. The receipt preserves its existing version and
 digest. Model compilation still uses a fresh build identity; it never regenerates
 new catalogue bytes under the existing version. This lets a library or model
 packaging update retain a compatible published map without changing its pin.
+
+Ordinary CI images keep licensed content external. At startup a read-only content
+volume can provide `server-content.zip`, the selected immutable neutral catalogue
+JAR and the exact `npc-addon-sha1.txt` / `npc-content-id.txt` binding resources.
+Use an explicit Java classpath with the catalogue and binding directory before
+the executable JAR, and set `GROUNDS_NPC_CONTENT` to the mounted content bundle.
+Select the same catalogue/version as the published map and verify the complete
+scene and addon contract before activating the deployment. Keep private model
+files outside Git and public image layers.
