@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.19.3](https://github.com/groundsgg/minestom-lobby/compare/v2.19.2...v2.19.3) (2026-11-20)
+
+
+### Bug Fixes
+
+* **dialogue:** adopt corrected bitmap font bundle ([#270](https://github.com/groundsgg/minestom-lobby/issues/270)) ([c040012](https://github.com/groundsgg/minestom-lobby/commit/c0400126bd007b69932f3a74f3f295216111362f))
+
 ## [2.19.2](https://github.com/groundsgg/minestom-lobby/compare/v2.19.1...v2.19.2) (2026-11-20)
 
 
