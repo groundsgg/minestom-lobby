@@ -261,6 +261,160 @@ class LobbySceneActionsTest {
         }
     }
 
+    @Test
+    fun `dialogue preserves exact context and asynchronous starter result`() {
+        RendererFixture().use { fixture ->
+            val expected =
+                context(fixture.player())
+                    .copy(
+                        arguments =
+                            mapOf(
+                                LobbySceneCatalogs.DIALOGUE_ID to StringArgument("guide/welcome"),
+                                LobbySceneCatalogs.SPEAKER to StringArgument("guide"),
+                            )
+                    )
+            val completion = CompletableFuture<SceneActionResult>()
+            val handler =
+                LobbySceneActions(
+                        null,
+                        LobbyScenePlayerPolicy(fixture.instance, null),
+                        dialogueStarter =
+                            LobbySceneDialogueStarter { context, dialogue, speaker ->
+                                assertSame(expected, context)
+                                assertEquals("guide/welcome", dialogue)
+                                assertEquals("guide", speaker)
+                                completion
+                            },
+                    )
+                    .handlerFor(LobbySceneCatalogs.START_DIALOGUE)!!
+            val result = handler.execute(expected).toCompletableFuture()
+            assertFalse(result.isDone)
+            completion.complete(SceneActionResult.Rejected("Dialogue unavailable"))
+            assertEquals(SceneActionResult.Rejected("Dialogue unavailable"), result.join())
+        }
+    }
+
+    @Test
+    fun `dialogue rejects incorrect arguments and ineligible players before invoking starter`() {
+        RendererFixture().use { fixture ->
+            val handler =
+                LobbySceneActions(
+                        null,
+                        LobbyScenePlayerPolicy(fixture.instance, null),
+                        dialogueStarter =
+                            LobbySceneDialogueStarter { _, _, _ ->
+                                fail("Rejected action reached starter")
+                            },
+                    )
+                    .handlerFor(LobbySceneCatalogs.START_DIALOGUE)!!
+            val valid =
+                mapOf(
+                    LobbySceneCatalogs.DIALOGUE_ID to StringArgument("guide/welcome"),
+                    LobbySceneCatalogs.SPEAKER to StringArgument("guide"),
+                )
+            listOf(
+                    emptyMap(),
+                    valid - LobbySceneCatalogs.SPEAKER,
+                    valid + (LocalId("extra") to StringArgument("x")),
+                    valid + (LobbySceneCatalogs.SPEAKER to BooleanArgument(true)),
+                )
+                .forEach { arguments ->
+                    assertInstanceOf(
+                        SceneActionResult.Rejected::class.java,
+                        handler
+                            .execute(context(fixture.player()).copy(arguments = arguments))
+                            .toCompletableFuture()
+                            .join(),
+                    )
+                }
+            assertInstanceOf(
+                SceneActionResult.Rejected::class.java,
+                handler
+                    .execute(context(TestPlayer()).copy(arguments = valid))
+                    .toCompletableFuture()
+                    .join(),
+            )
+            assertInstanceOf(
+                SceneActionResult.Rejected::class.java,
+                handler
+                    .execute(
+                        context(fixture.player())
+                            .copy(arguments = valid, trigger = SceneTrigger.HOVER_ENTER)
+                    )
+                    .toCompletableFuture()
+                    .join(),
+            )
+            val disconnected = fixture.player()
+            disconnected.playerConnection.disconnect()
+            assertInstanceOf(
+                SceneActionResult.Rejected::class.java,
+                handler
+                    .execute(context(disconnected).copy(arguments = valid))
+                    .toCompletableFuture()
+                    .join(),
+            )
+            assertNull(
+                LobbySceneActions(null, LobbyScenePlayerPolicy(fixture.instance, null))
+                    .handlerFor(LobbySceneCatalogs.START_DIALOGUE)
+            )
+        }
+    }
+
+    @Test
+    fun `dialogue scene without installed starter fails runtime preparation`() {
+        RendererFixture().use { fixture ->
+            val assets = gg.grounds.resourcepacks.catalog.GroundsAssetCatalog.catalog
+            val authored = lobbySceneFixture(assets, Vec3(0.0, 0.0, 0.0), Vec3(1.0, 0.0, 0.0))
+            val npc = authored.elements.filterIsInstance<Npc>().single()
+            val scene =
+                authored.with(
+                    elements =
+                        listOf(
+                            npc.with(
+                                bindings =
+                                    listOf(
+                                        TriggerBinding(
+                                            SceneTrigger.RIGHT_CLICK,
+                                            emptyList(),
+                                            0,
+                                            0,
+                                            listOf(
+                                                ApplicationAction(
+                                                    LobbySceneCatalogs.START_DIALOGUE,
+                                                    mapOf(
+                                                        LobbySceneCatalogs.DIALOGUE_ID to
+                                                            StringArgument("guide/welcome"),
+                                                        LobbySceneCatalogs.SPEAKER to
+                                                            StringArgument("guide"),
+                                                    ),
+                                                )
+                                            ),
+                                        )
+                                    )
+                            )
+                        )
+                )
+            val prepared =
+                PreparedLobbyScene(
+                    scene,
+                    assets,
+                    LobbySceneCatalogs.DIALOGUE,
+                    SceneRuntimeIdentity(scene.id, "lobby/test", 1),
+                    fixture.registry,
+                )
+            assertTrue(
+                assertThrows(IllegalStateException::class.java) {
+                        prepared.runtimeRequest(
+                            fixture.instance,
+                            gg.grounds.modules.core.DefaultServiceRegistry(),
+                        )
+                    }
+                    .message!!
+                    .contains("dialogue starter")
+            )
+        }
+    }
+
     private fun context(player: Player) =
         SceneActionContext(
             SceneRuntimeIdentity(SceneId("grounds:lobby-stage"), "lobby/mainlobby", 4),

@@ -3,7 +3,10 @@ package gg.grounds.minestom.lobby
 import gg.grounds.GameServerRetirement
 import gg.grounds.minestom.lobby.scene.LobbySceneHost
 import gg.grounds.minestom.lobby.scene.LobbySceneLoader
+import gg.grounds.minestom.lobby.scene.StageLobbyDialogue
 import gg.grounds.minestom.lobby.scene.runtimeRequest
+import gg.grounds.minestom.lobby.scene.stageDialoguePreviewEnabled
+import gg.grounds.minestom.lobby.scene.withStageDialoguePreview
 import gg.grounds.modules.get
 import gg.grounds.permissions.Permissions
 import gg.grounds.runtime.GroundsModule
@@ -48,12 +51,15 @@ internal class LobbyModule(
 
     override fun install(ctx: GroundsServerContext) {
         val demoEnabled = stageNpcDemoEnabled()
+        val dialoguePreview = stageDialoguePreviewEnabled(lodEnvironment)
+        require(!dialoguePreview || demoEnabled) { "Stage dialogue preview requires the NPC demo" }
         val nativeSolidEnabled = System.getenv("GROUNDS_NPC_NATIVE_SOLID_POC") == "true"
         require(!nativeSolidEnabled || demoEnabled) { "Native SOLID probe requires the Stage demo" }
         val demoPack = if (demoEnabled) NpcDemoPack.configured() else null
         val created = createWorld()
         world = created
         val (instanceContainer, spawn, loaded) = created
+        var stageDialogue: StageLobbyDialogue? = null
         val prepared =
             try {
                 LobbySceneLoader()
@@ -68,8 +74,28 @@ internal class LobbyModule(
                             )
                         else prepared
                     }
-                    ?.runtimeRequest(instanceContainer, ctx.services)
                     .also { if (demoEnabled) requireStageNpcDemoMap(loaded.source, it?.scene) }
+                    ?.let { prepared ->
+                        val preview =
+                            if (dialoguePreview) prepared.withStageDialoguePreview() else null
+                        val starter =
+                            preview?.let { entry ->
+                                StageLobbyDialogue(
+                                    instanceContainer,
+                                    entry.prepared.identity,
+                                    entry.stationId,
+                                    entry.position,
+                                ) { player ->
+                                    player.locale?.toLanguageTag() ?: "en"
+                                }
+                            }
+                        stageDialogue = starter
+                        (preview?.prepared ?: prepared).runtimeRequest(
+                            instanceContainer,
+                            ctx.services,
+                            starter,
+                        )
+                    }
                     .also { request ->
                         val started = System.nanoTime()
                         val centres =
@@ -91,12 +117,20 @@ internal class LobbyModule(
                         )
                     }
             } catch (failure: Exception) {
-                // No lobby command/listener has been registered; do not retain this unused world.
+                stageDialogue?.closeAsync()
+                // The lobby has no admission listener yet. Release the unused world.
                 MinecraftServer.getInstanceManager().unregisterInstance(instanceContainer)
                 throw failure
             }
+        val preparedDialogue = stageDialogue
         val host =
-            prepared?.let { request -> LobbySceneHost({ createRuntime(request) }, fatalStop) }
+            prepared?.let { request ->
+                LobbySceneHost(
+                    { createRuntime(request) },
+                    { preparedDialogue?.closeAsync() },
+                    fatalStop,
+                )
+            }
         if (nativeSolidEnabled) {
             val stations =
                 prepared!!.scene.elements.filterIsInstance<gg.grounds.scene.format.Npc>().filter {
@@ -117,6 +151,12 @@ internal class LobbyModule(
                 prepared.identity.mapVersion,
                 prepared.assets.version,
                 prepared.actions.version,
+            )
+        if (preparedDialogue != null && prepared != null)
+            logger.info(
+                "Prepared Stage dialogue preview (sceneId={}, mapVersion={})",
+                prepared.identity.sceneId.value,
+                prepared.identity.mapVersion,
             )
         val demo =
             if (demoEnabled)

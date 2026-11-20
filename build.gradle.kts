@@ -57,6 +57,7 @@ tasks.register<JavaExec>("migrateQueueNpcScene") {
 
 val sceneVersion = providers.gradleProperty("sceneVersion").orElse("1.0.1")
 val npcVersion = providers.gradleProperty("npcVersion").orElse("2.0.0")
+val dialogueVersion = providers.gradleProperty("dialogueVersion").orElse("1.0.0")
 
 application { mainClass.set("gg.grounds.minestom.lobby.MainKt") }
 
@@ -211,11 +212,12 @@ dependencies {
     implementation("gg.grounds:grounds-minestom-runtime-runtime-world:0.15.1")
     implementation("gg.grounds:scene-npc-minestom:${sceneVersion.get()}")
     implementation("gg.grounds:scene-interaction:${sceneVersion.get()}")
+    implementation("gg.grounds:dialogue-minestom:${dialogueVersion.get()}")
     if (existingNpcCatalog != null) implementation(files(existingNpcCatalog))
     else implementation("gg.grounds:resourcepacks-catalog:1.3.0")
     implementation("gg.grounds:npc-core:${npcVersion.get()}")
     implementation("gg.grounds:npc-minestom:${npcVersion.get()}")
-    implementation("gg.grounds:plugin-lobby-scene-catalog:2.24.0")
+    implementation("gg.grounds:plugin-lobby-scene-catalog:2.25.0")
     // Minecraft 26.3. Overrides the 26.2 Minestom in grounds-dependencies 1.0.0 until that
     // platform carries an upstream 26.3 release. Keep in step with grounds-vanilla's 26.3 line,
     // which is built on this exact version.
@@ -291,4 +293,29 @@ tasks.register<JavaCompile>("compileNpcStageAcceptanceTool") {
     destinationDirectory = layout.buildDirectory.dir("verification/acceptance-tools")
     javaCompiler = javaToolchains.compilerFor { languageVersion = JavaLanguageVersion.of(25) }
     options.release = 25
+}
+
+val dialogueReviewRepository = providers.gradleProperty("dialogueRepository").orNull
+val dialogueArtifacts =
+    repositories.maven {
+        url =
+            uri(
+                dialogueReviewRepository
+                    ?: "https://maven.pkg.github.com/groundsgg/library-dialogue"
+            )
+        if (dialogueReviewRepository == null) {
+            credentials {
+                username = providers.gradleProperty("github.user").get()
+                password = providers.gradleProperty("github.token").get()
+            }
+        }
+    }
+
+repositories.exclusiveContent {
+    forRepositories(dialogueArtifacts)
+    filter {
+        includeModule("gg.grounds", "dialogue-core")
+        includeModule("gg.grounds", "dialogue-presentation")
+        includeModule("gg.grounds", "dialogue-minestom")
+    }
 }

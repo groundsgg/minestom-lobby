@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory
 
 internal class LobbySceneHost(
     private val create: () -> CompletionStage<SceneRuntimeCreationResult>,
+    private val closeBeforeScene: () -> CompletionStage<Void>? = { null },
     private val fatalStop: () -> Unit,
 ) {
     private enum class State {
@@ -75,7 +76,7 @@ internal class LobbySceneHost(
                 ready.completeExceptionally(failure)
                 !wasClosed
             }
-        closed.complete(null)
+        closeRuntime(null)
         if (requestStop) {
             LoggerFactory.getLogger(LobbySceneHost::class.java)
                 .error("Lobby scene startup failed", failure)
@@ -96,7 +97,7 @@ internal class LobbySceneHost(
             ready.completeExceptionally(IllegalStateException("Lobby scene host is closed"))
         }
         when (previous) {
-            State.NEW -> closed.complete(null)
+            State.NEW -> closeRuntime(null)
             State.RUNNING -> closeRuntime(checkNotNull(owned))
             State.STARTING -> Unit // The creation callback owns late-runtime cleanup.
             State.CLOSED -> Unit
@@ -104,14 +105,25 @@ internal class LobbySceneHost(
         return closed
     }
 
-    private fun closeRuntime(owned: SceneRuntime) {
-        try {
-            owned.close().whenComplete { _, failure ->
+    private fun closeRuntime(owned: SceneRuntime?) {
+        val dialogueClosed =
+            try {
+                closeBeforeScene() ?: CompletableFuture.completedFuture(null)
+            } catch (failure: Throwable) {
+                CompletableFuture.failedFuture(failure)
+            }
+        dialogueClosed.whenComplete { _, dialogueFailure ->
+            val sceneClosed =
+                try {
+                    owned?.close() ?: CompletableFuture.completedFuture(null)
+                } catch (failure: Throwable) {
+                    CompletableFuture.failedFuture(failure)
+                }
+            sceneClosed.whenComplete { _, sceneFailure ->
+                val failure = dialogueFailure ?: sceneFailure
                 if (failure == null) closed.complete(null)
                 else closed.completeExceptionally(failure)
             }
-        } catch (failure: Throwable) {
-            closed.completeExceptionally(failure)
         }
     }
 }
