@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.19.2](https://github.com/groundsgg/minestom-lobby/compare/v2.19.1...v2.19.2) (2026-11-20)
+
+
+### Bug Fixes
+
+* **dialogue:** lower panels and hide the NPC nameplate ([#268](https://github.com/groundsgg/minestom-lobby/issues/268)) ([bfe5ad4](https://github.com/groundsgg/minestom-lobby/commit/bfe5ad4b86925cf3dad6fecec50d8724a3fb03d4))
+
 ## [2.19.1](https://github.com/groundsgg/minestom-lobby/compare/v2.19.0...v2.19.1) (2026-11-20)
 
 
