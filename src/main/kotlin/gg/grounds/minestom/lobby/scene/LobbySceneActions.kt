@@ -9,13 +9,23 @@ import gg.grounds.permissions.Permissions
 import gg.grounds.scene.format.*
 import gg.grounds.scene.minestom.*
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CompletionStage
 import net.minestom.server.entity.Player
 import net.minestom.server.instance.Instance
+
+internal fun interface LobbySceneDialogueStarter {
+    fun start(
+        context: SceneActionContext,
+        dialogue: String,
+        speaker: String,
+    ): CompletionStage<SceneActionResult>
+}
 
 internal class LobbySceneActions(
     private val navigator: LobbyNavigatorService?,
     private val policy: ScenePlayerPolicy,
     private val queues: LobbyQueueService? = null,
+    private val dialogueStarter: LobbySceneDialogueStarter? = null,
 ) : SceneActionRegistry {
     private val navigatorHandler =
         navigator?.let { installed ->
@@ -69,11 +79,37 @@ internal class LobbySceneActions(
             }
         }
 
+    private val dialogueHandler =
+        dialogueStarter?.let { installed ->
+            SceneActionHandler { context ->
+                val dialogue =
+                    (context.arguments[LobbySceneCatalogs.DIALOGUE_ID] as? StringArgument)?.value
+                val speaker =
+                    (context.arguments[LobbySceneCatalogs.SPEAKER] as? StringArgument)?.value
+                if (
+                    context.arguments.keys !=
+                        setOf(LobbySceneCatalogs.DIALOGUE_ID, LobbySceneCatalogs.SPEAKER) ||
+                        dialogue == null ||
+                        speaker == null ||
+                        context.trigger !in
+                            setOf(SceneTrigger.LEFT_CLICK, SceneTrigger.RIGHT_CLICK) ||
+                        !policy.isEligible(context.player)
+                ) {
+                    CompletableFuture.completedFuture(
+                        SceneActionResult.Rejected("Player or arguments rejected")
+                    )
+                } else {
+                    installed.start(context, dialogue, speaker)
+                }
+            }
+        }
+
     override fun handlerFor(key: ActionKey): SceneActionHandler? =
         when (key) {
             LobbySceneCatalogs.OPEN_NAVIGATOR -> navigatorHandler
             LobbySceneCatalogs.TOGGLE_QUEUE -> toggleHandler
             LobbySceneCatalogs.OPEN_DUEL_MENU -> duelHandler
+            LobbySceneCatalogs.START_DIALOGUE -> dialogueHandler
             else -> null
         }
 }
@@ -91,6 +127,7 @@ internal class LobbyScenePlayerPolicy(
 internal fun PreparedLobbyScene.runtimeRequest(
     instance: Instance,
     services: ServiceRegistry,
+    installedDialogue: LobbySceneDialogueStarter? = null,
 ): SceneRuntimeRequest {
     val applicationKeys =
         scene.boundActions().filterIsInstance<ApplicationAction>().map { it.key }.toSet()
@@ -111,7 +148,13 @@ internal fun PreparedLobbyScene.runtimeRequest(
             services.get<LobbyQueueService>()
                 ?: error("Selected lobby scene requires the installed queue service")
         } else null
-    val registry = LobbySceneActions(navigator, policy, queues)
+    val dialogueStarter =
+        if (LobbySceneCatalogs.START_DIALOGUE in applicationKeys) {
+            installedDialogue
+                ?: services.get<LobbySceneDialogueStarter>()
+                ?: error("Selected lobby scene requires the installed dialogue starter")
+        } else null
+    val registry = LobbySceneActions(navigator, policy, queues, dialogueStarter)
     // Resolve handlers without executing them, using the exact immutable registry passed below.
     applicationKeys.forEach { key ->
         check(registry.handlerFor(key) != null) {
