@@ -170,9 +170,7 @@ internal class StageLobbyDialogue(
                     state.ready && proxyPackEnabled,
                 )
             if (accepted && state.ready && proxyPackEnabled)
-                sessions[player]?.updatePreferences(
-                    PresentationPreferences("npc", Duration.ZERO, true, emptyMap())
-                )
+                sessions[player]?.updatePreferences(NPC_PREFERENCES)
         }
     }
 
@@ -213,7 +211,7 @@ internal class StageLobbyDialogue(
                         services,
                         emptyMap(),
                         LocaleContext(if (language == "de") "de" else "en", 0, "en"),
-                        PresentationPreferences("npc", Duration.ZERO, true, emptyMap()),
+                        NPC_PREFERENCES,
                         mapOf(
                             SPEAKER_ROLE to
                                 MinestomSpeakerBinding(
@@ -258,5 +256,12 @@ internal class StageLobbyDialogue(
     companion object {
         const val DIALOGUE_ID = "stage:mechanic"
         const val SPEAKER_ROLE = "guide"
+        private val NPC_PREFERENCES =
+            PresentationPreferences(
+                "npc",
+                Duration.ofMillis(35),
+                true,
+                mapOf("npcVerticalOffset" to "1.0"),
+            )
     }
 }
