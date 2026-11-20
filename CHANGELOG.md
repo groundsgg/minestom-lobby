@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.18.0](https://github.com/groundsgg/minestom-lobby/compare/v2.17.0...v2.18.0) (2026-11-20)
+
+
+### Features
+
+* **stage:** preview NPC dialogues in the lobby ([#263](https://github.com/groundsgg/minestom-lobby/issues/263)) ([80f9103](https://github.com/groundsgg/minestom-lobby/commit/80f910356ad1358e2624399a0c717aab2b3d4143))
+
+
+### Bug Fixes
+
+* preserve audible NPC gestures with released libraries ([633657a](https://github.com/groundsgg/minestom-lobby/commit/633657abc9be06673c908bc85cb68cb0729ca8d5))
+
 ## [2.17.0](https://github.com/groundsgg/minestom-lobby/compare/v2.16.0...v2.17.0) (2026-11-10)
 
 
