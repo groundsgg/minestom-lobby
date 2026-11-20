@@ -1,15 +1,22 @@
 package gg.grounds.minestom.lobby.scene
 
 import gg.grounds.lobby.scene.LobbySceneCatalogs
+import gg.grounds.scene.format.AssetKind
 import gg.grounds.scene.format.LocalId
 import gg.grounds.scene.format.SceneHand
 import gg.grounds.scene.format.SceneId
 import gg.grounds.scene.format.SceneTrigger
 import gg.grounds.scene.format.StringArgument
+import gg.grounds.scene.minestom.RenderedAssetHandle
 import gg.grounds.scene.minestom.SceneActionContext
 import gg.grounds.scene.minestom.SceneActionResult
+import gg.grounds.scene.minestom.SceneAssetRenderContext
+import gg.grounds.scene.minestom.SceneAssetRendererFactory
+import gg.grounds.scene.minestom.SceneAssetRendererRegistry
 import gg.grounds.scene.minestom.SceneRuntimeIdentity
 import gg.grounds.scene.minestom.SceneViewerVisualState
+import gg.grounds.scene.minestom.ScopedSceneAssetRendererFactory
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.TimeUnit
 import net.kyori.adventure.text.Component
@@ -18,6 +25,10 @@ import net.kyori.adventure.text.event.ClickEvent
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import net.minestom.server.MinecraftServer
 import net.minestom.server.coordinate.Pos
+import net.minestom.server.entity.EntityType
+import net.minestom.server.event.EventDispatcher
+import net.minestom.server.event.instance.AddEntityToInstanceEvent
+import net.minestom.server.event.player.PlayerTickEvent
 import net.minestom.server.instance.Instance
 import net.minestom.server.network.packet.server.play.EntityMetaDataPacket
 import net.minestom.server.network.packet.server.play.SystemChatPacket
@@ -121,6 +132,14 @@ class StageLobbyDialogueTest {
                     "en"
                 }
             val player = fixture.player(Pos(0.0, 0.0, 2.0))
+            val other = fixture.player(Pos(1.0, 0.0, 2.0))
+            val lifetime = TestLabelLifetime()
+            val label =
+                StageDialogueLabel(station, Component.text("Ordinary label"), Pos.ZERO)
+                    .attach(fixture.instance, lifetime, starter::npcDialogueViewers)
+            tickUntil(fixture.instance) { player in label.viewers && other in label.viewers }
+            assertTrue(player in label.viewers)
+            assertTrue(other in label.viewers)
             val context =
                 SceneActionContext(
                     identity,
@@ -154,16 +173,138 @@ class StageLobbyDialogueTest {
                     starter.presentation(player)!!.effectiveSurface,
                     starter.presentation(player).toString(),
                 )
+                label.update(0)
+                assertFalse(player in label.viewers)
+                assertTrue(other in label.viewers)
                 starter.confirmPack(player, DialoguePackReadiness.State(2, false, assets.pin()))
                 tickUntil(fixture.instance) {
                     starter.presentation(player)!!.effectiveSurface == "chat"
                 }
                 assertEquals("chat", starter.presentation(player)!!.effectiveSurface)
+                label.update(0)
+                assertTrue(player in label.viewers)
                 starter.confirmPack(player, DialoguePackReadiness.State(1, true, assets.pin()))
                 assertEquals("chat", starter.presentation(player)!!.effectiveSurface)
+
+                starter.confirmPack(player, DialoguePackReadiness.State(3, true, assets.pin()))
+                tickUntil(fixture.instance) {
+                    starter.presentation(player)!!.effectiveSurface == "npc"
+                }
+                label.update(0)
+                assertFalse(player in label.viewers)
+                await(player.teleport(Pos(0.0, 0.0, 8.0)), fixture.instance)
+                tickUntil(fixture.instance) {
+                    EventDispatcher.call(PlayerTickEvent(player))
+                    starter.presentation(player)?.diagnostic == "CLOSED"
+                }
+                assertEquals("CLOSED", starter.presentation(player)?.diagnostic)
+                await(player.teleport(Pos(0.0, 0.0, 2.0)), fixture.instance)
+                label.update(0)
+                assertTrue(player in label.viewers)
+                assertTrue(other in label.viewers)
             } finally {
                 await(starter.closeAsync(), fixture.instance)
+                lifetime.invalidate()
+                await(checkNotNull(lifetime.cleanup), fixture.instance)
+                assertTrue(label.isRemoved)
             }
+        }
+    }
+
+    @Test
+    fun `label setup failure does not start the delegated renderer`() {
+        RendererFixture().use { fixture ->
+            val station = LocalId("demo-bounce")
+            var delegateStarted = false
+            val delegate = SceneAssetRendererRegistry { _, _ ->
+                SceneAssetRendererFactory {
+                    delegateStarted = true
+                    CompletableFuture<RenderedAssetHandle>()
+                }
+            }
+            val renderers =
+                StageDialogueLabel(station, Component.text("Title"), Pos.ZERO).renderers(
+                    delegate,
+                    guideKey,
+                ) {
+                    error("Label setup failed")
+                }
+            val renderer =
+                renderers.rendererFor(guideKey, AssetKind.NPC_BODY)
+                    as ScopedSceneAssetRendererFactory
+            val context =
+                SceneAssetRenderContext(fixture.instance, station, null, guideKey, sceneTransform())
+
+            assertThrows(IllegalStateException::class.java) {
+                renderer.createScoped(context, TestLabelLifetime())
+            }
+            assertFalse(delegateStarted)
+        }
+    }
+
+    @Test
+    fun `station label does not spawn for an invalidated scene renderer`() {
+        RendererFixture().use { fixture ->
+            val lifetime = TestLabelLifetime().also { it.invalidate() }
+            val label =
+                StageDialogueLabel(LocalId("demo-bounce"), Component.text("Title"), Pos.ZERO)
+                    .attach(fixture.instance, lifetime) { emptySet() }
+            await(checkNotNull(lifetime.cleanup), fixture.instance)
+            assertFalse(label in fixture.instance.entities)
+        }
+    }
+
+    @Test
+    fun `cancelled station label spawn reports failure and drains cleanup`() {
+        RendererFixture().use { fixture ->
+            fixture.instance.eventNode().addListener(AddEntityToInstanceEvent::class.java) {
+                if (it.entity.entityType == EntityType.TEXT_DISPLAY) it.isCancelled = true
+            }
+            val lifetime = TestLabelLifetime()
+            val label =
+                StageDialogueLabel(LocalId("demo-bounce"), Component.text("Title"), Pos.ZERO)
+                    .attach(fixture.instance, lifetime) { emptySet() }
+            assertNotNull(lifetime.failure)
+            await(checkNotNull(lifetime.cleanup), fixture.instance)
+            assertTrue(label.isRemoved)
+            assertFalse(label in fixture.instance.entities)
+        }
+    }
+
+    private class TestLabelLifetime : gg.grounds.scene.minestom.SceneRendererLifetime {
+        private var current = true
+        private var callback: Runnable? = null
+        var failure: Throwable? = null
+            private set
+
+        var cleanup: CompletionStage<Void>? = null
+            private set
+
+        fun invalidate() {
+            current = false
+            callback?.run()
+        }
+
+        override fun isCurrent() = current
+
+        override fun runIfCurrent(operation: Runnable): Boolean {
+            if (!current) return false
+            operation.run()
+            return true
+        }
+
+        override fun onInvalidated(callback: Runnable): AutoCloseable {
+            if (current) this.callback = callback else callback.run()
+            return AutoCloseable { this.callback = null }
+        }
+
+        override fun reportFailure(failure: Throwable) {
+            this.failure = failure
+            invalidate()
+        }
+
+        override fun trackCleanup(cleanup: CompletionStage<Void>) {
+            this.cleanup = cleanup
         }
     }
 

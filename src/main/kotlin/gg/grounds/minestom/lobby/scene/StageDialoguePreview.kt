@@ -3,6 +3,7 @@ package gg.grounds.minestom.lobby.scene
 import gg.grounds.lobby.scene.LobbySceneCatalogs
 import gg.grounds.scene.format.*
 import net.minestom.server.coordinate.Pos
+import net.minestom.server.coordinate.Vec
 
 internal fun stageDialoguePreviewEnabled(environment: Map<String, String>): Boolean {
     if (environment["GROUNDS_DIALOGUE_STAGE_DEMO_ENABLED"] != "true") return false
@@ -16,6 +17,8 @@ internal data class StageDialoguePreview(
     val prepared: PreparedLobbyScene,
     val stationId: LocalId,
     val position: Pos,
+    val label: StageDialogueLabel,
+    val body: AssetKey,
 )
 
 /** Adds a test interaction to the already verified Stage map for this process. */
@@ -55,7 +58,7 @@ internal fun PreparedLobbyScene.withStageDialoguePreview(): StageDialoguePreview
                         station.visible,
                         station.activation,
                         station.body,
-                        station.label,
+                        null,
                         station.labelOffset,
                         station.look,
                         station.initialAnimation,
@@ -70,9 +73,26 @@ internal fun PreparedLobbyScene.withStageDialoguePreview(): StageDialoguePreview
         "Invalid Stage dialogue preview catalog"
     }
     val origin = station.transform.position
+    val transform = station.transform
+    val offset = station.labelOffset
+    val rotation = transform.rotation
+    val scaledOffset =
+        Vec(
+            offset.x * transform.scale.x,
+            offset.y * transform.scale.y,
+            offset.z * transform.scale.z,
+        )
+    val rotatedOffset =
+        scaledOffset
+            .rotateAroundZ(Math.toRadians(rotation.roll))
+            .rotateAroundX(Math.toRadians(rotation.pitch))
+            .rotateAroundY(Math.toRadians(rotation.yaw))
+    val position = Pos(origin.x, origin.y, origin.z)
     return StageDialoguePreview(
         copy(scene = preview, actions = actions),
         station.id,
-        Pos(origin.x, origin.y, origin.z),
+        position,
+        StageDialogueLabel(station.id, requireNotNull(station.label), position.add(rotatedOffset)),
+        station.body,
     )
 }
