@@ -16,6 +16,7 @@ import gg.grounds.dialogue.minestom.asset.AssetBundle
 import gg.grounds.dialogue.minestom.asset.MinecraftPackProfile
 import gg.grounds.dialogue.minestom.channel.LocalOutputChannels
 import gg.grounds.dialogue.minestom.input.InputProfile
+import gg.grounds.dialogue.presentation.DialogueTheme
 import gg.grounds.dialogue.presentation.UiLabelSource
 import gg.grounds.scene.format.LocalId
 import gg.grounds.scene.format.SceneHand
@@ -33,14 +34,26 @@ import net.minestom.server.coordinate.Pos
 import net.minestom.server.entity.Player
 import net.minestom.server.instance.Instance
 
-/**
- * Stage-only, chat-only exercise of the real dialogue runtime. No gameplay actions are installed.
- */
+/** Stage dialogue with the original NPC layout and semantic chat fallback. */
 internal class StageLobbyDialogue(
     private val instance: Instance,
     private val identity: SceneRuntimeIdentity,
     private val speakerElementId: LocalId,
     private val speakerPosition: Pos,
+    private val assets: AssetBundle = StageDialogueAssets.load(),
+    private val proxyPackEnabled: Boolean = StageDialogueAssets.isPackaged(),
+    private val theme: DialogueTheme =
+        DialogueTheme(
+            "grounds-npc-v1",
+            mapOf(
+                "text" to 0xF3F0EA,
+                "selected" to 0xE7B84B,
+                "muted" to 0xC1B9AA,
+                "hint" to 0xC1B9AA,
+            ),
+            1.08,
+            Duration.ofMillis(150),
+        ),
     private val locale: (Player) -> String,
 ) : LobbySceneDialogueStarter {
     private val lock = Any()
@@ -132,8 +145,8 @@ internal class StageLobbyDialogue(
                     Duration.ofSeconds(30),
                 ),
                 MinecraftPackProfile.grounds263(),
-                AssetBundle.loadDefault(MinecraftPackProfile.grounds263()),
-                // Semantic chat never acquires HUD/effect layers. Keep these private sinks inert.
+                assets,
+                // NPC rendering owns display entities; HUD sinks stay inactive.
                 LocalOutputChannels(
                     { _, _ -> CompletableFuture.completedFuture(null) },
                     false,
@@ -141,8 +154,29 @@ internal class StageLobbyDialogue(
                 ),
                 UiLabelSource.defaults(),
                 Duration.ofMillis(600),
-            )
+            ),
+            theme,
         )
+
+    fun confirmPack(player: Player, state: DialoguePackReadiness.State) {
+        synchronized(lock) {
+            if (closed || !player.isOnline) return
+            val accepted =
+                host.confirmProxyPack(
+                    player,
+                    0,
+                    state.pin,
+                    state.revision,
+                    state.ready && proxyPackEnabled,
+                )
+            if (accepted && state.ready && proxyPackEnabled)
+                sessions[player]?.updatePreferences(
+                    PresentationPreferences("npc", Duration.ZERO, true, emptyMap())
+                )
+        }
+    }
+
+    internal fun presentation(player: Player) = sessions[player]?.status()
 
     override fun start(
         context: SceneActionContext,
@@ -179,7 +213,7 @@ internal class StageLobbyDialogue(
                         services,
                         emptyMap(),
                         LocaleContext(if (language == "de") "de" else "en", 0, "en"),
-                        PresentationPreferences("chat", Duration.ZERO, true, emptyMap()),
+                        PresentationPreferences("npc", Duration.ZERO, true, emptyMap()),
                         mapOf(
                             SPEAKER_ROLE to
                                 MinestomSpeakerBinding(
