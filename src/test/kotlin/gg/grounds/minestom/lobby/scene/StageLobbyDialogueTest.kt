@@ -19,6 +19,7 @@ import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import net.minestom.server.MinecraftServer
 import net.minestom.server.coordinate.Pos
 import net.minestom.server.instance.Instance
+import net.minestom.server.network.packet.server.play.EntityMetaDataPacket
 import net.minestom.server.network.packet.server.play.SystemChatPacket
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeAll
@@ -91,16 +92,16 @@ class StageLobbyDialogueTest {
                     SceneActionResult.Success,
                     await(handler.execute(context.copy(player = second)), fixture.instance),
                 )
-                val firstOption = commandFor(first, "Was kann ich hier testen?")
-                assertNotEquals(firstOption, commandFor(second, "Was kann ich hier testen?"))
+                val label = "Was kann ich hier testen?"
+                val firstOption = commandFor(first, label)
+                assertNotEquals(firstOption, commandFor(second, label))
                 MinecraftServer.getCommandManager().execute(first, firstOption.removePrefix("/"))
+                tickUntil(fixture.instance) { received(first, "Auswählen") }
+                assertTrue(received(first, "Auswählen"))
+                val choice = commandFor(first, label)
+                MinecraftServer.getCommandManager().execute(first, choice.removePrefix("/"))
                 val response = "Diese anklickbaren Chat-Antworten"
-                val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
-                while (!received(first, response) && System.nanoTime() < deadline) {
-                    fixture.instance.tick(0)
-                    MinecraftServer.getSchedulerManager().processTick()
-                    Thread.yield()
-                }
+                tickUntil(fixture.instance) { received(first, response) }
                 assertTrue(received(first, response))
                 assertFalse(received(second, response))
             } finally {
@@ -160,6 +161,72 @@ class StageLobbyDialogueTest {
                 assertEquals("chat", starter.presentation(player)!!.effectiveSurface)
                 starter.confirmPack(player, DialoguePackReadiness.State(1, true, assets.pin()))
                 assertEquals("chat", starter.presentation(player)!!.effectiveSurface)
+            } finally {
+                await(starter.closeAsync(), fixture.instance)
+            }
+        }
+    }
+
+    @Test
+    fun `NPC reveals dialogue gradually when the pack is confirmed before start`() {
+        assertNpcReveal(packReadyBeforeStart = true)
+    }
+
+    @Test
+    fun `NPC reveals dialogue gradually when the pack is confirmed during a session`() {
+        assertNpcReveal(packReadyBeforeStart = false)
+    }
+
+    private fun assertNpcReveal(packReadyBeforeStart: Boolean) {
+        RendererFixture().use { fixture ->
+            val station = LocalId("demo-bounce")
+            val identity = SceneRuntimeIdentity(SceneId("test:reveal"), "lobby/mainlobby", 19)
+            val assets = StageDialogueAssets.load()
+            val starter =
+                StageLobbyDialogue(fixture.instance, identity, station, Pos.ZERO, assets, true) {
+                    "en"
+                }
+            val player = fixture.player(Pos(0.0, 0.0, 2.0))
+            val ready = DialoguePackReadiness.State(1, true, assets.pin())
+            val context =
+                SceneActionContext(
+                    identity,
+                    player,
+                    station,
+                    SceneTrigger.RIGHT_CLICK,
+                    SceneHand.MAIN,
+                    System.nanoTime(),
+                    emptyMap(),
+                    SceneViewerVisualState(),
+                )
+            try {
+                if (packReadyBeforeStart) starter.confirmPack(player, ready)
+                assertEquals(
+                    SceneActionResult.Success,
+                    await(
+                        starter.start(
+                            context,
+                            StageLobbyDialogue.DIALOGUE_ID,
+                            StageLobbyDialogue.SPEAKER_ROLE,
+                        ),
+                        fixture.instance,
+                    ),
+                )
+                if (!packReadyBeforeStart) starter.confirmPack(player, ready)
+
+                val serializer = PlainTextComponentSerializer.plainText()
+                fun npcText() =
+                    player.connection.packets
+                        .filterIsInstance<EntityMetaDataPacket>()
+                        .flatMap { it.entries().values }
+                        .mapNotNull { it.value() as? Component }
+                        .map { serializer.serialize(it) }
+
+                val opening = "Hello! This"
+                tickUntil(fixture.instance) { npcText().any { it.contains(opening) } }
+                val dialogueFrames = npcText().filter { it.contains("Hello!") }
+                assertTrue(dialogueFrames.any { it.contains(opening) }, dialogueFrames.toString())
+                assertFalse(dialogueFrames.first().contains(opening), dialogueFrames.toString())
             } finally {
                 await(starter.closeAsync(), fixture.instance)
             }
