@@ -90,7 +90,18 @@ internal class LobbyModule(
                                 }
                             }
                         stageDialogue = starter
-                        (preview?.prepared ?: prepared).runtimeRequest(
+                        val dialogueScene =
+                            preview?.let { entry ->
+                                entry.prepared.copy(
+                                    renderers =
+                                        entry.label.renderers(
+                                            entry.prepared.renderers,
+                                            entry.body,
+                                            checkNotNull(starter)::npcDialogueViewers,
+                                        )
+                                )
+                            }
+                        (dialogueScene ?: prepared).runtimeRequest(
                             instanceContainer,
                             ctx.services,
                             starter,

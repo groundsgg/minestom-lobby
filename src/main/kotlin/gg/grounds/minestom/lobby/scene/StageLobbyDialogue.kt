@@ -176,6 +176,19 @@ internal class StageLobbyDialogue(
 
     internal fun presentation(player: Player) = sessions[player]?.status()
 
+    internal fun npcDialogueViewers(): Set<Player> =
+        synchronized(lock) {
+            if (closed || sessions.isEmpty()) emptySet()
+            else
+                sessions.entries.mapNotNullTo(mutableSetOf()) { (player, session) ->
+                    player.takeIf {
+                        it.isOnline &&
+                            it.instance === instance &&
+                            session.status().effectiveSurface == "npc"
+                    }
+                }
+        }
+
     override fun start(
         context: SceneActionContext,
         dialogue: String,
@@ -261,7 +274,7 @@ internal class StageLobbyDialogue(
                 "npc",
                 Duration.ofMillis(35),
                 true,
-                mapOf("npcVerticalOffset" to "1.0"),
+                mapOf("npcVerticalOffset" to "0.35"),
             )
     }
 }
