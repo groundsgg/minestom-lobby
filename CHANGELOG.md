@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.19.0](https://github.com/groundsgg/minestom-lobby/compare/v2.18.0...v2.19.0) (2026-11-20)
+
+
+### Features
+
+* **lobby:** render NPC dialogues with the Grounds pack theme ([#264](https://github.com/groundsgg/minestom-lobby/issues/264)) ([074fd7a](https://github.com/groundsgg/minestom-lobby/commit/074fd7ab3f2c52c220cce12f50fbe01bdd356518))
+
 ## [2.18.0](https://github.com/groundsgg/minestom-lobby/compare/v2.17.0...v2.18.0) (2026-11-20)
 
 
