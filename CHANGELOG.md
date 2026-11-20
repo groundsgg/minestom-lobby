@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.19.1](https://github.com/groundsgg/minestom-lobby/compare/v2.19.0...v2.19.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* **dialogue:** restore gradual text and raise Stage panels ([#266](https://github.com/groundsgg/minestom-lobby/issues/266)) ([813cada](https://github.com/groundsgg/minestom-lobby/commit/813cadab9260df5e49034aff4bcceb1ab440af44))
+
 ## [2.19.0](https://github.com/groundsgg/minestom-lobby/compare/v2.18.0...v2.19.0) (2026-11-20)
 
 
