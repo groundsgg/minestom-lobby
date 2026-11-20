@@ -109,6 +109,95 @@ class StageLobbyDialogueTest {
         }
     }
 
+    @Test
+    fun `confirmed proxy pin selects NPC and revocation returns to chat`() {
+        RendererFixture().use { fixture ->
+            val station = LocalId("demo-bounce")
+            val identity = SceneRuntimeIdentity(SceneId("test:npc"), "lobby/mainlobby", 19)
+            val assets = StageDialogueAssets.load()
+            val starter =
+                StageLobbyDialogue(fixture.instance, identity, station, Pos.ZERO, assets, true) {
+                    "en"
+                }
+            val player = fixture.player(Pos(0.0, 0.0, 2.0))
+            val context =
+                SceneActionContext(
+                    identity,
+                    player,
+                    station,
+                    SceneTrigger.RIGHT_CLICK,
+                    SceneHand.MAIN,
+                    System.nanoTime(),
+                    emptyMap(),
+                    SceneViewerVisualState(),
+                )
+            try {
+                assertEquals(
+                    SceneActionResult.Success,
+                    await(
+                        starter.start(
+                            context,
+                            StageLobbyDialogue.DIALOGUE_ID,
+                            StageLobbyDialogue.SPEAKER_ROLE,
+                        ),
+                        fixture.instance,
+                    ),
+                )
+                assertEquals("chat", starter.presentation(player)!!.effectiveSurface)
+                starter.confirmPack(player, DialoguePackReadiness.State(1, true, assets.pin()))
+                tickUntil(fixture.instance) {
+                    starter.presentation(player)!!.effectiveSurface == "npc"
+                }
+                assertEquals(
+                    "npc",
+                    starter.presentation(player)!!.effectiveSurface,
+                    starter.presentation(player).toString(),
+                )
+                starter.confirmPack(player, DialoguePackReadiness.State(2, false, assets.pin()))
+                tickUntil(fixture.instance) {
+                    starter.presentation(player)!!.effectiveSurface == "chat"
+                }
+                assertEquals("chat", starter.presentation(player)!!.effectiveSurface)
+                starter.confirmPack(player, DialoguePackReadiness.State(1, true, assets.pin()))
+                assertEquals("chat", starter.presentation(player)!!.effectiveSurface)
+            } finally {
+                await(starter.closeAsync(), fixture.instance)
+            }
+        }
+    }
+
+    @Test
+    fun `proxy receiver applies only latest revision to current player connection`() {
+        RendererFixture().use { fixture ->
+            val player = fixture.player()
+            val applied = mutableListOf<DialoguePackReadiness.State>()
+            val receiver = DialoguePackReadiness { _, state -> applied += state }
+            fun payload(revision: Long, ready: Boolean) =
+                java.nio.ByteBuffer.allocate(90)
+                    .put(1)
+                    .putLong(player.uuid.mostSignificantBits)
+                    .putLong(player.uuid.leastSignificantBits)
+                    .putLong(revision)
+                    .put(if (ready) 1.toByte() else 0.toByte())
+                    .put("a".repeat(64).toByteArray(Charsets.US_ASCII))
+                    .array()
+            receiver.accept(player, payload(1, true))
+            receiver.accept(player, payload(2, false))
+            receiver.accept(player, payload(1, true))
+            MinecraftServer.getSchedulerManager().processTick()
+            assertEquals(listOf(DialoguePackReadiness.State(2, false, "a".repeat(64))), applied)
+        }
+    }
+
+    private fun tickUntil(instance: Instance, predicate: () -> Boolean) {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (!predicate() && System.nanoTime() < deadline) {
+            instance.tick(0)
+            MinecraftServer.getSchedulerManager().processTick()
+            Thread.yield()
+        }
+    }
+
     private fun TestPlayer.messages(): List<Component> =
         connection.packets.filterIsInstance<SystemChatPacket>().map { it.message() }
 

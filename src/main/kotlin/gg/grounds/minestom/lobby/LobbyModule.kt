@@ -179,6 +179,11 @@ internal class LobbyModule(
         spawnCommand = command
 
         val node = ctx.eventNode("grounds-lobby")
+        preparedDialogue?.let { dialogue ->
+            gg.grounds.minestom.lobby.scene
+                .DialoguePackReadiness(dialogue::confirmPack)
+                .register(node)
+        }
         lodPilot =
             if (lodEnvironment["GROUNDS_LOD_SERVING_ENABLED"] == "true")
                 LobbyLodServing.install(
