@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.21.1](https://github.com/groundsgg/minestom-lobby/compare/v2.21.0...v2.21.1) (2026-11-21)
+
+
+### Bug Fixes
+
+* **stage:** show NPC backdrop immediately with dialogue ([66df064](https://github.com/groundsgg/minestom-lobby/commit/66df064f63bbae6a7bc0c93837c7ec9d4a09b74d))
+
 ## [2.21.0](https://github.com/groundsgg/minestom-lobby/compare/v2.20.0...v2.21.0) (2026-11-21)
 
 
