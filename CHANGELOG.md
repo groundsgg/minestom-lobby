@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.20.0](https://github.com/groundsgg/minestom-lobby/compare/v2.19.3...v2.20.0) (2026-11-21)
+
+
+### Features
+
+* **dialogue:** enable the Stage vignette test ([#272](https://github.com/groundsgg/minestom-lobby/issues/272)) ([41900db](https://github.com/groundsgg/minestom-lobby/commit/41900db8a10fd6ffae96fe44f7c15b7273249655))
+
 ## [2.19.3](https://github.com/groundsgg/minestom-lobby/compare/v2.19.2...v2.19.3) (2026-11-20)
 
 
