@@ -278,7 +278,12 @@ internal class StageLobbyDialogue(
                 "npc",
                 Duration.ofMillis(35),
                 true,
-                mapOf("npcVerticalOffset" to "0.35", "vignette" to "true"),
+                mapOf(
+                    "npcVerticalOffset" to "0.35",
+                    "vignette" to "true",
+                    "npcBackdrop" to "true",
+                    "npcEffectsFadeMs" to "250",
+                ),
             )
     }
 }

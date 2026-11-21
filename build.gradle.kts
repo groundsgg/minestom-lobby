@@ -57,7 +57,7 @@ tasks.register<JavaExec>("migrateQueueNpcScene") {
 
 val sceneVersion = providers.gradleProperty("sceneVersion").orElse("1.0.1")
 val npcVersion = providers.gradleProperty("npcVersion").orElse("2.0.0")
-val dialogueVersion = providers.gradleProperty("dialogueVersion").orElse("1.1.2")
+val dialogueVersion = providers.gradleProperty("dialogueVersion").orElse("1.2.0")
 
 application { mainClass.set("gg.grounds.minestom.lobby.MainKt") }
 
@@ -215,7 +215,7 @@ dependencies {
     implementation("gg.grounds:dialogue-minestom:${dialogueVersion.get()}")
     val dialogueAssetsJar = providers.gradleProperty("dialogueAssetsJar").orNull
     if (dialogueAssetsJar != null) implementation(files(dialogueAssetsJar))
-    else implementation("gg.grounds:resourcepacks-dialogue-runtime:0.0.0-edge.64.g5c72313357ce")
+    else implementation("gg.grounds:resourcepacks-dialogue-runtime:0.0.0-edge.65.gd017a957a7b7")
     if (existingNpcCatalog != null) implementation(files(existingNpcCatalog))
     else implementation("gg.grounds:resourcepacks-catalog:1.3.0")
     implementation("gg.grounds:npc-core:${npcVersion.get()}")
