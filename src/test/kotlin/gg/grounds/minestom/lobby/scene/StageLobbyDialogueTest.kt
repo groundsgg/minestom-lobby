@@ -169,24 +169,37 @@ class StageLobbyDialogueTest {
                 assertEquals("chat", starter.presentation(player)!!.effectiveSurface)
                 assertTrue(effects(player).isEmpty())
                 starter.confirmPack(player, DialoguePackReadiness.State(1, true, assets.pin()))
+                var firstVisibleBackdropOpacity: Int? = null
+                var fullyOpaqueBackdropDuringVignetteFade = false
                 tickUntil(fixture.instance) {
                     val backdrop = backdropDisplay(player, fixture.instance)
+                    if (backdrop != null && firstVisibleBackdropOpacity == null) {
+                        firstVisibleBackdropOpacity = displayOpacity(backdrop)
+                    }
+                    val vignetteFadeActive = effects(player).any(::isVignetteFade)
+                    if (vignetteFadeActive && backdrop != null && displayOpacity(backdrop) == 255) {
+                        fullyOpaqueBackdropDuringVignetteFade = true
+                    }
                     starter.presentation(player)?.effectiveSurface == "npc" &&
-                        effectHistory(player).any(::isVignetteFade) &&
+                        vignetteFadeActive &&
                         backdrop != null &&
-                        displayOpacity(backdrop) in 1..254
+                        displayOpacity(backdrop) == 255
                 }
-                val fadingBackdrop = checkNotNull(backdropDisplay(player, fixture.instance))
-                assertTrue(effectHistory(player).any(::isVignetteFade))
-                assertTrue(displayOpacity(fadingBackdrop) in 1..254)
-                assertFalse(other in fadingBackdrop.viewers)
+                val visibleBackdrop = checkNotNull(backdropDisplay(player, fixture.instance))
+                assertTrue(
+                    fullyOpaqueBackdropDuringVignetteFade,
+                    "Backdrop should be fully opaque while the vignette fade is active",
+                )
+                assertEquals(255, firstVisibleBackdropOpacity)
+                assertEquals(255, displayOpacity(visibleBackdrop))
+                assertFalse(other in visibleBackdrop.viewers)
                 val displaysDuringFade = npcTextDisplays(player, fixture.instance)
                 assertTrue(displaysDuringFade.size > 1)
                 assertTrue(
                     displaysDuringFade
-                        .filter { it !== fadingBackdrop }
+                        .filter { it !== visibleBackdrop }
                         .all { displayOpacity(it) == 255 },
-                    "Dialogue panels should remain fully opaque while the backdrop fades",
+                    "Dialogue panels should remain fully opaque during the vignette fade",
                 )
                 tickUntil(fixture.instance) {
                     starter.presentation(player)!!.effectiveSurface == "npc" &&
