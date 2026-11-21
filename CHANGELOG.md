@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.21.0](https://github.com/groundsgg/minestom-lobby/compare/v2.20.0...v2.21.0) (2026-11-21)
+
+
+### Features
+
+* **stage:** fade NPC dialogue vignette and backdrop ([fded563](https://github.com/groundsgg/minestom-lobby/commit/fded5633326db335829daefe7691d72e1fff00e7))
+
 ## [2.20.0](https://github.com/groundsgg/minestom-lobby/compare/v2.19.3...v2.20.0) (2026-11-21)
 
 
