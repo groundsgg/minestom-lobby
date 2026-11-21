@@ -30,6 +30,7 @@ import net.minestom.server.event.EventDispatcher
 import net.minestom.server.event.instance.AddEntityToInstanceEvent
 import net.minestom.server.event.player.PlayerTickEvent
 import net.minestom.server.instance.Instance
+import net.minestom.server.network.packet.server.common.PostEffectsPacket
 import net.minestom.server.network.packet.server.play.EntityMetaDataPacket
 import net.minestom.server.network.packet.server.play.SystemChatPacket
 import org.junit.jupiter.api.Assertions.*
@@ -164,23 +165,33 @@ class StageLobbyDialogueTest {
                     ),
                 )
                 assertEquals("chat", starter.presentation(player)!!.effectiveSurface)
+                assertTrue(effects(player).isEmpty())
                 starter.confirmPack(player, DialoguePackReadiness.State(1, true, assets.pin()))
                 tickUntil(fixture.instance) {
-                    starter.presentation(player)!!.effectiveSurface == "npc"
+                    starter.presentation(player)!!.effectiveSurface == "npc" &&
+                        effects(player) ==
+                            listOf(net.kyori.adventure.key.Key.key("dialogue:vignette"))
                 }
                 assertEquals(
                     "npc",
                     starter.presentation(player)!!.effectiveSurface,
                     starter.presentation(player).toString(),
                 )
+                assertEquals(
+                    listOf(net.kyori.adventure.key.Key.key("dialogue:vignette")),
+                    effects(player),
+                )
+                assertTrue(effects(other).isEmpty())
                 label.update(0)
                 assertFalse(player in label.viewers)
                 assertTrue(other in label.viewers)
                 starter.confirmPack(player, DialoguePackReadiness.State(2, false, assets.pin()))
                 tickUntil(fixture.instance) {
-                    starter.presentation(player)!!.effectiveSurface == "chat"
+                    starter.presentation(player)!!.effectiveSurface == "chat" &&
+                        effects(player).isEmpty()
                 }
                 assertEquals("chat", starter.presentation(player)!!.effectiveSurface)
+                assertTrue(effects(player).isEmpty())
                 label.update(0)
                 assertTrue(player in label.viewers)
                 starter.confirmPack(player, DialoguePackReadiness.State(1, true, assets.pin()))
@@ -188,16 +199,24 @@ class StageLobbyDialogueTest {
 
                 starter.confirmPack(player, DialoguePackReadiness.State(3, true, assets.pin()))
                 tickUntil(fixture.instance) {
-                    starter.presentation(player)!!.effectiveSurface == "npc"
+                    starter.presentation(player)!!.effectiveSurface == "npc" &&
+                        effects(player) ==
+                            listOf(net.kyori.adventure.key.Key.key("dialogue:vignette"))
                 }
+                assertEquals(
+                    listOf(net.kyori.adventure.key.Key.key("dialogue:vignette")),
+                    effects(player),
+                )
                 label.update(0)
                 assertFalse(player in label.viewers)
                 await(player.teleport(Pos(0.0, 0.0, 8.0)), fixture.instance)
                 tickUntil(fixture.instance) {
                     EventDispatcher.call(PlayerTickEvent(player))
-                    starter.presentation(player)?.diagnostic == "CLOSED"
+                    starter.presentation(player)?.diagnostic == "CLOSED" &&
+                        effects(player).isEmpty()
                 }
                 assertEquals("CLOSED", starter.presentation(player)?.diagnostic)
+                assertTrue(effects(player).isEmpty())
                 await(player.teleport(Pos(0.0, 0.0, 2.0)), fixture.instance)
                 label.update(0)
                 assertTrue(player in label.viewers)
@@ -207,6 +226,63 @@ class StageLobbyDialogueTest {
                 lifetime.invalidate()
                 await(checkNotNull(lifetime.cleanup), fixture.instance)
                 assertTrue(label.isRemoved)
+            }
+        }
+    }
+
+    @Test
+    fun `closing the Stage dialogue host clears the active vignette effect`() {
+        RendererFixture().use { fixture ->
+            val identity =
+                SceneRuntimeIdentity(SceneId("test:close-effects"), "lobby/mainlobby", 19)
+            val assets = StageDialogueAssets.load()
+            val starter =
+                StageLobbyDialogue(
+                    fixture.instance,
+                    identity,
+                    LocalId("demo-bounce"),
+                    Pos.ZERO,
+                    assets,
+                    true,
+                ) {
+                    "en"
+                }
+            val player = fixture.player(Pos(0.0, 0.0, 2.0))
+            try {
+                assertEquals(
+                    SceneActionResult.Success,
+                    await(
+                        starter.start(
+                            SceneActionContext(
+                                identity,
+                                player,
+                                LocalId("demo-bounce"),
+                                SceneTrigger.RIGHT_CLICK,
+                                SceneHand.MAIN,
+                                System.nanoTime(),
+                                emptyMap(),
+                                SceneViewerVisualState(),
+                            ),
+                            StageLobbyDialogue.DIALOGUE_ID,
+                            StageLobbyDialogue.SPEAKER_ROLE,
+                        ),
+                        fixture.instance,
+                    ),
+                )
+                starter.confirmPack(player, DialoguePackReadiness.State(1, true, assets.pin()))
+                tickUntil(fixture.instance) {
+                    effects(player) == listOf(net.kyori.adventure.key.Key.key("dialogue:vignette"))
+                }
+                assertEquals(
+                    listOf(net.kyori.adventure.key.Key.key("dialogue:vignette")),
+                    effects(player),
+                )
+
+                await(starter.closeAsync(), fixture.instance)
+
+                assertTrue(effects(player).isEmpty())
+            } finally {
+                await(starter.closeAsync(), fixture.instance)
             }
         }
     }
@@ -408,6 +484,10 @@ class StageLobbyDialogueTest {
 
     private fun TestPlayer.messages(): List<Component> =
         connection.packets.filterIsInstance<SystemChatPacket>().map { it.message() }
+
+    private fun effects(player: TestPlayer): List<net.kyori.adventure.key.Key> =
+        player.connection.packets.filterIsInstance<PostEffectsPacket>().lastOrNull()?.postEffects()
+            ?: emptyList()
 
     private fun Component.parts(): Sequence<Component> =
         sequenceOf(this) + children().asSequence().flatMap { it.parts() }

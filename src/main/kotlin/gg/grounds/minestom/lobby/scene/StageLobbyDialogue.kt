@@ -33,6 +33,7 @@ import java.util.concurrent.CompletionStage
 import net.minestom.server.coordinate.Pos
 import net.minestom.server.entity.Player
 import net.minestom.server.instance.Instance
+import net.minestom.server.network.packet.server.common.PostEffectsPacket
 
 /** Stage dialogue with the original NPC layout and semantic chat fallback. */
 internal class StageLobbyDialogue(
@@ -149,8 +150,11 @@ internal class StageLobbyDialogue(
                 // NPC rendering owns display entities; HUD sinks stay inactive.
                 LocalOutputChannels(
                     { _, _ -> CompletableFuture.completedFuture(null) },
-                    false,
-                    { _, _ -> CompletableFuture.completedFuture(null) },
+                    true,
+                    { player, keys ->
+                        player.sendPacket(PostEffectsPacket(keys.toList()))
+                        CompletableFuture.completedFuture(null)
+                    },
                 ),
                 UiLabelSource.defaults(),
                 Duration.ofMillis(600),
@@ -274,7 +278,7 @@ internal class StageLobbyDialogue(
                 "npc",
                 Duration.ofMillis(35),
                 true,
-                mapOf("npcVerticalOffset" to "0.35"),
+                mapOf("npcVerticalOffset" to "0.35", "vignette" to "true"),
             )
     }
 }
