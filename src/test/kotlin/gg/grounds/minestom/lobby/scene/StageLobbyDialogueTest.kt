@@ -25,7 +25,9 @@ import net.kyori.adventure.text.event.ClickEvent
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import net.minestom.server.MinecraftServer
 import net.minestom.server.coordinate.Pos
+import net.minestom.server.entity.Entity
 import net.minestom.server.entity.EntityType
+import net.minestom.server.entity.metadata.display.TextDisplayMeta
 import net.minestom.server.event.EventDispatcher
 import net.minestom.server.event.instance.AddEntityToInstanceEvent
 import net.minestom.server.event.player.PlayerTickEvent
@@ -168,6 +170,25 @@ class StageLobbyDialogueTest {
                 assertTrue(effects(player).isEmpty())
                 starter.confirmPack(player, DialoguePackReadiness.State(1, true, assets.pin()))
                 tickUntil(fixture.instance) {
+                    val backdrop = backdropDisplay(player, fixture.instance)
+                    starter.presentation(player)?.effectiveSurface == "npc" &&
+                        effectHistory(player).any(::isVignetteFade) &&
+                        backdrop != null &&
+                        displayOpacity(backdrop) in 1..254
+                }
+                val fadingBackdrop = checkNotNull(backdropDisplay(player, fixture.instance))
+                assertTrue(effectHistory(player).any(::isVignetteFade))
+                assertTrue(displayOpacity(fadingBackdrop) in 1..254)
+                assertFalse(other in fadingBackdrop.viewers)
+                val displaysDuringFade = npcTextDisplays(player, fixture.instance)
+                assertTrue(displaysDuringFade.size > 1)
+                assertTrue(
+                    displaysDuringFade
+                        .filter { it !== fadingBackdrop }
+                        .all { displayOpacity(it) == 255 },
+                    "Dialogue panels should remain fully opaque while the backdrop fades",
+                )
+                tickUntil(fixture.instance) {
                     starter.presentation(player)!!.effectiveSurface == "npc" &&
                         effects(player) ==
                             listOf(net.kyori.adventure.key.Key.key("dialogue:vignette"))
@@ -281,6 +302,7 @@ class StageLobbyDialogueTest {
                 await(starter.closeAsync(), fixture.instance)
 
                 assertTrue(effects(player).isEmpty())
+                assertTrue(npcTextDisplays(player, fixture.instance).isEmpty())
             } finally {
                 await(starter.closeAsync(), fixture.instance)
             }
@@ -488,6 +510,26 @@ class StageLobbyDialogueTest {
     private fun effects(player: TestPlayer): List<net.kyori.adventure.key.Key> =
         player.connection.packets.filterIsInstance<PostEffectsPacket>().lastOrNull()?.postEffects()
             ?: emptyList()
+
+    private fun effectHistory(player: TestPlayer): List<net.kyori.adventure.key.Key> =
+        player.connection.packets.filterIsInstance<PostEffectsPacket>().flatMap { it.postEffects() }
+
+    private fun isVignetteFade(key: net.kyori.adventure.key.Key): Boolean =
+        key.namespace() == "dialogue" && key.value().startsWith("vignette_fade_")
+
+    private fun npcTextDisplays(player: TestPlayer, instance: Instance): List<Entity> =
+        instance.entities.filter {
+            it.entityType == EntityType.TEXT_DISPLAY && player in it.viewers
+        }
+
+    private fun backdropDisplay(player: TestPlayer, instance: Instance): Entity? =
+        npcTextDisplays(player, instance).singleOrNull {
+            PlainTextComponentSerializer.plainText()
+                .serialize((it.entityMeta as TextDisplayMeta).text) == "\uE300"
+        }
+
+    private fun displayOpacity(display: Entity): Int =
+        (display.entityMeta as TextDisplayMeta).textOpacity.toInt() and 0xff
 
     private fun Component.parts(): Sequence<Component> =
         sequenceOf(this) + children().asSequence().flatMap { it.parts() }
