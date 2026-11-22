@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.23.0](https://github.com/groundsgg/minestom-lobby/compare/v2.22.2...v2.23.0) (2026-11-22)
+
+
+### Features
+
+* **dialogue:** render input glyph in Stage hint ([#284](https://github.com/groundsgg/minestom-lobby/issues/284)) ([f514c74](https://github.com/groundsgg/minestom-lobby/commit/f514c7456a1264d28eb73749ffad7ba7397018b5))
+
 ## [2.22.2](https://github.com/groundsgg/minestom-lobby/compare/v2.22.1...v2.22.2) (2026-11-22)
 
 
