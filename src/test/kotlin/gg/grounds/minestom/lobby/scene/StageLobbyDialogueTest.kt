@@ -125,6 +125,95 @@ class StageLobbyDialogueTest {
     }
 
     @Test
+    fun `Stage USE hint uses the private control glyph and keeps the translated action verb`() {
+        RendererFixture().use { fixture ->
+            val identity = SceneRuntimeIdentity(SceneId("test:input-icon"), "lobby/mainlobby", 19)
+            val assets = StageDialogueAssets.load()
+            val starter =
+                StageLobbyDialogue(
+                    fixture.instance,
+                    identity,
+                    LocalId("demo-bounce"),
+                    Pos.ZERO,
+                    assets,
+                    true,
+                ) {
+                    "de-DE"
+                }
+            val player = fixture.player(Pos(0.0, 0.0, 2.0))
+            val bystander = fixture.player(Pos(1.0, 0.0, 2.0))
+            try {
+                assertEquals(
+                    SceneActionResult.Success,
+                    await(
+                        starter.start(
+                            SceneActionContext(
+                                identity,
+                                player,
+                                LocalId("demo-bounce"),
+                                SceneTrigger.RIGHT_CLICK,
+                                SceneHand.MAIN,
+                                System.nanoTime(),
+                                emptyMap(),
+                                SceneViewerVisualState(),
+                            ),
+                            StageLobbyDialogue.DIALOGUE_ID,
+                            StageLobbyDialogue.SPEAKER_ROLE,
+                        ),
+                        fixture.instance,
+                    ),
+                )
+                starter.confirmPack(player, DialoguePackReadiness.State(1, true, assets.pin()))
+                val serializer = PlainTextComponentSerializer.plainText()
+                tickUntil(fixture.instance) {
+                    val visibleTexts =
+                        npcTextDisplays(player, fixture.instance).map {
+                            serializer.serialize((it.entityMeta as TextDisplayMeta).text)
+                        }
+                    visibleTexts.any { it.contains("Hallo!") } &&
+                        visibleTexts.any { it.contains("Text anzeigen") }
+                }
+
+                val hintDisplays =
+                    fixture.instance.entities.filter {
+                        it.entityType == EntityType.TEXT_DISPLAY &&
+                            serializer
+                                .serialize((it.entityMeta as TextDisplayMeta).text)
+                                .contains("Text anzeigen")
+                    }
+                val hintTexts =
+                    hintDisplays.map {
+                        serializer.serialize((it.entityMeta as TextDisplayMeta).text)
+                    }
+                assertTrue(hintDisplays.isNotEmpty(), "Expected the translated reveal hint display")
+                assertTrue(
+                    hintDisplays.all { player in it.viewers },
+                    "The USE hint should be visible to the dialogue player",
+                )
+                assertTrue(
+                    hintDisplays.none { bystander in it.viewers },
+                    "The USE hint should remain private to the dialogue player",
+                )
+                assertTrue(
+                    hintTexts.any { it.contains("\uE791") },
+                    "Expected the USE control glyph U+E791 in the hint, got $hintTexts",
+                )
+                assertTrue(hintTexts.any { it.contains("Text anzeigen") }, hintTexts.toString())
+                assertFalse(
+                    hintTexts.any { it.contains("Benutzen") },
+                    "The input action label should be replaced by its control glyph: $hintTexts",
+                )
+                assertFalse(
+                    hintTexts.any { Regex("\\bUse\\b").containsMatchIn(it) },
+                    "The input action label should not retain a separate Use word: $hintTexts",
+                )
+            } finally {
+                await(starter.closeAsync(), fixture.instance)
+            }
+        }
+    }
+
+    @Test
     fun `native Stage vignette stays steady while typing and uses a matching exit key`() {
         RendererFixture().use { fixture ->
             val identity =
