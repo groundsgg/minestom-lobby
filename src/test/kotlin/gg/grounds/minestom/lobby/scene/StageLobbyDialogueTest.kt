@@ -125,6 +125,122 @@ class StageLobbyDialogueTest {
     }
 
     @Test
+    fun `native Stage vignette stays steady while typing and uses a matching exit key`() {
+        RendererFixture().use { fixture ->
+            val identity =
+                SceneRuntimeIdentity(SceneId("test:native-vignette"), "lobby/mainlobby", 19)
+            val assets = StageDialogueAssets.load()
+            val starter =
+                StageLobbyDialogue(
+                    fixture.instance,
+                    identity,
+                    LocalId("demo-bounce"),
+                    Pos.ZERO,
+                    assets,
+                    true,
+                ) {
+                    "en"
+                }
+            val player = fixture.player(Pos(0.0, 0.0, 2.0))
+            val bystander = fixture.player(Pos(1.0, 0.0, 2.0))
+            try {
+                assertEquals(
+                    SceneActionResult.Success,
+                    await(
+                        starter.start(
+                            SceneActionContext(
+                                identity,
+                                player,
+                                LocalId("demo-bounce"),
+                                SceneTrigger.RIGHT_CLICK,
+                                SceneHand.MAIN,
+                                System.nanoTime(),
+                                emptyMap(),
+                                SceneViewerVisualState(),
+                            ),
+                            StageLobbyDialogue.DIALOGUE_ID,
+                            StageLobbyDialogue.SPEAKER_ROLE,
+                        ),
+                        fixture.instance,
+                    ),
+                )
+                starter.confirmPack(player, DialoguePackReadiness.State(1, true, assets.pin()))
+                tickUntil(fixture.instance) {
+                    backdropDisplay(player, fixture.instance) != null &&
+                        effects(player).isNotEmpty()
+                }
+                val backdrop = checkNotNull(backdropDisplay(player, fixture.instance))
+                assertEquals(255, displayOpacity(backdrop))
+                assertFalse(bystander in backdrop.viewers)
+
+                val entry = effects(player).singleOrNull()
+                assertNotNull(entry, "Stage should install one native vignette entry effect")
+                val entryKey = checkNotNull(entry)
+                assertTrue(isNativeEntry(entryKey), "Expected a native entry key, got $entryKey")
+                val entrySnapshots = effectSnapshots(player)
+                assertFalse(entrySnapshots.flatten().any(::isLegacyVignetteFade))
+                assertFalse(
+                    entrySnapshots.flatten().any {
+                        it == net.kyori.adventure.key.Key.key("dialogue:vignette")
+                    },
+                    "The native entry key remains installed; the legacy full vignette is not a completion marker",
+                )
+                val entryPacketCount = entrySnapshots.count { it == listOf(entryKey) }
+                assertEquals(
+                    1,
+                    entryPacketCount,
+                    "One native entry write is expected per activation",
+                )
+                assertEquals(
+                    listOf(listOf(entryKey)),
+                    entrySnapshots.filter { it.isNotEmpty() },
+                    "The entry transition should emit one native effect packet",
+                )
+
+                val serializer = PlainTextComponentSerializer.plainText()
+                tickUntil(fixture.instance) {
+                    npcTextDisplays(player, fixture.instance).any {
+                        serializer
+                            .serialize((it.entityMeta as TextDisplayMeta).text)
+                            .contains("Hello!")
+                    }
+                }
+                assertEquals(
+                    listOf(entryKey),
+                    effects(player),
+                    "Typing must keep the entry key installed",
+                )
+                assertEquals(
+                    entryPacketCount,
+                    effectSnapshots(player).count { it == listOf(entryKey) },
+                    "Typing must not emit additional vignette strength packets",
+                )
+
+                val snapshotCount = effectSnapshots(player).size
+                await(player.teleport(Pos(0.0, 0.0, 8.0)), fixture.instance)
+                tickUntil(fixture.instance) {
+                    EventDispatcher.call(PlayerTickEvent(player))
+                    starter.presentation(player)?.diagnostic == "CLOSED" &&
+                        effects(player).isEmpty()
+                }
+                val exitKey =
+                    net.kyori.adventure.key.Key.key(
+                        "dialogue:vignette_250_exit_${entryKey.value().substringAfterLast('_')}"
+                    )
+                val exitPackets = effectSnapshots(player).drop(snapshotCount)
+                assertEquals(
+                    listOf(listOf(entryKey, exitKey), emptyList()),
+                    exitPackets,
+                    "Distance close should append the matching exit key, then clear effects",
+                )
+                assertEquals("CLOSED", starter.presentation(player)?.diagnostic)
+            } finally {
+                await(starter.closeAsync(), fixture.instance)
+            }
+        }
+    }
+
+    @Test
     fun `confirmed proxy pin selects NPC and revocation returns to chat`() {
         RendererFixture().use { fixture ->
             val station = LocalId("demo-bounce")
@@ -203,18 +319,14 @@ class StageLobbyDialogueTest {
                 )
                 tickUntil(fixture.instance) {
                     starter.presentation(player)!!.effectiveSurface == "npc" &&
-                        effects(player) ==
-                            listOf(net.kyori.adventure.key.Key.key("dialogue:vignette"))
+                        isStableVignetteEntry(effects(player))
                 }
                 assertEquals(
                     "npc",
                     starter.presentation(player)!!.effectiveSurface,
                     starter.presentation(player).toString(),
                 )
-                assertEquals(
-                    listOf(net.kyori.adventure.key.Key.key("dialogue:vignette")),
-                    effects(player),
-                )
+                assertTrue(isStableVignetteEntry(effects(player)), effects(player).toString())
                 assertTrue(effects(other).isEmpty())
                 label.update(0)
                 assertFalse(player in label.viewers)
@@ -234,13 +346,9 @@ class StageLobbyDialogueTest {
                 starter.confirmPack(player, DialoguePackReadiness.State(3, true, assets.pin()))
                 tickUntil(fixture.instance) {
                     starter.presentation(player)!!.effectiveSurface == "npc" &&
-                        effects(player) ==
-                            listOf(net.kyori.adventure.key.Key.key("dialogue:vignette"))
+                        isStableVignetteEntry(effects(player))
                 }
-                assertEquals(
-                    listOf(net.kyori.adventure.key.Key.key("dialogue:vignette")),
-                    effects(player),
-                )
+                assertTrue(isStableVignetteEntry(effects(player)), effects(player).toString())
                 label.update(0)
                 assertFalse(player in label.viewers)
                 await(player.teleport(Pos(0.0, 0.0, 8.0)), fixture.instance)
@@ -304,13 +412,8 @@ class StageLobbyDialogueTest {
                     ),
                 )
                 starter.confirmPack(player, DialoguePackReadiness.State(1, true, assets.pin()))
-                tickUntil(fixture.instance) {
-                    effects(player) == listOf(net.kyori.adventure.key.Key.key("dialogue:vignette"))
-                }
-                assertEquals(
-                    listOf(net.kyori.adventure.key.Key.key("dialogue:vignette")),
-                    effects(player),
-                )
+                tickUntil(fixture.instance) { isStableVignetteEntry(effects(player)) }
+                assertTrue(isStableVignetteEntry(effects(player)), effects(player).toString())
 
                 await(starter.closeAsync(), fixture.instance)
 
@@ -527,8 +630,24 @@ class StageLobbyDialogueTest {
     private fun effectHistory(player: TestPlayer): List<net.kyori.adventure.key.Key> =
         player.connection.packets.filterIsInstance<PostEffectsPacket>().flatMap { it.postEffects() }
 
-    private fun isVignetteFade(key: net.kyori.adventure.key.Key): Boolean =
+    private fun effectSnapshots(player: TestPlayer): List<List<net.kyori.adventure.key.Key>> =
+        player.connection.packets.filterIsInstance<PostEffectsPacket>().map {
+            it.postEffects().toList()
+        }
+
+    private fun isLegacyVignetteFade(key: net.kyori.adventure.key.Key): Boolean =
         key.namespace() == "dialogue" && key.value().startsWith("vignette_fade_")
+
+    private fun isNativeEntry(key: net.kyori.adventure.key.Key): Boolean =
+        key.namespace() == "dialogue" && key.value().startsWith("vignette_250_enter_")
+
+    private fun isVignetteFade(key: net.kyori.adventure.key.Key): Boolean =
+        isLegacyVignetteFade(key) || isNativeEntry(key)
+
+    private fun isStableVignetteEntry(keys: List<net.kyori.adventure.key.Key>): Boolean =
+        keys.size == 1 &&
+            (keys.single() == net.kyori.adventure.key.Key.key("dialogue:vignette") ||
+                isNativeEntry(keys.single()))
 
     private fun npcTextDisplays(player: TestPlayer, instance: Instance): List<Entity> =
         instance.entities.filter {
