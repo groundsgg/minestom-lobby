@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.22.1](https://github.com/groundsgg/minestom-lobby/compare/v2.22.0...v2.22.1) (2026-11-22)
+
+
+### Bug Fixes
+
+* **dialogue:** use stronger Grounds vignette ([#280](https://github.com/groundsgg/minestom-lobby/issues/280)) ([5f0382f](https://github.com/groundsgg/minestom-lobby/commit/5f0382f55255a4f85d23b7f6e014b0bc27a03360))
+
 ## [2.22.0](https://github.com/groundsgg/minestom-lobby/compare/v2.21.1...v2.22.0) (2026-11-22)
 
 
