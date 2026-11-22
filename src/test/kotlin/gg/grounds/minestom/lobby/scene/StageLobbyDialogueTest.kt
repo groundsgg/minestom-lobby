@@ -165,13 +165,20 @@ class StageLobbyDialogueTest {
                     ),
                 )
                 starter.confirmPack(player, DialoguePackReadiness.State(1, true, assets.pin()))
+                var backdropOpacitiesAtFirstAppearance: List<Int>? = null
                 tickUntil(fixture.instance) {
-                    backdropDisplay(player, fixture.instance) != null &&
-                        effects(player).isNotEmpty()
+                    val backdrops = backdropDisplays(fixture.instance)
+                    if (backdrops.size == 2 && backdropOpacitiesAtFirstAppearance == null) {
+                        backdropOpacitiesAtFirstAppearance = backdrops.map(::displayOpacity)
+                    }
+                    backdrops.size == 2 && effects(player).isNotEmpty()
                 }
-                val backdrop = checkNotNull(backdropDisplay(player, fixture.instance))
-                assertEquals(255, displayOpacity(backdrop))
-                assertFalse(bystander in backdrop.viewers)
+                val backdrops = backdropDisplays(fixture.instance)
+                assertEquals(2, backdrops.size)
+                assertEquals(listOf(255, 255), backdropOpacitiesAtFirstAppearance)
+                assertTrue(backdrops.all { player in it.viewers })
+                assertTrue(backdrops.none { bystander in it.viewers })
+                assertTrue(backdrops.all { displayOpacity(it) == 255 })
 
                 val entry = effects(player).singleOrNull()
                 assertNotNull(entry, "Stage should install one native vignette entry effect")
@@ -654,11 +661,17 @@ class StageLobbyDialogueTest {
             it.entityType == EntityType.TEXT_DISPLAY && player in it.viewers
         }
 
+    private fun backdropDisplays(instance: Instance): List<Entity> =
+        instance.entities
+            .filter {
+                it.entityType == EntityType.TEXT_DISPLAY &&
+                    PlainTextComponentSerializer.plainText()
+                        .serialize((it.entityMeta as TextDisplayMeta).text) == "\uE300"
+            }
+            .sortedBy { it.position.z() }
+
     private fun backdropDisplay(player: TestPlayer, instance: Instance): Entity? =
-        npcTextDisplays(player, instance).singleOrNull {
-            PlainTextComponentSerializer.plainText()
-                .serialize((it.entityMeta as TextDisplayMeta).text) == "\uE300"
-        }
+        backdropDisplays(instance).firstOrNull { player in it.viewers }
 
     private fun displayOpacity(display: Entity): Int =
         (display.entityMeta as TextDisplayMeta).textOpacity.toInt() and 0xff
