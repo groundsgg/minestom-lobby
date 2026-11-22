@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.22.0](https://github.com/groundsgg/minestom-lobby/compare/v2.21.1...v2.22.0) (2026-11-22)
+
+
+### Features
+
+* **dialogue:** use native vignette fade ([#278](https://github.com/groundsgg/minestom-lobby/issues/278)) ([206949d](https://github.com/groundsgg/minestom-lobby/commit/206949d23eb024f6c64fd538c887698329c8de59))
+
 ## [2.21.1](https://github.com/groundsgg/minestom-lobby/compare/v2.21.0...v2.21.1) (2026-11-21)
 
 
