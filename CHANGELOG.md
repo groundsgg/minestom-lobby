@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.22.2](https://github.com/groundsgg/minestom-lobby/compare/v2.22.1...v2.22.2) (2026-11-22)
+
+
+### Bug Fixes
+
+* **dialogue:** render two private backdrop faces ([#282](https://github.com/groundsgg/minestom-lobby/issues/282)) ([ac94471](https://github.com/groundsgg/minestom-lobby/commit/ac9447109ad85a8a853fbdc647f1f241c4e96580))
+
 ## [2.22.1](https://github.com/groundsgg/minestom-lobby/compare/v2.22.0...v2.22.1) (2026-11-22)
 
 
