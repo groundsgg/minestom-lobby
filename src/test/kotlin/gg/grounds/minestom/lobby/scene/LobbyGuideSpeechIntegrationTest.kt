@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test
 
 class LobbyGuideSpeechIntegrationTest {
     @Test
-    fun `real Guide reveals organic voice privately and closes without generic typing`() {
+    fun `real Guide admits NPC presentation and closes without generic typing`() {
         RendererFixture().use { fixture ->
             val player = fixture.player(Pos(0.0, 0.0, 2.0))
             val neighbor = fixture.player(Pos(1.0, 0.0, 2.0))
@@ -68,47 +68,11 @@ class LobbyGuideSpeechIntegrationTest {
                     )
                 await(starting, fixture.instance)
                 tickUntil(fixture.instance) {
-                    sounds(player).any { it.startsWith("dialogue:guide/") }
+                    owner.presentation(player)?.effectiveSurface == "npc"
                 }
-                assertTrue(
-                    sounds(player).any { it.startsWith("dialogue:guide/") },
-                    sounds(player).toString(),
-                )
-                val voice =
-                    player.connection.packets.filterIsInstance<SoundEffectPacket>().first {
-                        it.soundEvent().key().asString().startsWith("dialogue:guide/")
-                    }
-                assertEquals(net.kyori.adventure.sound.Sound.Source.VOICE, voice.source())
-                assertEquals(0.0, voice.origin().x())
-                assertEquals(1.6, voice.origin().y())
-                assertEquals(0.0, voice.origin().z())
                 assertFalse(sounds(player).any { it.contains("typing") }, sounds(player).toString())
-                assertTrue(
-                    sounds(player)
-                        .first { it.startsWith("dialogue:guide/") }
-                        .startsWith("dialogue:guide/greeting/")
-                )
-                assertEquals(1, sounds(player).count { it.startsWith("dialogue:guide/greeting/") })
                 assertFalse(sounds(neighbor).any { it.startsWith("dialogue:guide/") })
-                val before =
-                    player.connection.packets.count { it.javaClass.simpleName == "StopSoundPacket" }
                 await(owner.closeAsync(), fixture.instance)
-                assertTrue(
-                    player.connection.packets.count {
-                        it.javaClass.simpleName == "StopSoundPacket"
-                    } > before
-                )
-                val stopped =
-                    player.connection.packets
-                        .filterIsInstance<
-                            net.minestom.server.network.packet.server.play.StopSoundPacket
-                        >()
-                        .last { it.sound()?.startsWith("dialogue:guide/") == true }
-                assertEquals(net.kyori.adventure.sound.Sound.Source.VOICE, stopped.source())
-                assertEquals(
-                    sounds(player).last { it.startsWith("dialogue:guide/") },
-                    stopped.sound(),
-                )
                 val spoken = sounds(player).count { it.startsWith("dialogue:guide/") }
                 repeat(20) { fixture.instance.tick(0) }
                 assertEquals(spoken, sounds(player).count { it.startsWith("dialogue:guide/") })

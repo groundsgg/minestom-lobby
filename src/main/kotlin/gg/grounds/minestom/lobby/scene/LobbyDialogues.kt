@@ -55,7 +55,7 @@ internal class LobbyDialogues(
         var subscription: AutoCloseable? = null
         val active = java.util.concurrent.atomic.AtomicBoolean(true)
         val connection = player.playerConnection
-        var speech: GuideSpeechOutput? = null
+        var speech: GuideSpeechListener? = null
         var language = "en"
         var revision = 0L
         val actions =
@@ -311,82 +311,31 @@ internal class LobbyDialogues(
         if (session.binding.dialogue != LobbyGuideContent.DIALOGUE_ID) NPC_PREFERENCES
         else guidePreferences(reducedMotion(session.player), voiceBank != null)
 
-    private fun speechListener(session: Session): MinestomDialogueSpeechListener {
-        val player = session.player
-        val revealDelayNanos = NPC_PREFERENCES.graphemeDelay().toNanos()
-        fun sameConnection() = player.playerConnection === session.connection && player.isOnline
-        val speech =
-            GuideSpeechOutput(
+    private fun speechListener(session: Session): MinestomDialogueSpeechListener =
+        GuideSpeechListener(
+                session.player,
+                instance,
+                session.binding,
                 {
                     !closed &&
                         session.active.get() &&
-                        sameConnection() &&
-                        player.instance === instance
+                        session.player.playerConnection === session.connection
                 },
-                { reducedMotion(player) },
+                { reducedMotion(session.player) },
                 { guard ->
                     guideNpcs.prepare(
                         session.binding.elementId,
-                        gg.grounds.npc.minestom.presentation.NpcPresentationOptions.builder(player)
+                        gg.grounds.npc.minestom.presentation.NpcPresentationOptions.builder(
+                                session.player
+                            )
                             .publicationGuard(guard)
                             .build(),
                     )
                 },
-                { voice ->
-                    if (sameConnection())
-                        player.playSound(
-                            net.kyori.adventure.sound.Sound.sound(
-                                net.kyori.adventure.key.Key.key(voice.key),
-                                net.kyori.adventure.sound.Sound.Source.VOICE,
-                                .4f * voice.volumeScale,
-                                voice.pitch,
-                            ),
-                            session.binding.position.x(),
-                            session.binding.position.y() + 1.6,
-                            session.binding.position.z(),
-                        )
-                },
-                { key ->
-                    if (sameConnection())
-                        player.stopSound(
-                            net.kyori.adventure.sound.SoundStop.namedOnSource(
-                                net.kyori.adventure.key.Key.key(key),
-                                net.kyori.adventure.sound.Sound.Source.VOICE,
-                            )
-                        )
-                },
-                bank = checkNotNull(voiceBank),
+                checkNotNull(voiceBank),
+                NPC_PREFERENCES.graphemeDelay(),
             )
-        session.speech = speech
-        return object : MinestomDialogueSpeechListener {
-            override fun onRevealed(event: MinestomDialogueSpeechEvent) {
-                if (event.speakerRole() == session.binding.speaker)
-                    speech.reveal(
-                        event.revealed(),
-                        when (event.view().nodeId()) {
-                            "start" -> GuideSpeechMood.GREETING
-                            "farewell" -> GuideSpeechMood.FAREWELL
-                            else -> null
-                        },
-                        // DialogueView carries the SDK's cached grapheme counts; never split text
-                        // per frame.
-                        (event.view().totalGraphemes() - event.view().revealedGraphemes())
-                            .coerceAtLeast(0)
-                            .toLong() * revealDelayNanos,
-                    )
-            }
-
-            override fun onStop(reason: MinestomDialogueSpeechListener.StopReason) {
-                when (reason) {
-                    MinestomDialogueSpeechListener.StopReason.PRESENTATION_FALLBACK ->
-                        speech.fallback()
-                    MinestomDialogueSpeechListener.StopReason.PAUSED,
-                    MinestomDialogueSpeechListener.StopReason.CONTENT_REPLACED -> speech.stop(false)
-                    else -> speech.close()
-                }
-            }
-        }
-    }
+            .also { session.speech = it }
 
     private fun menuHandler(
         session: Session,
