@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.25.0](https://github.com/groundsgg/minestom-lobby/compare/v2.24.0...v2.25.0) (2026-11-23)
+
+
+### Features
+
+* **dialogue:** enable Stage choice sounds ([#290](https://github.com/groundsgg/minestom-lobby/issues/290)) ([3791141](https://github.com/groundsgg/minestom-lobby/commit/3791141fc67d96ebfaf44ecc9d476b15f68406a6))
+
 ## [2.24.0](https://github.com/groundsgg/minestom-lobby/compare/v2.23.1...v2.24.0) (2026-11-23)
 
 
