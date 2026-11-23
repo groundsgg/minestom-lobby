@@ -214,20 +214,21 @@ class GuideNpcPresentationsTest {
                             NpcPresentationOptions.builder(viewer).publicationGuard(guard).build(),
                         )
                     },
-                    { pitch ->
+                    { voice ->
                         viewer.playSound(
                             net.kyori.adventure.sound.Sound.sound(
-                                net.kyori.adventure.key.Key.key(LobbyDialogues.GUIDE_SPEECH),
+                                net.kyori.adventure.key.Key.key(voice.key),
                                 net.kyori.adventure.sound.Sound.Source.VOICE,
-                                .4f,
-                                pitch,
+                                .4f * voice.volumeScale,
+                                voice.pitch,
                             ),
                             net.kyori.adventure.sound.Sound.Emitter.self(),
                         )
                     },
                     {},
+                    bank = testGuideVoiceBank(),
                 )
-            output.reveal("a")
+            output.reveal("a", remainingNanos = 10_000_000_000L)
             tickUntil {
                 fixture.instance.entities.count {
                     it.entityType == net.minestom.server.entity.EntityType.ITEM_DISPLAY

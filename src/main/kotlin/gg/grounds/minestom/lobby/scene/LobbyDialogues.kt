@@ -66,6 +66,7 @@ internal class LobbyDialogues(
     }
 
     private val sessions = IdentityHashMap<Player, Session>()
+    private val voiceBank = GuideVoiceBank.load(assets.entries()[GuideVoiceBank.PATH])
     private val guideNpcs =
         GuideNpcPresentations(
             bindings
@@ -213,7 +214,8 @@ internal class LobbyDialogues(
                     emptySet(),
                 )
             val speechListener =
-                if (dialogue == LobbyGuideContent.DIALOGUE_ID) speechListener(session)
+                if (dialogue == LobbyGuideContent.DIALOGUE_ID && voiceBank != null)
+                    speechListener(session)
                 else MinestomDialogueSpeechListener.NO_OP
             val ticket =
                 host.begin(
@@ -307,10 +309,11 @@ internal class LobbyDialogues(
 
     private fun preferences(session: Session): PresentationPreferences =
         if (session.binding.dialogue != LobbyGuideContent.DIALOGUE_ID) NPC_PREFERENCES
-        else guidePreferences(reducedMotion(session.player))
+        else guidePreferences(reducedMotion(session.player), voiceBank != null)
 
     private fun speechListener(session: Session): MinestomDialogueSpeechListener {
         val player = session.player
+        val revealDelayNanos = NPC_PREFERENCES.graphemeDelay().toNanos()
         fun sameConnection() = player.playerConnection === session.connection && player.isOnline
         val speech =
             GuideSpeechOutput(
@@ -329,34 +332,48 @@ internal class LobbyDialogues(
                             .build(),
                     )
                 },
-                { pitch ->
+                { voice ->
                     if (sameConnection())
                         player.playSound(
                             net.kyori.adventure.sound.Sound.sound(
-                                net.kyori.adventure.key.Key.key(GUIDE_SPEECH),
+                                net.kyori.adventure.key.Key.key(voice.key),
                                 net.kyori.adventure.sound.Sound.Source.VOICE,
-                                .4f,
-                                pitch,
+                                .4f * voice.volumeScale,
+                                voice.pitch,
                             ),
                             session.binding.position.x(),
                             session.binding.position.y() + 1.6,
                             session.binding.position.z(),
                         )
                 },
-                {
+                { key ->
                     if (sameConnection())
                         player.stopSound(
                             net.kyori.adventure.sound.SoundStop.namedOnSource(
-                                net.kyori.adventure.key.Key.key(GUIDE_SPEECH),
+                                net.kyori.adventure.key.Key.key(key),
                                 net.kyori.adventure.sound.Sound.Source.VOICE,
                             )
                         )
                 },
+                bank = checkNotNull(voiceBank),
             )
         session.speech = speech
         return object : MinestomDialogueSpeechListener {
             override fun onRevealed(event: MinestomDialogueSpeechEvent) {
-                if (event.speakerRole() == session.binding.speaker) speech.reveal(event.revealed())
+                if (event.speakerRole() == session.binding.speaker)
+                    speech.reveal(
+                        event.revealed(),
+                        when (event.view().nodeId()) {
+                            "start" -> GuideSpeechMood.GREETING
+                            "farewell" -> GuideSpeechMood.FAREWELL
+                            else -> null
+                        },
+                        // DialogueView carries the SDK's cached grapheme counts; never split text
+                        // per frame.
+                        (event.view().totalGraphemes() - event.view().revealedGraphemes())
+                            .coerceAtLeast(0)
+                            .toLong() * revealDelayNanos,
+                    )
             }
 
             override fun onStop(reason: MinestomDialogueSpeechListener.StopReason) {
@@ -465,14 +482,14 @@ internal class LobbyDialogues(
                 Duration.ZERO,
             )
 
-        internal const val GUIDE_SPEECH = "grounds:dialogue/guide/speech"
+        internal const val GUIDE_SPEECH = "dialogue:guide/speech"
 
-        internal fun guidePreferences(reducedMotion: Boolean) =
+        internal fun guidePreferences(reducedMotion: Boolean, voiceAvailable: Boolean = true) =
             PresentationPreferences(
                 NPC_PREFERENCES.surfaceKey(),
                 NPC_PREFERENCES.graphemeDelay(),
                 reducedMotion,
-                NPC_PREFERENCES.effects() + ("typingSound" to "false"),
+                NPC_PREFERENCES.effects() + ("typingSound" to (!voiceAvailable).toString()),
             )
 
         private val NPC_PREFERENCES =

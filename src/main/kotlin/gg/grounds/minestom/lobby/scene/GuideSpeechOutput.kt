@@ -4,14 +4,29 @@ import gg.grounds.npc.minestom.presentation.*
 import gg.grounds.npc.minestom.spi.NpcPublicationGuard
 import kotlin.math.sin
 
+internal enum class GuideSpeechMood {
+    GREETING,
+    FAREWELL,
+}
+
+internal data class GuideVoice(
+    val key: String,
+    val pitch: Float,
+    val volumeScale: Float,
+    val durationNanos: Long,
+)
+
 /** One speech lease owns only a concrete viewer's optional sound and additive head channel. */
 internal class GuideSpeechOutput(
     private val valid: () -> Boolean,
     private val reducedMotion: () -> Boolean,
     private val prepare: (NpcPublicationGuard) -> NpcPresentationStart?,
-    private val play: (Float) -> Unit,
-    private val silence: () -> Unit,
+    private val play: (GuideVoice) -> Unit,
+    private val silence: (String) -> Unit,
     private val clock: () -> Long = System::nanoTime,
+    private val randomInt: (IntRange) -> Int = { it.random() },
+    private val voiceRandomInt: (IntRange) -> Int = { it.random() },
+    private val bank: GuideVoiceBank,
 ) : AutoCloseable {
     private val lock = Any()
     private var closed = false
@@ -19,29 +34,48 @@ internal class GuideSpeechOutput(
     private var preparing: NpcPresentationStart? = null
     private var handle: NpcPresentationHandle? = null
     private var published: NpcPresentationHandle? = null
-    private var lastSound: Long? = null
+    private var nextSound: Long? = null
+    private var activeKey: String? = null
+    private val recentTalk = java.util.ArrayDeque<Int>()
+    private var greeted = false
+    private var farewelled = false
     private var speaking = false
     private var silentUntil: Long? = null
     private var unavailable = false
 
-    fun reveal(text: String) =
+    fun reveal(text: String, mood: GuideSpeechMood? = null, remainingNanos: Long = 0) =
         synchronized(lock) {
             if (closed || !valid()) return@synchronized
             if (text.codePoints().noneMatch(Character::isLetterOrDigit)) {
                 speaking = false
                 optional { handle?.followSharedHeadLook() }
-                if (text.codePoints().anyMatch { !Character.isWhitespace(it) })
-                    silentUntil = clock() + PUNCTUATION_GAP_NANOS
+                if (text.codePoints().anyMatch { !Character.isWhitespace(it) }) {
+                    val deadline = clock() + randomMillis(PUNCTUATION_GAP_MILLIS)
+                    if (silentUntil == null || deadline - silentUntil!! > 0) silentUntil = deadline
+                }
                 return@synchronized
             }
             speaking = true
             val now = clock()
             if (
                 (silentUntil == null || now - silentUntil!! >= 0) &&
-                    (lastSound == null || now - lastSound!! >= VOICE_CADENCE_NANOS)
+                    (nextSound == null || now - nextSound!! >= 0)
             ) {
-                lastSound = now
-                optional { play((1.0 + .035 * sin(now / 170_000_000.0)).toFloat()) }
+                val cue =
+                    when {
+                        mood == GuideSpeechMood.GREETING && !greeted -> mood
+                        mood == GuideSpeechMood.FAREWELL && !farewelled -> mood
+                        else -> null
+                    }
+                val voice = selectVoice(cue, remainingNanos)
+                if (voice != null) {
+                    if (cue == GuideSpeechMood.GREETING) greeted = true
+                    if (cue == GuideSpeechMood.FAREWELL) farewelled = true
+                    stopVoice()
+                    activeKey = voice.key
+                    optional { play(voice) }
+                    nextSound = now + voice.durationNanos + randomMillis(BREATH_GAP_MILLIS)
+                }
             }
             if (reducedMotion()) {
                 epoch++
@@ -135,8 +169,10 @@ internal class GuideSpeechOutput(
         synchronized(lock) {
             if (closed) return@synchronized
             speaking = false
+            nextSound = null
+            silentUntil = null
             epoch++
-            optional { silence() }
+            stopVoice()
             preparing?.let { optional { it.cancel() } }
             preparing = null
             handle?.let { current ->
@@ -165,9 +201,51 @@ internal class GuideSpeechOutput(
     override fun close() = stop(true)
 
     companion object {
-        internal const val VOICE_CADENCE_NANOS = 260_000_000L
-        internal const val PUNCTUATION_GAP_NANOS = 100_000_000L
+        internal const val END_SAFETY_NANOS = 100_000_000L
+        internal val BREATH_GAP_MILLIS = 275..430
+        internal val PUNCTUATION_GAP_MILLIS = 400..700
     }
+
+    private fun selectVoice(mood: GuideSpeechMood?, remainingNanos: Long): GuideVoice? {
+        if (remainingNanos < END_SAFETY_NANOS) return null
+        val pitch = voiceDraw(965..1035) / 1000f
+        val kind =
+            when (mood) {
+                GuideSpeechMood.GREETING -> "greeting"
+                GuideSpeechMood.FAREWELL -> "farewell"
+                null -> "speech"
+            }
+        val candidates =
+            bank.clips.withIndex().filter { (index, clip) ->
+                clip.kind == kind &&
+                    (kind != "speech" || index !in recentTalk) &&
+                    clip.playbackNanos(pitch) <= remainingNanos - END_SAFETY_NANOS
+            }
+        if (candidates.isEmpty()) return null
+        val (index, clip) = candidates[voiceDraw(0..candidates.lastIndex)]
+        if (kind == "speech") {
+            recentTalk.addLast(index)
+            if (recentTalk.size > 2) recentTalk.removeFirst()
+        }
+        return GuideVoice(clip.key, pitch, voiceDraw(900..1000) / 1000f, clip.playbackNanos(pitch))
+    }
+
+    private fun voiceDraw(range: IntRange): Int =
+        voiceRandomInt(range).also {
+            require(it in range) { "Guide voice draw must stay within its requested bounds" }
+        }
+
+    private fun stopVoice() {
+        activeKey?.let { key -> optional { silence(key) } }
+        activeKey = null
+    }
+
+    private fun boundedRandom(range: IntRange): Int =
+        randomInt(range).also {
+            require(it in range) { "Speech rhythm draw must stay within its requested bounds" }
+        }
+
+    private fun randomMillis(range: IntRange) = boundedRandom(range) * 1_000_000L
 
     private inline fun optional(action: () -> Unit) {
         try {
