@@ -58,7 +58,7 @@ internal fun PreparedLobbyScene.withStageDialoguePreview(): StageDialoguePreview
                         station.visible,
                         station.activation,
                         station.body,
-                        null,
+                        station.label,
                         station.labelOffset,
                         station.look,
                         station.initialAnimation,

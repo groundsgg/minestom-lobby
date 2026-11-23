@@ -1,11 +1,13 @@
 package gg.grounds.minestom.lobby
 
 import gg.grounds.GameServerRetirement
+import gg.grounds.minestom.lobby.scene.LobbyDialogues
 import gg.grounds.minestom.lobby.scene.LobbySceneHost
 import gg.grounds.minestom.lobby.scene.LobbySceneLoader
-import gg.grounds.minestom.lobby.scene.StageLobbyDialogue
+import gg.grounds.minestom.lobby.scene.dialogueBindings
 import gg.grounds.minestom.lobby.scene.runtimeRequest
 import gg.grounds.minestom.lobby.scene.stageDialoguePreviewEnabled
+import gg.grounds.minestom.lobby.scene.withDialogueLabels
 import gg.grounds.minestom.lobby.scene.withStageDialoguePreview
 import gg.grounds.modules.get
 import gg.grounds.permissions.Permissions
@@ -59,7 +61,7 @@ internal class LobbyModule(
         val created = createWorld()
         world = created
         val (instanceContainer, spawn, loaded) = created
-        var stageDialogue: StageLobbyDialogue? = null
+        var stageDialogue: LobbyDialogues? = null
         val prepared =
             try {
                 LobbySceneLoader()
@@ -78,34 +80,34 @@ internal class LobbyModule(
                     ?.let { prepared ->
                         val preview =
                             if (dialoguePreview) prepared.withStageDialoguePreview() else null
+                        val selected = preview?.prepared ?: prepared
+                        val bindings = selected.dialogueBindings()
                         val starter =
-                            preview?.let { entry ->
-                                StageLobbyDialogue(
+                            if (bindings.isEmpty()) null
+                            else
+                                LobbyDialogues(
                                     instanceContainer,
-                                    entry.prepared.identity,
-                                    entry.stationId,
-                                    entry.position,
-                                ) { player ->
-                                    player.locale?.toLanguageTag() ?: "en"
-                                }
-                            }
-                        stageDialogue = starter
-                        val dialogueScene =
-                            preview?.let { entry ->
-                                entry.prepared.copy(
-                                    renderers =
-                                        entry.label.renderers(
-                                            entry.prepared.renderers,
-                                            entry.body,
-                                            checkNotNull(starter)::npcDialogueViewers,
-                                        )
+                                    selected.identity,
+                                    bindings,
+                                    ctx.services.get<gg.grounds.lobby.LobbyNavigatorService>(),
+                                    ctx.services.get<gg.grounds.lobby.LobbyQueueService>(),
                                 )
+                        stageDialogue = starter
+                        if (
+                            bindings.any {
+                                it.dialogue ==
+                                    gg.grounds.minestom.lobby.scene.LobbyGuideContent.DIALOGUE_ID
                             }
-                        (dialogueScene ?: prepared).runtimeRequest(
-                            instanceContainer,
-                            ctx.services,
-                            starter,
                         )
+                            logger.info(
+                                "Prepared lobby guide successfully (sceneId={}, mapVersion={}, elementId={})",
+                                selected.identity.sceneId.value,
+                                selected.identity.mapVersion,
+                                "spawn-guide",
+                            )
+                        (if (starter == null) selected
+                            else selected.withDialogueLabels(starter, bindings))
+                            .runtimeRequest(instanceContainer, ctx.services, starter)
                     }
                     .also { request ->
                         val started = System.nanoTime()
@@ -165,7 +167,7 @@ internal class LobbyModule(
             )
         if (preparedDialogue != null && prepared != null)
             logger.info(
-                "Prepared Stage dialogue preview (sceneId={}, mapVersion={})",
+                "Prepared lobby dialogues successfully (sceneId={}, mapVersion={})",
                 prepared.identity.sceneId.value,
                 prepared.identity.mapVersion,
             )

@@ -41,6 +41,427 @@ import org.junit.jupiter.api.Test
 
 class StageLobbyDialogueTest {
     @Test
+    fun `unavailable duel menu stays localized and never joins a queue`() {
+        RendererFixture().use { fixture ->
+            val identity = SceneRuntimeIdentity(SceneId("test:duel-failure"), "lobby/mainlobby", 19)
+            var opened = 0
+            val owner =
+                LobbyDialogues(
+                    fixture.instance,
+                    identity,
+                    listOf(
+                        LobbyDialogueBinding(
+                            LocalId("spawn-guide"),
+                            Pos.ZERO,
+                            LobbyGuideContent.DIALOGUE_ID,
+                            "guide",
+                        )
+                    ),
+                    queues =
+                        object : gg.grounds.lobby.LobbyQueueService {
+                            override fun toggleQueue(
+                                player: net.minestom.server.entity.Player,
+                                modeId: String,
+                            ): CompletionStage<Boolean> = fail("Dialogue must not join queues")
+
+                            override fun openDuels(
+                                player: net.minestom.server.entity.Player
+                            ): CompletionStage<Boolean> {
+                                opened++
+                                return CompletableFuture.failedFuture(
+                                    IllegalStateException("Unavailable")
+                                )
+                            }
+                        },
+                )
+            val player = fixture.player(Pos(0.0, 0.0, 2.0))
+            gg.grounds.minigame.minestom.SidebarLocale.set(player, "de")
+            fun choose(label: String) {
+                repeat(2) {
+                    MinecraftServer.getCommandManager()
+                        .execute(player, commandFor(player, label).removePrefix("/"))
+                    fixture.instance.tick(0)
+                    MinecraftServer.getSchedulerManager().processTick()
+                }
+            }
+            try {
+                assertEquals(
+                    SceneActionResult.Success,
+                    await(
+                        owner.start(
+                            SceneActionContext(
+                                identity,
+                                player,
+                                LocalId("spawn-guide"),
+                                SceneTrigger.RIGHT_CLICK,
+                                SceneHand.MAIN,
+                                System.nanoTime(),
+                                emptyMap(),
+                                SceneViewerVisualState(),
+                            ),
+                            LobbyGuideContent.DIALOGUE_ID,
+                            "guide",
+                        ),
+                        fixture.instance,
+                    ),
+                )
+                choose("Ein Spiel finden")
+                tickUntil(fixture.instance) { received(player, "Mit dem Kompass") }
+                choose("Duellmenü öffnen")
+                tickUntil(fixture.instance) {
+                    received(player, "Dieses Menü ist gerade nicht verfügbar")
+                }
+                assertTrue(received(player, "Dieses Menü ist gerade nicht verfügbar"))
+                assertEquals(1, opened)
+                gg.grounds.minigame.minestom.SidebarLocale.set(player, "en")
+                tickUntil(fixture.instance) { received(player, "That menu isn’t available") }
+                assertTrue(received(player, "That menu isn’t available"))
+                assertEquals(1, opened)
+                assertNotNull(commandFor(player, "Back"))
+            } finally {
+                await(owner.closeAsync(), fixture.instance)
+            }
+        }
+    }
+
+    @Test
+    fun `persisted guide discovery rejects unsupported identity hand and trigger`() {
+        val npc =
+            gg.grounds.scene.format.Npc(
+                id = LocalId("spawn-guide"),
+                group = null,
+                transform =
+                    gg.grounds.scene.format.Transform(
+                        gg.grounds.scene.format.Vec3(0.0, 0.0, 0.0),
+                        gg.grounds.scene.format.ZERO_ROTATION,
+                        gg.grounds.scene.format.Vec3(1.0, 1.0, 1.0),
+                    ),
+                body = guideKey,
+                label = Component.text("Guide"),
+                labelOffset = gg.grounds.scene.format.Vec3(0.0, 2.1, 0.0),
+                look = gg.grounds.scene.format.LookBehavior.Fixed,
+                initialAnimation = null,
+                interactionBounds =
+                    gg.grounds.scene.format.LocalBounds(
+                        gg.grounds.scene.format.Vec3(0.0, 0.9, 0.0),
+                        gg.grounds.scene.format.Vec3(0.6, 1.8, 0.6),
+                    ),
+                proximity = null,
+                bindings = emptyList(),
+            )
+        fun prepared(
+            dialogue: String,
+            trigger: SceneTrigger = SceneTrigger.RIGHT_CLICK,
+            hand: SceneHand = SceneHand.MAIN,
+        ): PreparedLobbyScene {
+            val binding =
+                gg.grounds.scene.format.TriggerBinding(
+                    trigger,
+                    listOf(gg.grounds.scene.format.HandCondition(hand)),
+                    0,
+                    0,
+                    listOf(
+                        gg.grounds.scene.format.ApplicationAction(
+                            LobbySceneCatalogs.START_DIALOGUE,
+                            mapOf(
+                                LobbySceneCatalogs.DIALOGUE_ID to StringArgument(dialogue),
+                                LobbySceneCatalogs.SPEAKER to StringArgument("guide"),
+                            ),
+                        )
+                    ),
+                )
+            val configured =
+                gg.grounds.scene.format.Npc(
+                    npc.id,
+                    npc.group,
+                    npc.transform,
+                    npc.visible,
+                    npc.activation,
+                    npc.body,
+                    npc.label,
+                    npc.labelOffset,
+                    npc.look,
+                    npc.initialAnimation,
+                    npc.interactionBounds,
+                    npc.proximity,
+                    listOf(binding),
+                    npc.collision,
+                )
+            val assets = gg.grounds.resourcepacks.catalog.GroundsAssetCatalog.catalog
+            val scene =
+                gg.grounds.scene.format.SceneDocument(
+                    1,
+                    gg.grounds.scene.format.SceneId("test:bindings"),
+                    gg.grounds.scene.format.SceneMetadata("Guide", null, emptySet()),
+                    gg.grounds.scene.format.SceneCatalogReferences(
+                        gg.grounds.scene.format.CatalogReference(assets.id, assets.version),
+                        gg.grounds.scene.format.CatalogReference(
+                            LobbySceneCatalogs.DIALOGUE.id,
+                            LobbySceneCatalogs.DIALOGUE.version,
+                        ),
+                    ),
+                    emptyList(),
+                    listOf(configured),
+                )
+            return PreparedLobbyScene(
+                scene,
+                assets,
+                LobbySceneCatalogs.DIALOGUE,
+                SceneRuntimeIdentity(scene.id, "lobby/mainlobby", 19),
+                SceneAssetRendererRegistry { _, _ -> null },
+            )
+        }
+        assertEquals(
+            listOf(LocalId("spawn-guide")),
+            prepared(LobbyGuideContent.DIALOGUE_ID).dialogueBindings().map { it.elementId },
+        )
+        assertThrows(IllegalArgumentException::class.java) {
+            prepared("unknown:dialogue").dialogueBindings()
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            prepared(LobbyGuideContent.DIALOGUE_ID, SceneTrigger.LEFT_CLICK).dialogueBindings()
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            prepared(LobbyGuideContent.DIALOGUE_ID, hand = SceneHand.OFF).dialogueBindings()
+        }
+    }
+
+    @Test
+    fun `guide opens only owned players menus and shares admission with preview`() {
+        RendererFixture().use { fixture ->
+            val identity = SceneRuntimeIdentity(SceneId("test:guide"), "lobby/mainlobby", 19)
+            val guide = LocalId("spawn-guide")
+            val preview = LocalId("demo-bounce")
+            val opened = mutableListOf<net.minestom.server.entity.Player>()
+            val owner =
+                LobbyDialogues(
+                    fixture.instance,
+                    identity,
+                    listOf(
+                        LobbyDialogueBinding(
+                            guide,
+                            Pos.ZERO,
+                            LobbyGuideContent.DIALOGUE_ID,
+                            LobbyGuideContent.SPEAKER_ROLE,
+                        ),
+                        LobbyDialogueBinding(
+                            preview,
+                            Pos.ZERO,
+                            StageLobbyDialogue.DIALOGUE_ID,
+                            StageLobbyDialogue.SPEAKER_ROLE,
+                        ),
+                    ),
+                    navigator =
+                        object : gg.grounds.lobby.LobbyNavigatorService {
+                            override fun open(
+                                player: net.minestom.server.entity.Player
+                            ): CompletionStage<Boolean> {
+                                opened += player
+                                return CompletableFuture.completedFuture(true)
+                            }
+                        },
+                )
+            val player = fixture.player(Pos(0.0, 0.0, 2.0))
+            val other = fixture.player(Pos(0.0, 0.0, 2.0))
+            gg.grounds.minigame.minestom.SidebarLocale.set(player, "de")
+            fun context(who: net.minestom.server.entity.Player, element: LocalId = guide) =
+                SceneActionContext(
+                    identity,
+                    who,
+                    element,
+                    SceneTrigger.RIGHT_CLICK,
+                    SceneHand.MAIN,
+                    System.nanoTime(),
+                    emptyMap(),
+                    SceneViewerVisualState(),
+                )
+            fun choose(label: String) {
+                repeat(2) {
+                    MinecraftServer.getCommandManager()
+                        .execute(player, commandFor(player, label).removePrefix("/"))
+                    fixture.instance.tick(0)
+                    MinecraftServer.getSchedulerManager().processTick()
+                }
+            }
+            try {
+                assertInstanceOf(
+                    SceneActionResult.Rejected::class.java,
+                    await(
+                        owner.start(
+                            context(player).copy(hand = SceneHand.OFF),
+                            LobbyGuideContent.DIALOGUE_ID,
+                            "guide",
+                        ),
+                        fixture.instance,
+                    ),
+                )
+                assertEquals(
+                    SceneActionResult.Success,
+                    await(
+                        owner.start(context(player), LobbyGuideContent.DIALOGUE_ID, "guide"),
+                        fixture.instance,
+                    ),
+                )
+                assertTrue(received(player, "Hallo! Ich bin dein Guide"))
+                assertInstanceOf(
+                    SceneActionResult.Rejected::class.java,
+                    await(
+                        owner.start(
+                            context(player, preview),
+                            StageLobbyDialogue.DIALOGUE_ID,
+                            "guide",
+                        ),
+                        fixture.instance,
+                    ),
+                )
+                assertEquals(
+                    SceneActionResult.Success,
+                    await(
+                        owner.start(
+                            context(other, preview),
+                            StageLobbyDialogue.DIALOGUE_ID,
+                            "guide",
+                        ),
+                        fixture.instance,
+                    ),
+                )
+                choose("Lobby oder Region wählen")
+                tickUntil(fixture.instance) { received(player, "Im Navigator") }
+                assertTrue(received(player, "Im Navigator"))
+                choose("Navigator öffnen")
+                tickUntil(fixture.instance) { opened.isNotEmpty() }
+                assertEquals(listOf(player), opened)
+                gg.grounds.minigame.minestom.SidebarLocale.set(player, "en")
+                fixture.instance.tick(0)
+                assertEquals(listOf(player), opened)
+                assertFalse(received(other, "Im Navigator"))
+            } finally {
+                await(owner.closeAsync(), fixture.instance)
+            }
+        }
+    }
+
+    @Test
+    fun `ticket locale observers close after completion host close and rejected starts`() {
+        RendererFixture().use { fixture ->
+            val identity = SceneRuntimeIdentity(SceneId("test:observer"), "lobby/mainlobby", 19)
+            var observers = 0
+            val owner =
+                LobbyDialogues(
+                    fixture.instance,
+                    identity,
+                    listOf(
+                        LobbyDialogueBinding(
+                            LocalId("guide"),
+                            Pos.ZERO,
+                            StageLobbyDialogue.DIALOGUE_ID,
+                            "guide",
+                        )
+                    ),
+                    observeLocale = { _, _ ->
+                        observers++
+                        AutoCloseable { observers-- }
+                    },
+                )
+            val player = fixture.player(Pos(0.0, 0.0, 2.0))
+            val context =
+                SceneActionContext(
+                    identity,
+                    player,
+                    LocalId("guide"),
+                    SceneTrigger.RIGHT_CLICK,
+                    SceneHand.MAIN,
+                    System.nanoTime(),
+                    emptyMap(),
+                    SceneViewerVisualState(),
+                )
+            assertEquals(
+                SceneActionResult.Success,
+                await(
+                    owner.start(context, StageLobbyDialogue.DIALOGUE_ID, "guide"),
+                    fixture.instance,
+                ),
+            )
+            assertEquals(1, observers)
+            await(owner.start(context, StageLobbyDialogue.DIALOGUE_ID, "guide"), fixture.instance)
+            assertEquals(1, observers)
+            await(player.teleport(Pos(0.0, 0.0, 8.0)), fixture.instance)
+            tickUntil(fixture.instance) {
+                EventDispatcher.call(PlayerTickEvent(player))
+                observers == 0
+            }
+            assertEquals(0, observers)
+            await(player.teleport(Pos(0.0, 0.0, 2.0)), fixture.instance)
+            assertEquals(
+                SceneActionResult.Success,
+                await(
+                    owner.start(context, StageLobbyDialogue.DIALOGUE_ID, "guide"),
+                    fixture.instance,
+                ),
+            )
+            assertEquals(1, observers)
+            await(owner.closeAsync(), fixture.instance)
+            assertEquals(0, observers)
+        }
+    }
+
+    @Test
+    fun `committed language wins and active dialogue follows latest language`() {
+        RendererFixture().use { fixture ->
+            val player = fixture.player(Pos(0.0, 0.0, 2.0))
+            gg.grounds.minigame.minestom.SidebarLocale.set(player, "de")
+            val identity = SceneRuntimeIdentity(SceneId("test:language"), "lobby/mainlobby", 19)
+            val starter =
+                StageLobbyDialogue(fixture.instance, identity, LocalId("guide"), Pos.ZERO) {
+                    gg.grounds.minigame.minestom.SidebarLocale.localeOf(it).toLanguageTag()
+                }
+            try {
+                val context =
+                    SceneActionContext(
+                        identity,
+                        player,
+                        LocalId("guide"),
+                        SceneTrigger.RIGHT_CLICK,
+                        SceneHand.MAIN,
+                        System.nanoTime(),
+                        emptyMap(),
+                        SceneViewerVisualState(),
+                    )
+                assertEquals(
+                    SceneActionResult.Success,
+                    await(
+                        starter.start(
+                            context,
+                            StageLobbyDialogue.DIALOGUE_ID,
+                            StageLobbyDialogue.SPEAKER_ROLE,
+                        ),
+                        fixture.instance,
+                    ),
+                )
+                assertTrue(received(player, "Hallo!"))
+                gg.grounds.minigame.minestom.SidebarLocale.set(player, "en")
+                tickUntil(fixture.instance) { received(player, "Hello!") }
+                assertTrue(received(player, "Hello!"))
+                gg.grounds.minigame.minestom.SidebarLocale.set(player, "de")
+                gg.grounds.minigame.minestom.SidebarLocale.set(player, "en")
+                gg.grounds.minigame.minestom.SidebarLocale.set(player, "de")
+                tickUntil(fixture.instance) {
+                    player.messages().lastOrNull()?.let {
+                        PlainTextComponentSerializer.plainText().serialize(it).contains("Hallo!")
+                    } == true
+                }
+                assertTrue(
+                    PlainTextComponentSerializer.plainText()
+                        .serialize(player.messages().last())
+                        .contains("Hallo!")
+                )
+            } finally {
+                await(starter.closeAsync(), fixture.instance)
+            }
+        }
+    }
+
+    @Test
     fun `preview requires explicit Stage authorization`() {
         assertFalse(stageDialoguePreviewEnabled(emptyMap()))
         val enabled = mapOf("GROUNDS_DIALOGUE_STAGE_DEMO_ENABLED" to "true")
