@@ -42,6 +42,7 @@ internal class LobbyDialogues(
     private val locale: (Player) -> String = {
         gg.grounds.minigame.minestom.SidebarLocale.localeOf(it).toLanguageTag()
     },
+    private val reducedMotion: (Player) -> Boolean = { false },
     private val observeLocale: (Player, Runnable) -> AutoCloseable =
         gg.grounds.minigame.minestom.SidebarLocale::observe,
 ) : LobbySceneDialogueStarter {
@@ -52,6 +53,9 @@ internal class LobbyDialogues(
         lateinit var ticket: MinestomDialogueStart
         var handle: gg.grounds.dialogue.core.runtime.DialogueHandle? = null
         var subscription: AutoCloseable? = null
+        val active = java.util.concurrent.atomic.AtomicBoolean(true)
+        val connection = player.playerConnection
+        var speech: GuideSpeechOutput? = null
         var language = "en"
         var revision = 0L
         val actions =
@@ -62,6 +66,18 @@ internal class LobbyDialogues(
     }
 
     private val sessions = IdentityHashMap<Player, Session>()
+    private val guideNpcs =
+        GuideNpcPresentations(
+            bindings
+                .filter { it.dialogue == LobbyGuideContent.DIALOGUE_ID }
+                .map { it.elementId }
+                .toSet()
+        )
+
+    internal fun captureGuideRenderers(
+        delegate: gg.grounds.scene.minestom.SceneAssetRendererRegistry
+    ) = guideNpcs.renderers(delegate)
+
     private val generation = "lobby-dialogue-" + UUID.randomUUID()
     private val contents =
         bindings
@@ -129,7 +145,7 @@ internal class LobbyDialogues(
                     state.ready && proxyPackEnabled,
                 )
             if (accepted && state.ready && proxyPackEnabled)
-                sessions[player]?.ticket?.updatePreferences(NPC_PREFERENCES)
+                sessions[player]?.let { it.ticket.updatePreferences(preferences(it)) }
         }
     }
 
@@ -174,7 +190,7 @@ internal class LobbyDialogues(
             val previous = sessions[context.player]
             if (previous != null && previous.ticket.status().diagnostic != "CLOSED")
                 return rejected("A dialogue is already active")
-            previous?.subscription?.close()
+            previous?.let(::release)
             val session = Session(context.player, binding)
             session.language = normalize(locale(context.player))
             val texts =
@@ -196,6 +212,9 @@ internal class LobbyDialogues(
                     TextResolver.catalogue(texts, "en"),
                     emptySet(),
                 )
+            val speechListener =
+                if (dialogue == LobbyGuideContent.DIALOGUE_ID) speechListener(session)
+                else MinestomDialogueSpeechListener.NO_OP
             val ticket =
                 host.begin(
                     MinestomDialogueRequest(
@@ -206,7 +225,7 @@ internal class LobbyDialogues(
                         services,
                         emptyMap(),
                         LocaleContext(session.language, 0, "en"),
-                        NPC_PREFERENCES,
+                        preferences(session),
                         mapOf(
                             speaker to
                                 MinestomSpeakerBinding(
@@ -225,6 +244,7 @@ internal class LobbyDialogues(
                         null,
                         InputProfile.defaults(),
                         0,
+                        speechListener,
                     )
                 )
             session.ticket = ticket
@@ -277,10 +297,79 @@ internal class LobbyDialogues(
 
     private fun release(session: Session) =
         synchronized(lock) {
+            session.active.set(false)
+            session.speech?.close()
+            session.speech = null
             session.subscription?.close()
             session.subscription = null
             session.actions.clear()
         }
+
+    private fun preferences(session: Session): PresentationPreferences =
+        if (session.binding.dialogue != LobbyGuideContent.DIALOGUE_ID) NPC_PREFERENCES
+        else guidePreferences(reducedMotion(session.player))
+
+    private fun speechListener(session: Session): MinestomDialogueSpeechListener {
+        val player = session.player
+        fun sameConnection() = player.playerConnection === session.connection && player.isOnline
+        val speech =
+            GuideSpeechOutput(
+                {
+                    !closed &&
+                        session.active.get() &&
+                        sameConnection() &&
+                        player.instance === instance
+                },
+                { reducedMotion(player) },
+                { guard ->
+                    guideNpcs.prepare(
+                        session.binding.elementId,
+                        gg.grounds.npc.minestom.presentation.NpcPresentationOptions.builder(player)
+                            .publicationGuard(guard)
+                            .build(),
+                    )
+                },
+                { pitch ->
+                    if (sameConnection())
+                        player.playSound(
+                            net.kyori.adventure.sound.Sound.sound(
+                                net.kyori.adventure.key.Key.key(GUIDE_SPEECH),
+                                net.kyori.adventure.sound.Sound.Source.VOICE,
+                                .4f,
+                                pitch,
+                            ),
+                            session.binding.position.x(),
+                            session.binding.position.y() + 1.6,
+                            session.binding.position.z(),
+                        )
+                },
+                {
+                    if (sameConnection())
+                        player.stopSound(
+                            net.kyori.adventure.sound.SoundStop.namedOnSource(
+                                net.kyori.adventure.key.Key.key(GUIDE_SPEECH),
+                                net.kyori.adventure.sound.Sound.Source.VOICE,
+                            )
+                        )
+                },
+            )
+        session.speech = speech
+        return object : MinestomDialogueSpeechListener {
+            override fun onRevealed(event: MinestomDialogueSpeechEvent) {
+                if (event.speakerRole() == session.binding.speaker) speech.reveal(event.revealed())
+            }
+
+            override fun onStop(reason: MinestomDialogueSpeechListener.StopReason) {
+                when (reason) {
+                    MinestomDialogueSpeechListener.StopReason.PRESENTATION_FALLBACK ->
+                        speech.fallback()
+                    MinestomDialogueSpeechListener.StopReason.PAUSED,
+                    MinestomDialogueSpeechListener.StopReason.CONTENT_REPLACED -> speech.stop(false)
+                    else -> speech.close()
+                }
+            }
+        }
+    }
 
     private fun menuHandler(
         session: Session,
@@ -373,7 +462,17 @@ internal class LobbyDialogues(
                     "hint" to 0xC1B9AA,
                 ),
                 1.08,
-                Duration.ofMillis(150),
+                Duration.ZERO,
+            )
+
+        internal const val GUIDE_SPEECH = "grounds:dialogue/guide/speech"
+
+        internal fun guidePreferences(reducedMotion: Boolean) =
+            PresentationPreferences(
+                NPC_PREFERENCES.surfaceKey(),
+                NPC_PREFERENCES.graphemeDelay(),
+                reducedMotion,
+                NPC_PREFERENCES.effects() + ("typingSound" to "false"),
             )
 
         private val NPC_PREFERENCES =

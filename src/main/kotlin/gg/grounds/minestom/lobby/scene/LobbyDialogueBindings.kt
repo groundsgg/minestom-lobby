@@ -122,5 +122,5 @@ internal fun PreparedLobbyScene.withDialogueLabels(
                 },
             )
     }
-    return copy(scene = document, renderers = registry)
+    return copy(scene = document, renderers = owner.captureGuideRenderers(registry))
 }
