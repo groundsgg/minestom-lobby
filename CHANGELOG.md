@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.27.0](https://github.com/groundsgg/minestom-lobby/compare/v2.26.0...v2.27.0) (2026-11-23)
+
+
+### Features
+
+* add fluent guide speech and align dialogue orientation ([#294](https://github.com/groundsgg/minestom-lobby/issues/294)) ([c81a704](https://github.com/groundsgg/minestom-lobby/commit/c81a704947570957ab59257fb430cae0ebae6d6d))
+
 ## [2.26.0](https://github.com/groundsgg/minestom-lobby/compare/v2.25.0...v2.26.0) (2026-11-23)
 
 
