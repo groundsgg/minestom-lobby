@@ -41,6 +41,115 @@ import org.junit.jupiter.api.Test
 
 class StageLobbyDialogueTest {
     @Test
+    fun `NPC speech choices and hint follow saved and live language on the same ticket`() {
+        RendererFixture().use { fixture ->
+            val player = fixture.player(Pos(0.0, 0.0, 2.0))
+            val bystander = fixture.player(Pos(1.0, 0.0, 2.0))
+            player.locale = java.util.Locale.ENGLISH
+            gg.grounds.minigame.minestom.SidebarLocale.set(player, "de")
+            assertEquals("en", player.locale!!.language)
+            val identity = SceneRuntimeIdentity(SceneId("test:npc-language"), "lobby/mainlobby", 19)
+            val assets = StageDialogueAssets.load()
+            val starter =
+                StageLobbyDialogue(
+                    fixture.instance,
+                    identity,
+                    LocalId("guide"),
+                    Pos.ZERO,
+                    assets,
+                    true,
+                ) {
+                    gg.grounds.minigame.minestom.SidebarLocale.localeOf(it).toLanguageTag()
+                }
+            val context =
+                SceneActionContext(
+                    identity,
+                    player,
+                    LocalId("guide"),
+                    SceneTrigger.RIGHT_CLICK,
+                    SceneHand.MAIN,
+                    System.nanoTime(),
+                    emptyMap(),
+                    SceneViewerVisualState(),
+                )
+            val serializer = PlainTextComponentSerializer.plainText()
+            fun visibleTexts() =
+                npcTextDisplays(player, fixture.instance).map {
+                    serializer.serialize((it.entityMeta as TextDisplayMeta).text)
+                }
+            fun assertLanguage(speech: String, answer: String, hint: String, staleAnswer: String) {
+                tickUntil(fixture.instance) {
+                    val texts = visibleTexts()
+                    starter.presentation(player)?.effectiveSurface == "npc" &&
+                        texts.any { it.contains(speech) } &&
+                        texts.any { it.contains(answer) } &&
+                        texts.any { it.contains(hint) } &&
+                        texts.none { it.contains(staleAnswer) }
+                }
+                val texts = visibleTexts()
+                assertEquals("npc", starter.presentation(player)?.effectiveSurface)
+                assertTrue(texts.any { it.contains(speech) }, texts.toString())
+                assertTrue(texts.any { it.contains(answer) }, texts.toString())
+                assertTrue(texts.any { it.contains(hint) }, texts.toString())
+                assertFalse(texts.any { it.contains(staleAnswer) }, texts.toString())
+                assertTrue(
+                    npcTextDisplays(player, fixture.instance).none { bystander in it.viewers }
+                )
+                assertInstanceOf(
+                    SceneActionResult.Rejected::class.java,
+                    await(
+                        starter.start(
+                            context,
+                            StageLobbyDialogue.DIALOGUE_ID,
+                            StageLobbyDialogue.SPEAKER_ROLE,
+                        ),
+                        fixture.instance,
+                    ),
+                )
+            }
+            try {
+                starter.confirmPack(player, DialoguePackReadiness.State(1, true, assets.pin()))
+                assertEquals(
+                    SceneActionResult.Success,
+                    await(
+                        starter.start(
+                            context,
+                            StageLobbyDialogue.DIALOGUE_ID,
+                            StageLobbyDialogue.SPEAKER_ROLE,
+                        ),
+                        fixture.instance,
+                    ),
+                )
+                assertLanguage(
+                    "Hallo! Das ist der Stage-Dialogtest.",
+                    "Was kann ich hier testen?",
+                    "Auswählen",
+                    "What can I test here?",
+                )
+                gg.grounds.minigame.minestom.SidebarLocale.set(player, "en")
+                assertLanguage(
+                    "Hello! This is the Stage dialogue test.",
+                    "What can I test here?",
+                    "Select",
+                    "Was kann ich hier testen?",
+                )
+                gg.grounds.minigame.minestom.SidebarLocale.set(player, "de")
+                gg.grounds.minigame.minestom.SidebarLocale.set(player, "en")
+                gg.grounds.minigame.minestom.SidebarLocale.set(player, "de")
+                assertLanguage(
+                    "Hallo! Das ist der Stage-Dialogtest.",
+                    "Was kann ich hier testen?",
+                    "Auswählen",
+                    "What can I test here?",
+                )
+                assertEquals("en", player.locale!!.language)
+            } finally {
+                await(starter.closeAsync(), fixture.instance)
+            }
+        }
+    }
+
+    @Test
     fun `unavailable duel menu stays localized and never joins a queue`() {
         RendererFixture().use { fixture ->
             val identity = SceneRuntimeIdentity(SceneId("test:duel-failure"), "lobby/mainlobby", 19)
