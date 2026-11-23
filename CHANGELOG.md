@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.26.0](https://github.com/groundsgg/minestom-lobby/compare/v2.25.0...v2.26.0) (2026-11-23)
+
+
+### Features
+
+* **lobby:** add spawn guide and live dialogue language ([#292](https://github.com/groundsgg/minestom-lobby/issues/292)) ([683ef58](https://github.com/groundsgg/minestom-lobby/commit/683ef58ba72ce743f7ade8b40873fd8beece1c1e))
+
 ## [2.25.0](https://github.com/groundsgg/minestom-lobby/compare/v2.24.0...v2.25.0) (2026-11-23)
 
 
