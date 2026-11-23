@@ -61,10 +61,15 @@ class GuideVoiceBankTest {
     }
 
     @Test
-    fun `packaged voice metadata is accepted by the published SDK and app when present`() {
+    fun `published fluent runtime provides the exact accepted pin and voice bank`() {
         val assets = StageDialogueAssets.load()
-        val data = assets.entries()[GuideVoiceBank.PATH]
-        if (data != null) assertNotNullBank(data) else assertNull(GuideVoiceBank.load(data))
+        assertEquals(
+            "235523aa263c3c382e38f68fff545af6f747b930f104bbd80afa47a0712b8d6f",
+            assets.pin(),
+        )
+        val entries = assets.entries()
+        assertEquals(614, entries.size)
+        assertNotNullBank(checkNotNull(entries[GuideVoiceBank.PATH]))
     }
 
     private fun assertNotNullBank(bytes: ByteArray): GuideVoiceBank =
