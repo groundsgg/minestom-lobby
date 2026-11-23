@@ -284,6 +284,7 @@ internal class StageLobbyDialogue(
                     "npcBackdrop" to "true",
                     "npcEffectsFadeMs" to "250",
                     "typingSound" to "true",
+                    "choiceSounds" to "true",
                 ),
             )
     }
