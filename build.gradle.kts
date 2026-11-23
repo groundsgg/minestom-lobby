@@ -258,6 +258,7 @@ dependencies {
     // Selected unconditionally in LobbyServer; since plugin-lobby 2.20.0 the lobby has no menu
     // of its own.
     implementation("gg.grounds:plugin-player-minestom:1.10.1")
+    implementation("gg.grounds:library-minigame-api-minestom:0.6.0")
     // Reads the map's map.json sidecar (the spawn). Minestom pulls gson in transitively;
     // declare it because we use it directly.
     implementation("com.google.code.gson:gson:2.13.2")
