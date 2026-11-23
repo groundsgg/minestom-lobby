@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.23.1](https://github.com/groundsgg/minestom-lobby/compare/v2.23.0...v2.23.1) (2026-11-23)
+
+
+### Bug Fixes
+
+* **dialogue:** update lobby to dialogue 1.4.1 ([#286](https://github.com/groundsgg/minestom-lobby/issues/286)) ([30c457e](https://github.com/groundsgg/minestom-lobby/commit/30c457e974fbd149edc4fc4a8f9f8fcc7feb8d67))
+
 ## [2.23.0](https://github.com/groundsgg/minestom-lobby/compare/v2.22.2...v2.23.0) (2026-11-22)
 
 
