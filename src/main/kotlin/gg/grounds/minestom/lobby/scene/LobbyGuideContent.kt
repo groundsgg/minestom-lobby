@@ -36,7 +36,7 @@ internal object LobbyGuideContent {
                         "back.choice" to "Back",
                         "unavailable" to
                             "That menu isn’t available right now. Please try again later.",
-                        "farewell" to "See you around!",
+                        "farewell" to "See you around! Have fun on Grounds.",
                     ),
                 "de" to
                     mapOf(
@@ -54,7 +54,7 @@ internal object LobbyGuideContent {
                         "back.choice" to "Zurück",
                         "unavailable" to
                             "Dieses Menü ist gerade nicht verfügbar. Bitte versuche es später noch einmal.",
-                        "farewell" to "Bis bald!",
+                        "farewell" to "Bis bald! Viel Spaß auf Grounds.",
                     ),
             )
         )
