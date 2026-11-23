@@ -49,7 +49,8 @@ internal fun PreparedLobbyScene.dialogueBindings(): List<LobbyDialogueBinding> =
                                 origin.x,
                                 origin.y,
                                 origin.z,
-                                npc.transform.rotation.yaw.toFloat(),
+                                // Scene +yaw faces east; Minestom anchors use the opposite sign.
+                                -npc.transform.rotation.yaw.toFloat(),
                                 0f,
                             ),
                             dialogue!!,
