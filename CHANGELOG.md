@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.24.0](https://github.com/groundsgg/minestom-lobby/compare/v2.23.1...v2.24.0) (2026-11-23)
+
+
+### Features
+
+* **dialogue:** enable Stage typing sounds ([#288](https://github.com/groundsgg/minestom-lobby/issues/288)) ([c0e46ac](https://github.com/groundsgg/minestom-lobby/commit/c0e46ac55d93b5f00fee34868af387f1a2c2c2e6))
+
 ## [2.23.1](https://github.com/groundsgg/minestom-lobby/compare/v2.23.0...v2.23.1) (2026-11-23)
 
 
