@@ -283,6 +283,7 @@ internal class StageLobbyDialogue(
                     "vignette" to "true",
                     "npcBackdrop" to "true",
                     "npcEffectsFadeMs" to "250",
+                    "typingSound" to "true",
                 ),
             )
     }
