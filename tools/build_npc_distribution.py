@@ -142,7 +142,7 @@ def strict_json(data):
     def invalid(value):
         raise ValueError('Non-finite JSON number')
     try:
-        return json.loads(data, object_pairs_hook=pairs, parse_constant=invalid)
+        return json.loads(data.decode('utf-8'), object_pairs_hook=pairs, parse_constant=invalid)
     except (UnicodeError, RecursionError, json.JSONDecodeError) as error:
         raise ValueError('Invalid dialogue JSON') from error
 
@@ -297,6 +297,20 @@ def finalize_distribution(staging, output, receipt, dialogue_scene=None, expecte
     """The production publication boundary: exporter and final verification precede receipt/rename."""
     receipt = dict(receipt)
     if dialogue_scene is not None:
+        # Freeze the earlier Stage/catalog qualification checkpoint, independently of export metadata.
+        qualified_inputs = {
+            'executable': {'sha256': receipt['jarSha256']},
+            'serverContent': {'sha256': receipt['serverContentSha256']},
+            'addon': {'sha256': receipt['addonSha256'], 'sha1': receipt['addonSha1']},
+            'catalog': {'sha256': receipt['catalog']['sha256'], 'size': receipt['catalog']['size']},
+        }
+        def verify_qualified_inputs():
+            for role, expected in qualified_inputs.items():
+                actual = file_pin(staging / DIALOGUE_FILES[role], addon=role == 'addon')
+                require_contract(all(type(value) is type(actual[key]) and actual[key] == value
+                                     for key, value in expected.items()),
+                                 'Distribution input changed since qualification: ' + role)
+        verify_qualified_inputs()
         require_contract(file_pin(dialogue_scene / 'scene.json')['sha256'] == expected_scene_sha256,
                          'Dialogue scene snapshot changed before export')
         environment = {key: value for key, value in os.environ.items() if key.upper() in TOOLING_ENVIRONMENT}
@@ -305,11 +319,13 @@ def finalize_distribution(staging, output, receipt, dialogue_scene=None, expecte
                             'gg.grounds.minestom.lobby.scene.LobbyDialogueProfileExport',
                             '--distribution', str(staging), '--scene', str(dialogue_scene)],
                            check=True, env=environment, stdout=log, stderr=subprocess.STDOUT, timeout=120)
+        verify_qualified_inputs()
         receipt['dialogueProfile'] = verify_dialogue_profile(staging, expected_scene_sha256)
     shutil.rmtree(staging / 'inputs')
     if dialogue_scene is not None:
         require_contract(verify_dialogue_profile(staging, expected_scene_sha256) == receipt['dialogueProfile'],
                          'Dialogue profile changed before publication')
+        verify_qualified_inputs()
     require_contract(not output.exists(), 'Distribution output must not exist')
     try:
         (staging / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
