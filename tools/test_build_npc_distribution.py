@@ -313,6 +313,25 @@ class DialogueDistributionTest(unittest.TestCase):
     def verify(self):
         return distribution.verify_dialogue_profile(self.root, self.scene_sha)
 
+    def qualified_receipt(self):
+        # Independent pre-export Stage/catalog qualification checkpoint.
+        return {'qualified': True, 'jarSha256': self.pin('executable')['sha256'],
+                'serverContentSha256': self.pin('serverContent')['sha256'],
+                'addonSha256': self.pin('addon')['sha256'], 'addonSha1': self.pin('addon')['sha1'],
+                'catalog': dict(self.pin('catalog'), id='grounds:resourcepacks'),
+                'sceneSha256': 'f' * 64}  # Legacy Stage acceptance scene, a different input.
+
+    def test_rejects_utf16_and_utf32_profiles_after_coherent_repinning(self):
+        self.fixture()
+        profile_path = self.root / self.names['profile']
+        text = profile_path.read_text()
+        for encoding in ('utf-16', 'utf-32'):
+            profile_path.write_bytes(text.encode(encoding))
+            self.binding['files']['profile'] = dict(self.pin('profile'), file=self.names['profile'])
+            self.write_binding()
+            with self.subTest(encoding=encoding), self.assertRaisesRegex(ValueError, 'JSON'):
+                self.verify()
+
     def test_valid_binding_returns_exact_receipt_pins(self):
         self.fixture()
         result = self.verify()
@@ -430,14 +449,14 @@ class DialogueDistributionTest(unittest.TestCase):
         self.assertEqual(json.loads((output / 'receipt.json').read_text()), {'qualified': True})
 
     def test_exporter_failure_does_not_publish_receipt_or_output(self):
-        staging = self.root / 'staging'; staging.mkdir(); (staging / 'inputs').mkdir()
-        selected = self.root / 'selected'; selected.mkdir(); (selected / 'scene.json').write_text('{}')
+        self.fixture(); (self.root / 'inputs').mkdir()
+        selected = self.root / 'inputs/selected'; selected.mkdir(); (selected / 'scene.json').write_bytes(self.scene)
         output = self.root / 'out'
         with mock.patch.object(distribution.subprocess, 'run', side_effect=subprocess.CalledProcessError(1, ['java'])):
             with self.assertRaises(subprocess.CalledProcessError):
-                distribution.finalize_distribution(staging, output, {'qualified': True}, selected, hashlib.sha256(b'{}').hexdigest())
-        self.assertFalse(output.exists()); self.assertFalse((staging / 'receipt.json').exists())
-        self.assertTrue((staging / 'dialogue-export.log').exists())
+                distribution.finalize_distribution(self.root, output, self.qualified_receipt(), selected, self.scene_sha)
+        self.assertFalse(output.exists()); self.assertFalse((self.root / 'receipt.json').exists())
+        self.assertTrue((self.root / 'dialogue-export.log').exists())
 
     def test_finalizer_runs_exact_jar_with_sanitized_env_then_reverifies(self):
         self.fixture(); (self.root / 'inputs').mkdir()
@@ -450,7 +469,7 @@ class DialogueDistributionTest(unittest.TestCase):
             self.assertEqual(kwargs['env'], {'PATH': '/bin', 'HOME': '/tmp'})
         with mock.patch.dict(os.environ, {'PATH': '/bin', 'HOME': '/tmp', 'JAVA_TOOL_OPTIONS': 'bad', 'NATS_URL': 'bad'}, clear=True), \
                 mock.patch.object(distribution.subprocess, 'run', side_effect=exporter):
-            distribution.finalize_distribution(self.root, output, {'qualified': True}, selected, self.scene_sha, java='chosen-java')
+            distribution.finalize_distribution(self.root, output, self.qualified_receipt(), selected, self.scene_sha, java='chosen-java')
         self.assertEqual(json.loads((output / 'receipt.json').read_text())['dialogueProfile']['id'], 'grounds:lobby-guide')
 
     def test_final_verification_failure_produces_no_receipt_or_output(self):
@@ -463,7 +482,7 @@ class DialogueDistributionTest(unittest.TestCase):
             (self.root / 'minestom-lobby.jar').write_bytes(b'tampered after initial verification')
         with mock.patch.object(distribution.subprocess, 'run'), mock.patch.object(distribution.shutil, 'rmtree', side_effect=mutate_after_checks):
             with self.assertRaises(ValueError):
-                distribution.finalize_distribution(self.root, output, {'qualified': True}, selected, self.scene_sha)
+                distribution.finalize_distribution(self.root, output, self.qualified_receipt(), selected, self.scene_sha)
         self.assertFalse(output.exists()); self.assertFalse((self.root / 'receipt.json').exists())
 
 
@@ -481,7 +500,7 @@ class DialogueDistributionTest(unittest.TestCase):
         with mock.patch.object(distribution.subprocess, 'run'), \
                 mock.patch.object(distribution.shutil, 'rmtree', side_effect=mutate_binding_after_checks):
             with self.assertRaisesRegex(ValueError, 'changed before publication'):
-                distribution.finalize_distribution(self.root, output, {'qualified': True}, selected, self.scene_sha)
+                distribution.finalize_distribution(self.root, output, self.qualified_receipt(), selected, self.scene_sha)
         self.assertFalse(output.exists())
         self.assertFalse((self.root / 'receipt.json').exists())
 
@@ -492,9 +511,47 @@ class DialogueDistributionTest(unittest.TestCase):
         with mock.patch.object(distribution.subprocess, 'run'), \
                 mock.patch.object(Path, 'rename', side_effect=OSError('injected rename failure')):
             with self.assertRaisesRegex(OSError, 'injected rename failure'):
-                distribution.finalize_distribution(self.root, output, {'qualified': True}, selected, self.scene_sha)
+                distribution.finalize_distribution(self.root, output, self.qualified_receipt(), selected, self.scene_sha)
         self.assertFalse(output.exists())
         self.assertFalse((self.root / 'receipt.json').exists())
+
+
+    def test_finalizer_rejects_coherently_rebound_jar_after_stage_qualification(self):
+        self.fixture(); (self.root / 'inputs').mkdir()
+        selected = self.root / 'inputs/selected'; selected.mkdir(); (selected / 'scene.json').write_bytes(self.scene)
+        output = self.root.parent / (self.root.name + '-rebound')
+        self.addCleanup(lambda: __import__('shutil').rmtree(output, ignore_errors=True))
+        receipt = self.qualified_receipt()
+        def rebind_changed_jar(command, **kwargs):
+            with zipfile.ZipFile(self.root / 'minestom-lobby.jar', 'a') as archive:
+                archive.comment = b'changed after Stage qualification'
+            self.refresh()
+            self.assertEqual(self.verify()['id'], 'grounds:lobby-guide')
+            self.assertNotEqual(receipt['jarSha256'], self.pin('executable')['sha256'])
+        with mock.patch.object(distribution.subprocess, 'run', side_effect=rebind_changed_jar):
+            with self.assertRaisesRegex(ValueError, 'qualification'):
+                distribution.finalize_distribution(self.root, output, receipt, selected, self.scene_sha)
+        self.assertFalse(output.exists())
+        self.assertFalse((self.root / 'receipt.json').exists())
+
+    def test_finalizer_checks_all_recorded_distribution_pins_before_export(self):
+        self.fixture(); (self.root / 'inputs').mkdir()
+        selected = self.root / 'inputs/selected'; selected.mkdir(); (selected / 'scene.json').write_bytes(self.scene)
+        output = self.root / 'out'
+        for owner, field, wrong in (('top', 'jarSha256', '0' * 64),
+                                   ('top', 'serverContentSha256', '0' * 64),
+                                   ('top', 'addonSha256', '0' * 64),
+                                   ('top', 'addonSha1', '0' * 40),
+                                   ('catalog', 'sha256', '0' * 64), ('catalog', 'size', -1)):
+            receipt = self.qualified_receipt()
+            target = receipt if owner == 'top' else receipt['catalog']
+            target[field] = wrong
+            with self.subTest(field=field), \
+                    mock.patch.object(distribution.subprocess, 'run', side_effect=AssertionError('changed inputs reached exporter')):
+                with self.assertRaisesRegex(ValueError, 'qualification'):
+                    distribution.finalize_distribution(self.root, output, receipt, selected, self.scene_sha)
+            self.assertFalse(output.exists())
+            self.assertFalse((self.root / 'receipt.json').exists())
 
 
 if __name__ == '__main__':
