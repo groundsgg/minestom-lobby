@@ -4,9 +4,8 @@ import gg.grounds.dialogue.core.definition.DialogueBuilder
 import gg.grounds.dialogue.core.definition.DialogueDefinition.*
 import gg.grounds.dialogue.core.text.TextCatalog
 import gg.grounds.dialogue.core.validation.DialogueValidator
-import gg.grounds.dialogue.core.validation.HostCatalog
+import gg.grounds.dialogue.core.validation.ValidatedDialogue
 import gg.grounds.dialogue.core.validation.ValidationLimits
-import gg.grounds.dialogue.minestom.*
 
 internal object StageDialogueContent {
     const val DIALOGUE_ID = "stage:mechanic"
@@ -38,8 +37,13 @@ internal object StageDialogueContent {
             )
         )
 
-    fun validated(generation: String) =
-        checkNotNull(
+    fun validated(
+        generation: String,
+        registration: LobbyDialogueHostRegistration =
+            LobbyDialogueHostRegistration.create(DIALOGUE_ID),
+    ): ValidatedDialogue {
+        require(registration.dialogueId == DIALOGUE_ID)
+        return checkNotNull(
             DialogueValidator()
                 .validate(
                     DialogueBuilder.dialogue(DIALOGUE_ID)
@@ -63,19 +67,12 @@ internal object StageDialogueContent {
                         .node("end", End("completed"))
                         .build(),
                     texts,
-                    HostCatalog(
-                        generation,
-                        setOf(SPEAKER_ROLE),
-                        emptyMap(),
-                        emptyMap(),
-                        emptySet(),
-                        emptySet(),
-                        false,
-                    ),
+                    registration.catalog(generation),
                     ValidationLimits.defaults(),
                 )
                 .validated()
         ) {
             "Stage dialogue content validation failed"
         }
+    }
 }

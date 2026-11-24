@@ -6,7 +6,6 @@ import gg.grounds.scene.format.*
 import gg.grounds.scene.minestom.*
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.concurrent.CompletableFuture
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -39,8 +38,11 @@ class LobbyDialogueProfileTest {
 
     private fun profile(
         installed: Boolean = true,
-        supported: Boolean = true,
-        animation: LocalId = wave,
+        gestures: Map<String, LocalId> = emptyMap(),
+        role: String = "guide",
+        renderer: Boolean = true,
+        registration: LobbyDialogueHostRegistration = guideRegistration(),
+        roleBody: AssetKey = body,
         parameters: Map<LocalId, ActionParameter> = this.parameters,
     ) =
         LobbyDialogueProfile(
@@ -50,7 +52,7 @@ class LobbyDialogueProfileTest {
             SceneActionRegistry {
                 if (installed)
                     SceneActionHandler {
-                        CompletableFuture.completedFuture(SceneActionResult.Success)
+                        error("Profile preparation must not execute start actions")
                     }
                 else null
             },
@@ -58,15 +60,38 @@ class LobbyDialogueProfileTest {
             listOf(catalog(parameters)),
             object : AnimatedSceneRenderers {
                 override fun rendererFor(asset: AssetKey, kind: AssetKind) =
-                    SceneAssetRendererFactory {
-                        error("Export must not create renderers")
-                    }
+                    if (renderer)
+                        SceneAssetRendererFactory { error("Export must not create renderers") }
+                    else null
 
-                override fun supportsAnimation(asset: AssetKey, animation: LocalId?) = supported
+                override fun supportsAnimation(asset: AssetKey, animation: LocalId?) = true
             },
             mapOf(start to LobbyDialogueStartAction(dialogue, speaker)),
-            mapOf("guide" to LobbyDialogueRole(body, mapOf("test:wave" to animation))),
-            setOf("dialogue.choices"),
+            mapOf(role to LobbyDialogueRole(roleBody, gestures)),
+            registration,
+        )
+
+    private fun guideRegistration() =
+        LobbyDialogueHostRegistration.create(
+            LobbyGuideContent.DIALOGUE_ID,
+            object : gg.grounds.lobby.LobbyNavigatorService {
+                override fun open(
+                    player: net.minestom.server.entity.Player
+                ): java.util.concurrent.CompletionStage<Boolean> =
+                    fail("Profile preparation must not open navigator")
+            },
+            object : gg.grounds.lobby.LobbyQueueService {
+                override fun toggleQueue(
+                    player: net.minestom.server.entity.Player,
+                    modeId: String,
+                ): java.util.concurrent.CompletionStage<Boolean> =
+                    fail("Profile preparation must not join a queue")
+
+                override fun openDuels(
+                    player: net.minestom.server.entity.Player
+                ): java.util.concurrent.CompletionStage<Boolean> =
+                    fail("Profile preparation must not open duels")
+            },
         )
 
     @Test
@@ -84,7 +109,7 @@ class LobbyDialogueProfileTest {
                 },
                 dialogueStarter =
                     LobbySceneDialogueStarter { _, _, _ ->
-                        CompletableFuture.completedFuture(SceneActionResult.Success)
+                        error("Profile preparation must not execute start actions")
                     },
             )
         val profile =
@@ -110,8 +135,8 @@ class LobbyDialogueProfileTest {
                             LobbySceneCatalogs.SPEAKER,
                         )
                 ),
-                mapOf("guide" to LobbyDialogueRole(body, mapOf("test:wave" to wave))),
-                setOf("dialogue.choices"),
+                mapOf("guide" to LobbyDialogueRole(body, emptyMap())),
+                guideRegistration(),
             )
         val root = JsonParser.parseString(String(profile.profileBytes, Charsets.UTF_8)).asJsonObject
         assertEquals("4", root["actionCatalogs"].asJsonArray[0].asJsonObject["version"].asString)
@@ -129,12 +154,24 @@ class LobbyDialogueProfileTest {
         )
         assertEquals("test:assets", root["assetCatalog"].asJsonObject["id"].asString)
         assertEquals(
-            "wave",
+            setOf(
+                "schemaVersion",
+                "id",
+                "version",
+                "hostCatalogJson",
+                "assetCatalog",
+                "actionCatalogs",
+                "startActions",
+                "npcAssets",
+            ),
+            root.keySet(),
+        )
+        assertTrue(
             root["npcAssets"]
                 .asJsonObject["test:body"]
                 .asJsonObject["gestures"]
-                .asJsonObject["test:wave"]
-                .asString,
+                .asJsonObject
+                .isEmpty
         )
         assertEquals(64, profile.profileSha256.length)
         val copy = profile.profileBytes
@@ -157,11 +194,58 @@ class LobbyDialogueProfileTest {
     }
 
     @Test
-    fun `catalog and renderer must both support mapped animation`() {
-        assertThrows(IllegalArgumentException::class.java) { profile(supported = false) }
+    fun `renderer support does not advertise dialogue gestures`() {
+        val host =
+            JsonParser.parseString(String(profile().hostCatalogBytes, Charsets.UTF_8)).asJsonObject
+        assertTrue(host["gestures"].asJsonArray.isEmpty)
+        assertTrue(host["capabilities"].asJsonArray.isEmpty)
         assertThrows(IllegalArgumentException::class.java) {
-            profile(animation = LocalId("absent"))
+            profile(gestures = mapOf("test:wave" to wave))
         }
+    }
+
+    @Test
+    fun `unsupported speaker roles and missing renderers reject preparation`() {
+        assertThrows(IllegalArgumentException::class.java) { profile(role = "merchant") }
+        assertThrows(IllegalArgumentException::class.java) { profile(renderer = false) }
+        assertThrows(IllegalArgumentException::class.java) {
+            profile(roleBody = AssetKey("test:absent"))
+        }
+    }
+
+    @Test
+    fun `guide profile exports both real menu provider schemas`() {
+        val host =
+            JsonParser.parseString(String(profile().hostCatalogBytes, Charsets.UTF_8)).asJsonObject
+        assertEquals(
+            setOf("grounds:lobby/open_navigator", "grounds:lobby/open_duel_menu"),
+            host["actions"].asJsonObject.keySet(),
+        )
+        host["actions"].asJsonObject.entrySet().forEach { (_, spec) ->
+            assertEquals(JsonParser.parseString("{\"arguments\":{},\"durable\":false}"), spec)
+        }
+        assertTrue(host["conditions"].asJsonObject.isEmpty)
+        assertFalse(host["durableOutcomes"].asBoolean)
+    }
+
+    @Test
+    fun `missing guide installation rejects profile while stage advertises no providers`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            profile(
+                registration = LobbyDialogueHostRegistration.create(LobbyGuideContent.DIALOGUE_ID)
+            )
+        }
+        val stage =
+            profile(
+                registration =
+                    LobbyDialogueHostRegistration.create(StageDialogueContent.DIALOGUE_ID)
+            )
+        val host =
+            JsonParser.parseString(String(stage.hostCatalogBytes, Charsets.UTF_8)).asJsonObject
+        assertTrue(host["actions"].asJsonObject.isEmpty)
+        assertTrue(host["conditions"].asJsonObject.isEmpty)
+        assertTrue(host["gestures"].asJsonArray.isEmpty)
+        assertTrue(host["capabilities"].asJsonArray.isEmpty)
     }
 
     @Test

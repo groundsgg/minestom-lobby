@@ -34,8 +34,8 @@ internal class LobbyDialogues(
     private val instance: Instance,
     private val identity: SceneRuntimeIdentity,
     private val bindings: List<LobbyDialogueBinding>,
-    private val navigator: gg.grounds.lobby.LobbyNavigatorService? = null,
-    private val queues: gg.grounds.lobby.LobbyQueueService? = null,
+    navigator: gg.grounds.lobby.LobbyNavigatorService? = null,
+    queues: gg.grounds.lobby.LobbyQueueService? = null,
     private val assets: AssetBundle = StageDialogueAssets.load(),
     private val proxyPackEnabled: Boolean = StageDialogueAssets.isPackaged(),
     private val theme: DialogueTheme = defaultTheme(),
@@ -80,17 +80,21 @@ internal class LobbyDialogues(
     ) = guideNpcs.renderers(delegate)
 
     private val generation = "lobby-dialogue-" + UUID.randomUUID()
-    private val contents =
+    private val registrations =
         bindings
             .map { it.dialogue }
             .distinct()
-            .associateWith {
-                when (it) {
-                    StageLobbyDialogue.DIALOGUE_ID -> StageDialogueContent.validated(generation)
-                    LobbyGuideContent.DIALOGUE_ID -> LobbyGuideContent.validated(generation)
-                    else -> error("Unsupported lobby dialogue $it")
-                }
+            .associateWith { LobbyDialogueHostRegistration.create(it, navigator, queues) }
+    private val contents =
+        registrations.mapValues { (dialogue, registration) ->
+            when (dialogue) {
+                StageDialogueContent.DIALOGUE_ID ->
+                    StageDialogueContent.validated(generation, registration)
+                LobbyGuideContent.DIALOGUE_ID ->
+                    LobbyGuideContent.validated(generation, registration)
+                else -> error("Unsupported lobby dialogue $dialogue")
             }
+        }
     private val events =
         net.minestom.server.event.EventNode.all("lobby-dialogues-" + UUID.randomUUID())
     private val host =
@@ -201,17 +205,10 @@ internal class LobbyDialogues(
                 DialogueServices(
                     generation,
                     emptyMap(),
-                    if (dialogue == LobbyGuideContent.DIALOGUE_ID)
-                        mapOf(
-                            LobbyGuideContent.NAVIGATOR_ACTION to
-                                menuHandler(session, LobbyGuideContent.NAVIGATOR_ACTION),
-                            LobbyGuideContent.DUELS_ACTION to
-                                menuHandler(session, LobbyGuideContent.DUELS_ACTION),
-                        )
-                    else emptyMap(),
+                    registrations.getValue(dialogue).bindActions { menuHandler(session, it) },
                     null,
                     TextResolver.catalogue(texts, "en"),
-                    emptySet(),
+                    registrations.getValue(dialogue).capabilities,
                 )
             val speechListener =
                 if (dialogue == LobbyGuideContent.DIALOGUE_ID && voiceBank != null)
@@ -340,7 +337,7 @@ internal class LobbyDialogues(
 
     private fun menuHandler(
         session: Session,
-        key: String,
+        provider: LobbyDialogueHostRegistration.ActionProvider,
     ): gg.grounds.dialogue.core.port.ActionHandler =
         object : gg.grounds.dialogue.core.port.ActionHandler {
             override fun execute(
@@ -353,7 +350,7 @@ internal class LobbyDialogues(
                         ref == null ||
                             !current(session) ||
                             handle == null ||
-                            request.key() != key ||
+                            request.key() != provider.key ||
                             request.arguments().isNotEmpty() ||
                             request.durable() ||
                             ref.audienceId != session.player.uuid.toString() ||
@@ -368,9 +365,7 @@ internal class LobbyDialogues(
                     }
                     val opened =
                         try {
-                            if (key == LobbyGuideContent.NAVIGATOR_ACTION)
-                                navigator?.open(session.player)
-                            else queues?.openDuels(session.player)
+                            provider.open(session.player)
                         } catch (_: Exception) {
                             null
                         }
