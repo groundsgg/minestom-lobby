@@ -22,7 +22,7 @@ internal class LobbyDialogueProfile(
     registry: SceneActionRegistry,
     assets: AssetCatalog,
     actionCatalogs: List<ActionCatalog>,
-    renderers: AnimatedSceneRenderers,
+    renderers: gg.grounds.scene.minestom.SceneAssetRendererRegistry,
     startActions: Map<ActionKey, LobbyDialogueStartAction>,
     roles: Map<String, LobbyDialogueRole>,
     registration: LobbyDialogueHostRegistration,
@@ -92,7 +92,10 @@ internal class LobbyDialogueProfile(
                 text(animation.value)
                 require(
                     animation in asset.animations &&
-                        renderers.supportsAnimation(binding.asset, animation)
+                        (renderers as? AnimatedSceneRenderers)?.supportsAnimation(
+                            binding.asset,
+                            animation,
+                        ) == true
                 ) {
                     "Unsupported gesture animation: ${binding.asset.value}/${animation.value}"
                 }

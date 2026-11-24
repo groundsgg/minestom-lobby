@@ -80,11 +80,13 @@ internal class LobbyDialogues(
     ) = guideNpcs.renderers(delegate)
 
     private val generation = "lobby-dialogue-" + UUID.randomUUID()
-    private val registrations =
-        bindings
-            .map { it.dialogue }
-            .distinct()
-            .associateWith { LobbyDialogueHostRegistration.create(it, navigator, queues) }
+    internal val registrations =
+        java.util.Collections.unmodifiableMap(
+            bindings
+                .map { it.dialogue }
+                .distinct()
+                .associateWith { LobbyDialogueHostRegistration.create(it, navigator, queues) }
+        )
     private val contents =
         registrations.mapValues { (dialogue, registration) ->
             when (dialogue) {
