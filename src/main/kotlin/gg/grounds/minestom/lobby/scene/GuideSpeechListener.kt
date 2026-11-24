@@ -19,9 +19,24 @@ internal class GuideSpeechListener(
     clock: () -> Long = System::nanoTime,
     randomInt: (IntRange) -> Int = { it.random() },
     voiceRandomInt: (IntRange) -> Int = { it.random() },
-) : MinestomDialogueSpeechListener, AutoCloseable {
+) : MinestomDialogueTimedSpeechListener, AutoCloseable {
     private val connection = player.playerConnection
-    private val revealDelayNanos = graphemeDelay.toNanos()
+    private val lock = Any()
+
+    private data class Phase(
+        val session: java.util.UUID,
+        val visit: Long,
+        val revision: Long,
+        val locale: String,
+    )
+
+    private var phase: Phase? = null
+    private var expectedLocale: String? = null
+    private var invalidatedPhase: Phase? = null
+
+    private fun identity(view: gg.grounds.dialogue.core.runtime.DialogueView) =
+        Phase(view.sessionId(), view.nodeVisitId(), view.renderRevision(), view.localeTag())
+
     private val speech: GuideSpeechOutput
 
     init {
@@ -61,31 +76,72 @@ internal class GuideSpeechListener(
             )
     }
 
-    override fun onRevealed(event: MinestomDialogueSpeechEvent) {
-        if (event.speakerRole() == binding.speaker)
-            speech.reveal(
-                event.revealed(),
-                when (event.view().nodeId()) {
+    override fun onBegin(event: MinestomDialogueSpeechBeginEvent) =
+        synchronized(lock) {
+            val view = event.view()
+            val timing = event.timing()
+            if (
+                event.speakerRole() != binding.speaker ||
+                    view.state() != gg.grounds.dialogue.core.runtime.DialogueView.State.REVEALING ||
+                    view.revealedGraphemes() <= 0 ||
+                    timing.sessionId() != view.sessionId() ||
+                    timing.nodeVisitId() != view.nodeVisitId() ||
+                    timing.renderRevision() != view.renderRevision()
+            )
+                return@synchronized
+            val identity = identity(view)
+            if (
+                phase == identity ||
+                    invalidatedPhase == identity ||
+                    expectedLocale?.let { it != view.localeTag() } == true
+            )
+                return@synchronized
+            phase = identity
+            speech.beginSpeech(
+                timing.endNanos(),
+                timing.graphemeDelayNanos(),
+                when (view.nodeId()) {
                     "start" -> GuideSpeechMood.GREETING
                     "farewell" -> GuideSpeechMood.FAREWELL
                     else -> null
                 },
-                // DialogueView carries the SDK's cached grapheme counts; never split text
-                // per frame.
-                (event.view().totalGraphemes() - event.view().revealedGraphemes())
-                    .coerceAtLeast(0)
-                    .toLong() * revealDelayNanos,
             )
-    }
-
-    override fun onStop(reason: MinestomDialogueSpeechListener.StopReason) {
-        when (reason) {
-            MinestomDialogueSpeechListener.StopReason.PRESENTATION_FALLBACK -> speech.fallback()
-            MinestomDialogueSpeechListener.StopReason.PAUSED,
-            MinestomDialogueSpeechListener.StopReason.CONTENT_REPLACED -> speech.stop(false)
-            else -> speech.close()
+            speech.reveal(view.text())
         }
-    }
 
-    override fun close() = speech.close()
+    override fun onRevealed(event: MinestomDialogueSpeechEvent) =
+        synchronized(lock) {
+            if (
+                event.speakerRole() == binding.speaker &&
+                    phase == identity(event.view()) &&
+                    event.view().state() ==
+                        gg.grounds.dialogue.core.runtime.DialogueView.State.REVEALING
+            )
+                speech.reveal(event.revealed())
+        }
+
+    fun invalidate(locale: String? = null) =
+        synchronized(lock) {
+            invalidatedPhase = phase
+            expectedLocale = locale
+            phase = null
+            speech.stop(false)
+        }
+
+    override fun onStop(reason: MinestomDialogueSpeechListener.StopReason) =
+        synchronized(lock) {
+            phase = null
+            when (reason) {
+                MinestomDialogueSpeechListener.StopReason.PRESENTATION_FALLBACK -> speech.fallback()
+                MinestomDialogueSpeechListener.StopReason.PAUSED,
+                MinestomDialogueSpeechListener.StopReason.CONTENT_REPLACED -> speech.stop(false)
+                else -> speech.close()
+            }
+        }
+
+    override fun close() =
+        synchronized(lock) {
+            phase = null
+            speech.close()
+        }
 }

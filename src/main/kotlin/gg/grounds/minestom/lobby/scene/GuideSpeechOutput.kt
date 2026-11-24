@@ -36,50 +36,89 @@ internal class GuideSpeechOutput(
     private var published: NpcPresentationHandle? = null
     private var nextSound: Long? = null
     private var activeKey: String? = null
+    private var activeEnd: Long? = null
     private val recentTalk = java.util.ArrayDeque<Int>()
     private var greeted = false
     private var farewelled = false
     private var speaking = false
-    private var silentUntil: Long? = null
+    private var deadline: Long? = null
+    private var phaseMood: GuideSpeechMood? = null
+    private var frameNanos = 35_000_000L
+    private var lastCallback: Long? = null
+    private var completedPlan = false
+    private val planner = GuideSpeechPlanner(bank)
     private var unavailable = false
 
-    fun reveal(text: String, mood: GuideSpeechMood? = null, remainingNanos: Long = 0) =
+    fun beginSpeech(endNanos: Long, graphemeDelayNanos: Long, mood: GuideSpeechMood? = null) =
         synchronized(lock) {
             if (closed || !valid()) return@synchronized
-            if (text.codePoints().noneMatch(Character::isLetterOrDigit)) {
-                speaking = false
-                optional { handle?.followSharedHeadLook() }
-                if (
-                    text.codePoints().anyMatch {
-                        it <= Char.MAX_VALUE.code && it.toChar() in ".,!?:;…"
-                    }
-                ) {
-                    val deadline = clock() + randomMillis(PUNCTUATION_GAP_MILLIS)
-                    if (silentUntil == null || deadline - silentUntil!! > 0) silentUntil = deadline
-                }
-                return@synchronized
-            }
-            speaking = true
+            stop(false)
+            deadline = endNanos
+            frameNanos = maxOf(graphemeDelayNanos, 50_000_000L)
+            phaseMood = mood
+            completedPlan = false
+        }
+
+    fun reveal(text: String) =
+        synchronized(lock) {
+            if (closed || !valid()) return@synchronized
+            val end = deadline ?: return@synchronized
             val now = clock()
-            if (
-                (silentUntil == null || now - silentUntil!! >= 0) &&
-                    (nextSound == null || now - nextSound!! >= 0)
-            ) {
+            if (end - now <= 0) return@synchronized
+            lastCallback?.let { previous ->
+                val elapsed = now - previous
+                if (elapsed > 250_000_000L) completedPlan = true
+                if (elapsed in 1_000_000L..100_000_000L) frameNanos = elapsed
+            }
+            lastCallback = now
+            speaking = text.codePoints().anyMatch(Character::isLetterOrDigit)
+            if (!completedPlan && (nextSound == null || now - nextSound!! >= 0)) {
                 val cue =
                     when {
-                        mood == GuideSpeechMood.GREETING && !greeted -> mood
-                        mood == GuideSpeechMood.FAREWELL && !farewelled -> mood
+                        phaseMood == GuideSpeechMood.GREETING && !greeted -> phaseMood
+                        phaseMood == GuideSpeechMood.FAREWELL && !farewelled -> phaseMood
                         else -> null
                     }
-                val voice = selectVoice(cue, remainingNanos)
-                if (voice != null) {
+                var plan = planner.plan(now, end, frameNanos, recentTalk.toList(), cue)
+                var choice = frameNanos
+                val latest = activeEnd?.let { it - now + 100_000_000L }
+                while (latest != null && choice <= latest) {
+                    val alternative =
+                        planner.plan(now + choice, end, frameNanos, recentTalk.toList(), cue)
+                    fun finish(candidate: List<PlannedGuideVoice>) =
+                        candidate.lastOrNull()?.let { it.onsetNanos - now + it.voice.durationNanos }
+                            ?: 0L
+                    if (finish(alternative) > finish(plan) + 1_000L) plan = alternative
+                    choice += frameNanos
+                }
+                if (plan.firstOrNull()?.onsetNanos?.let { it - now > 0 } == true) {
+                    nextSound = plan.first().onsetNanos
+                    return@synchronized
+                }
+                val voice = plan.firstOrNull()?.voice
+                if (voice == null) completedPlan = true
+                if (
+                    voice != null &&
+                        voice.durationNanos <= end - now - GuideSpeechPlanner.END_GUARD_NANOS
+                ) {
                     if (cue == GuideSpeechMood.GREETING) greeted = true
                     if (cue == GuideSpeechMood.FAREWELL) farewelled = true
+                    val index = bank.clips.indexOfFirst { it.key == voice.key }
+                    if (bank.clips[index].kind == "speech") {
+                        recentTalk.addLast(index)
+                        if (recentTalk.size > 2) recentTalk.removeFirst()
+                    }
                     stopVoice()
                     activeKey = voice.key
-                    optional { play(voice) }
-                    nextSound = now + voice.durationNanos + randomMillis(BREATH_GAP_MILLIS)
+                    optional { play(voice.copy(volumeScale = voiceDraw(900..1000) / 1000f)) }
+                    activeEnd = now + voice.durationNanos
+                    nextSound = activeEnd!! + 40_000_000L
+                    completedPlan = plan.size == 1
                 }
+            }
+            if (!speaking) {
+                optional { handle?.followSharedHeadLook() }
+                return@synchronized
             }
             if (reducedMotion()) {
                 epoch++
@@ -174,7 +213,11 @@ internal class GuideSpeechOutput(
             if (closed) return@synchronized
             speaking = false
             nextSound = null
-            silentUntil = null
+            activeEnd = null
+            deadline = null
+            phaseMood = null
+            lastCallback = null
+            completedPlan = false
             epoch++
             stopVoice()
             preparing?.let { optional { it.cancel() } }
@@ -204,36 +247,6 @@ internal class GuideSpeechOutput(
 
     override fun close() = stop(true)
 
-    companion object {
-        internal const val END_SAFETY_NANOS = 100_000_000L
-        internal val BREATH_GAP_MILLIS = 40..100
-        internal val PUNCTUATION_GAP_MILLIS = 120..240
-    }
-
-    private fun selectVoice(mood: GuideSpeechMood?, remainingNanos: Long): GuideVoice? {
-        if (remainingNanos < END_SAFETY_NANOS) return null
-        val pitch = voiceDraw(965..1035) / 1000f
-        val kind =
-            when (mood) {
-                GuideSpeechMood.GREETING -> "greeting"
-                GuideSpeechMood.FAREWELL -> "farewell"
-                null -> "speech"
-            }
-        val candidates =
-            bank.clips.withIndex().filter { (index, clip) ->
-                clip.kind == kind &&
-                    (kind != "speech" || index !in recentTalk) &&
-                    clip.playbackNanos(pitch) <= remainingNanos - END_SAFETY_NANOS
-            }
-        if (candidates.isEmpty()) return null
-        val (index, clip) = candidates[voiceDraw(0..candidates.lastIndex)]
-        if (kind == "speech") {
-            recentTalk.addLast(index)
-            if (recentTalk.size > 2) recentTalk.removeFirst()
-        }
-        return GuideVoice(clip.key, pitch, voiceDraw(900..1000) / 1000f, clip.playbackNanos(pitch))
-    }
-
     private fun voiceDraw(range: IntRange): Int =
         voiceRandomInt(range).also {
             require(it in range) { "Guide voice draw must stay within its requested bounds" }
@@ -243,13 +256,6 @@ internal class GuideSpeechOutput(
         activeKey?.let { key -> optional { silence(key) } }
         activeKey = null
     }
-
-    private fun boundedRandom(range: IntRange): Int =
-        randomInt(range).also {
-            require(it in range) { "Speech rhythm draw must stay within its requested bounds" }
-        }
-
-    private fun randomMillis(range: IntRange) = boundedRandom(range) * 1_000_000L
 
     private inline fun optional(action: () -> Unit) {
         try {

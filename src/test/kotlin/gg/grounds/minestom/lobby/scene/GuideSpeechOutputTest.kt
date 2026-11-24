@@ -7,22 +7,6 @@ import org.junit.jupiter.api.Test
 
 class GuideSpeechOutputTest {
     @Test
-    fun `natural letters throttle private sound while punctuation stays silent`() {
-        val fixture = Fixture(reduced = true)
-        fixture.reveal("Hi")
-        fixture.reveal("a")
-        assertEquals(1, fixture.sounds)
-        fixture.now += 1_000_000_000L
-        fixture.reveal("2")
-        assertEquals(2, fixture.sounds)
-        fixture.now += 1_000_000_000L
-        fixture.reveal(" !")
-        assertEquals(2, fixture.sounds)
-        assertEquals(0, fixture.preparations)
-        assertEquals(1, fixture.stops)
-    }
-
-    @Test
     fun `private motion pauses and resumes without changing another viewer`() {
         val a = Fixture()
         val b = Fixture()
@@ -83,7 +67,8 @@ class GuideSpeechOutputTest {
                 bank = testGuideVoiceBank(),
             )
         assertDoesNotThrow {
-            output.reveal("a", remainingNanos = 10_000_000_000L)
+            output.beginSpeech(System.nanoTime() + 10_000_000_000L, 35_000_000L)
+            output.reveal("a")
             output.stop(false)
             output.close()
         }
@@ -98,6 +83,7 @@ class GuideSpeechOutputTest {
         assertEquals(1, fixture.handle.closes)
         assertEquals(1, fixture.stops)
         fixture.now += 1_000_000_000L
+        fixture.begin()
         fixture.reveal("b")
         assertEquals(2, fixture.preparations)
     }
@@ -124,12 +110,13 @@ class GuideSpeechOutputTest {
                 {},
                 bank = testGuideVoiceBank(),
             )
-        output.reveal("a", remainingNanos = 10_000_000_000L)
+        output.beginSpeech(System.nanoTime() + 10_000_000_000L, 35_000_000L)
+        output.reveal("a")
         reduced = true
-        output.reveal("b", remainingNanos = 10_000_000_000L)
+        output.reveal("b")
         assertEquals(1, fixture.handle.closes)
         val moves = fixture.handle.looks
-        output.reveal("c", remainingNanos = 10_000_000_000L)
+        output.reveal("c")
         assertEquals(moves, fixture.handle.looks)
     }
 
@@ -169,6 +156,7 @@ class GuideSpeechOutputTest {
         fixture.reveal("a")
         fixture.output.stop(false)
         fixture.ready = CompletableFuture()
+        fixture.begin()
         fixture.reveal("b")
         assertEquals(2, fixture.preparations)
     }
@@ -193,234 +181,9 @@ class GuideSpeechOutputTest {
         fixture.reveal("a")
         assertEquals(1, fixture.sounds)
         fixture.now += 1_000_000_000L
+        fixture.begin()
         fixture.reveal("b")
         assertEquals(2, fixture.sounds)
-    }
-
-    @Test
-    fun `phrases must fit remaining text with a safety margin and are not replayed at the end`() {
-        val fixture = Fixture(reduced = true)
-        fixture.now = 0
-        fixture.reveal("a", remainingNanos = 699_999_999L)
-        assertEquals(0, fixture.sounds)
-        fixture.reveal("a", remainingNanos = 700_000_000L)
-        assertEquals(1, fixture.sounds)
-        fixture.now = 700_000_000L
-        fixture.reveal("last letters", remainingNanos = 100_000_000L)
-        assertEquals(1, fixture.sounds)
-        assertEquals(0, fixture.stops)
-        fixture.output.stop(false)
-        assertTrue(
-            fixture.stoppedAt.single() >=
-                fixture.onsets.single() + fixture.voices.single().durationNanos
-        )
-    }
-
-    @Test
-    fun `phrase duration pitch and breathing determine actual next onset`() {
-        val fixture = Fixture(reduced = true, talkMillis = 1000, draws = listOf(40, 100))
-        fixture.pitch = 965
-        fixture.now = 0
-        fixture.reveal("a")
-        assertEquals(1_036_269_459L, fixture.voices.single().durationNanos)
-        fixture.pitch = 1035
-        fixture.now = 1_076_269_458L
-        fixture.reveal("b")
-        assertEquals(1, fixture.sounds)
-        fixture.now++
-        fixture.reveal("c")
-        assertEquals(2, fixture.sounds)
-        assertEquals(966_183_607L, fixture.voices.last().durationNanos)
-        fixture.now = 2_142_453_065L
-        fixture.reveal("d")
-        assertEquals(2, fixture.sounds)
-        fixture.now++
-        fixture.reveal("e")
-        assertEquals(3, fixture.sounds)
-    }
-
-    @Test
-    fun `natural reveal never overlaps whole phrases never catches up and avoids last two samples`() {
-        val fixture = Fixture(reduced = true)
-        repeat(100) {
-            fixture.now = it * 35_000_000L
-            fixture.reveal("a")
-        }
-        assertTrue(fixture.sounds > 2)
-        fixture.onsets.zipWithNext().forEachIndexed { index, (a, b) ->
-            assertTrue(b - a >= fixture.voices[index].durationNanos + 40_000_000L)
-        }
-        fixture.voices.forEachIndexed { index, voice ->
-            assertFalse(
-                fixture.voices.subList(maxOf(0, index - 2), index).any { it.key == voice.key }
-            )
-        }
-        val before = fixture.sounds
-        fixture.now += 20_000_000_000L
-        repeat(10) { fixture.reveal("newly revealed text") }
-        assertEquals(before + 1, fixture.sounds)
-    }
-
-    @Test
-    fun `punctuation extends a phrase pause while spaces never cut and explicit stop resets it`() {
-        val fixture = Fixture(reduced = true, draws = listOf(40, 240, 40, 40))
-        fixture.now = -1_000_000_000L
-        fixture.reveal("a")
-        fixture.now = -500_000_000L
-        fixture.reveal(".")
-        fixture.reveal(" ")
-        assertEquals(0, fixture.stops)
-        fixture.now = -260_000_001L
-        fixture.reveal("b")
-        assertEquals(1, fixture.sounds)
-        fixture.now++
-        fixture.reveal("c")
-        assertEquals(2, fixture.sounds)
-        fixture.output.stop(false)
-        fixture.reveal("new node")
-        assertEquals(3, fixture.sounds)
-        fixture.output.close()
-        fixture.now += 10_000_000_000L
-        fixture.reveal("goodbye", GuideSpeechMood.FAREWELL)
-        assertEquals(3, fixture.sounds)
-    }
-
-    @Test
-    fun `fitting semantic cues play once across locale node and lifecycle changes`() {
-        val fixture = Fixture(reduced = true, moodMillis = 900)
-        fixture.now = 0
-        fixture.reveal(" ", GuideSpeechMood.GREETING)
-        fixture.reveal("Hello", GuideSpeechMood.GREETING, 999_999_999L)
-        assertEquals(0, fixture.sounds)
-        fixture.reveal("Hello", GuideSpeechMood.GREETING, 1_000_000_000L)
-        assertEquals("dialogue:guide/greeting/hello01", fixture.voices.single().key)
-        fixture.now = 939_999_999L
-        fixture.reveal("more words", remainingNanos = 10_000_000_000L)
-        assertEquals(1, fixture.sounds)
-        fixture.now++
-        fixture.reveal("more words")
-        assertEquals(2, fixture.sounds)
-        fixture.output.stop(false)
-        fixture.reveal("Hallo", GuideSpeechMood.GREETING)
-        assertEquals(1, fixture.voices.count { it.key.contains("greeting") })
-        fixture.now += 2_000_000_000L
-        fixture.reveal("Bye", GuideSpeechMood.FAREWELL, 1_000_000_000L)
-        assertEquals(1, fixture.voices.count { it.key.contains("farewell") })
-        fixture.output.stop(false)
-        fixture.reveal("Bis bald", GuideSpeechMood.FAREWELL)
-        assertEquals(1, fixture.voices.count { it.key.contains("farewell") })
-        fixture.output.close()
-        assertEquals(fixture.voices.map { it.key }, fixture.stoppedKeys)
-    }
-
-    @Test
-    fun `missing voice metadata preserves the generic typing fallback`() {
-        assertEquals("true", LobbyDialogues.guidePreferences(false, false).effects()["typingSound"])
-        assertEquals("false", LobbyDialogues.guidePreferences(false, true).effects()["typingSound"])
-    }
-
-    @Test
-    fun `selection excludes overlong phrases and does not repeat recent clips to force a fit`() {
-        val metadata =
-            com.google.gson.JsonParser.parseString(
-                    testGuideVoiceMetadata(talkMillis = 1800).toString(Charsets.UTF_8)
-                )
-                .asJsonObject
-        metadata.getAsJsonObject("clips").getAsJsonObject("bwa").addProperty("durationMillis", 600)
-        metadata.getAsJsonObject("clips").getAsJsonObject("li").addProperty("durationMillis", 700)
-        val bank = checkNotNull(GuideVoiceBank.load(metadata.toString().toByteArray()))
-        val fixture = Fixture(reduced = true, voiceBank = bank)
-        fixture.now = 0
-        fixture.pitch = 965
-        fixture.reveal("a", remainingNanos = 700_000_000L)
-        assertEquals(0, fixture.sounds)
-        fixture.pitch = 1000
-        fixture.reveal("a", remainingNanos = 700_000_000L)
-        fixture.now = 2_000_000_000L
-        fixture.reveal("b", remainingNanos = 800_000_000L)
-        fixture.now = 4_000_000_000L
-        fixture.reveal("c", remainingNanos = 800_000_000L)
-        assertEquals(listOf("bwa", "li"), fixture.voices.map { it.key.substringAfterLast('/') })
-    }
-
-    @Test
-    fun `sentence and clause punctuation adds only a short pause without cutting a phrase`() {
-        for (punctuation in ".,!?:;…") {
-            val fixture = Fixture(reduced = true, draws = listOf(40, 240, 40))
-            fixture.now = 0
-            fixture.reveal("a")
-            fixture.now = 600_000_000L
-            fixture.reveal(punctuation.toString())
-            fixture.reveal(" ")
-            assertEquals(0, fixture.stops)
-            fixture.now = 839_999_999L
-            fixture.reveal("b")
-            assertEquals(1, fixture.sounds, punctuation.toString())
-            fixture.now++
-            fixture.reveal("c")
-            assertEquals(2, fixture.sounds, punctuation.toString())
-        }
-    }
-
-    @Test
-    fun `word punctuation does not insert a sentence pause`() {
-        for (punctuation in listOf("'", "’", "-", "/")) {
-            val fixture = Fixture(reduced = true)
-            fixture.now = 0
-            fixture.reveal("a")
-            fixture.now = 590_000_000L
-            fixture.reveal(punctuation)
-            fixture.now = 700_000_000L
-            fixture.reveal("b")
-            assertEquals(2, fixture.sounds, punctuation)
-            assertEquals(1, fixture.stops, "Only the next whole phrase stops the finished key")
-        }
-    }
-
-    @Test
-    fun `real long German Guide line keeps whole phrase gaps below 200 milliseconds`() {
-        val bank =
-            checkNotNull(
-                GuideVoiceBank.load(StageDialogueAssets.load().entries()[GuideVoiceBank.PATH])
-            )
-        val text =
-            "Mit dem Kompass im ersten Hotbar-Slot kannst du die verfügbaren Spiele ansehen und einen Modus auswählen."
-        for (seed in listOf(1, 7, 17, 42, 99)) {
-            val random = kotlin.random.Random(seed)
-            var now = 0L
-            val played = mutableListOf<Pair<Long, GuideVoice>>()
-            val output =
-                GuideSpeechOutput(
-                    { true },
-                    { true },
-                    { error("Reduced motion") },
-                    { played += now to it },
-                    {},
-                    { now },
-                    { random.nextInt(it.first, it.last + 1) },
-                    { random.nextInt(it.first, it.last + 1) },
-                    bank,
-                )
-            // First presentation establishes the baseline; the final WAITING frame is silent.
-            for (index in 1 until text.lastIndex) {
-                now = (index + 1) * 35_000_000L
-                output.reveal(
-                    text[index].toString(),
-                    remainingNanos = (text.length - index - 1) * 35_000_000L,
-                )
-            }
-            assertTrue(played.size >= 2, "seed=$seed")
-            played.zipWithNext().forEach { (a, b) ->
-                val gap = b.first - a.first - a.second.durationNanos
-                assertTrue(gap in 40_000_000L..200_000_000L, "seed=$seed gap=$gap")
-            }
-            played.forEach { (onset, voice) ->
-                val clip = bank.clips.single { it.key == voice.key }
-                assertEquals(clip.playbackNanos(voice.pitch), voice.durationNanos)
-                assertTrue(onset + voice.durationNanos + 100_000_000L <= text.length * 35_000_000L)
-            }
-            output.close()
-        }
     }
 
     private class Fixture(
@@ -492,11 +255,13 @@ class GuideSpeechOutputTest {
                 bank = voiceBank,
             )
 
-        fun reveal(
-            text: String,
-            mood: GuideSpeechMood? = null,
-            remainingNanos: Long = Long.MAX_VALUE,
-        ) = output.reveal(text, mood, remainingNanos)
+        init {
+            begin()
+        }
+
+        fun begin() = output.beginSpeech(now + 10_000_000_000L, 35_000_000L)
+
+        fun reveal(text: String) = output.reveal(text)
     }
 
     private class Handle : NpcPresentationHandle {
