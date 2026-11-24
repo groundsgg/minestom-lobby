@@ -12,6 +12,8 @@ internal class GuideSpeechPlanner(private val bank: GuideVoiceBank) {
         frameNanos: Long,
         recent: List<Int>,
         mood: GuideSpeechMood?,
+        variationSeed: Int = 0,
+        firstVoiceAllowed: ((GuideVoice) -> Boolean)? = null,
     ): List<PlannedGuideVoice> {
         val budget = deadline - now - END_GUARD_NANOS
         if (budget <= 0 || budget > MAX_WINDOW_NANOS) return emptyList()
@@ -25,6 +27,11 @@ internal class GuideSpeechPlanner(private val bank: GuideVoiceBank) {
             }
         data class State(val onset: Long, val recent: List<Int>, val kind: String)
         data class Result(val end: Long, val clips: List<PlannedGuideVoice>)
+        // A phase seed keeps preferences stable while its unplayed suffix is revised.
+        val orderedClips =
+            bank.clips.withIndex().toList().let {
+                if (variationSeed == 0) it else it.shuffled(kotlin.random.Random(variationSeed))
+            }
         val cache = HashMap<State, Result>()
         var states = 0
         fun voice(clip: GuideVoiceClip, duration: Long): GuideVoice? {
@@ -43,7 +50,7 @@ internal class GuideSpeechPlanner(private val bank: GuideVoiceBank) {
             if (++states > MAX_STATES || depth > MAX_CLIPS) return Result(0L, emptyList())
             var best = Result(0L, emptyList())
             val candidates =
-                bank.clips.withIndex().filter { (index, clip) ->
+                orderedClips.filter { (index, clip) ->
                     (clip.kind == kind || (kind == "speech" && clip.kind == "ending")) &&
                         (clip.kind != "speech" || index !in history)
                 }
@@ -54,8 +61,12 @@ internal class GuideSpeechPlanner(private val bank: GuideVoiceBank) {
                 val duration = minOf(maximum, target - onset)
                 val terminal = voice(clip, duration) ?: continue
                 val end = onset + terminal.durationNanos
-                if (end > best.end) best = Result(end, listOf(PlannedGuideVoice(onset, terminal)))
-                if (target - end <= 1_000L) return best.also { cache[state] = it }
+                if (depth != 0 || firstVoiceAllowed?.invoke(terminal) != false) {
+                    if (end > best.end)
+                        best = Result(end, listOf(PlannedGuideVoice(onset, terminal)))
+                    if (target - end <= END_FIT_TOLERANCE_NANOS)
+                        return best.also { cache[state] = it }
+                }
                 if (clip.kind == "ending") continue
                 val nextHistory =
                     if (clip.kind == "speech") (history + index).takeLast(2) else history
@@ -68,7 +79,9 @@ internal class GuideSpeechPlanner(private val bank: GuideVoiceBank) {
                     if (low <= high) {
                         val current = voice(clip, (next - onset - 70_000_000L).coerceIn(low, high))
                         if (
-                            current != null && next - onset - current.durationNanos <= MAX_GAP_NANOS
+                            current != null &&
+                                next - onset - current.durationNanos <= MAX_GAP_NANOS &&
+                                (depth != 0 || firstVoiceAllowed?.invoke(current) != false)
                         ) {
                             val suffix = solve(next, nextHistory, "speech", depth + 1)
                             if (suffix.clips.isNotEmpty() && suffix.end > best.end) {
@@ -77,7 +90,7 @@ internal class GuideSpeechPlanner(private val bank: GuideVoiceBank) {
                                         suffix.end,
                                         listOf(PlannedGuideVoice(onset, current)) + suffix.clips,
                                     )
-                                if (target - best.end <= 1_000L)
+                                if (target - best.end <= END_FIT_TOLERANCE_NANOS)
                                     return best.also { cache[state] = it }
                             }
                         }
@@ -95,6 +108,7 @@ internal class GuideSpeechPlanner(private val bank: GuideVoiceBank) {
 
     companion object {
         internal const val END_GUARD_NANOS = 35_000_000L
+        private const val END_FIT_TOLERANCE_NANOS = 65_000_000L
         private const val MIN_GAP_NANOS = 40_000_000L
         private const val MAX_GAP_NANOS = 100_000_000L
         private const val MAX_STATES = 8192

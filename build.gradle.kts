@@ -215,7 +215,7 @@ dependencies {
     implementation("gg.grounds:dialogue-minestom:${dialogueVersion.get()}")
     val dialogueAssetsJar = providers.gradleProperty("dialogueAssetsJar").orNull
     if (dialogueAssetsJar != null) implementation(files(dialogueAssetsJar))
-    else implementation("gg.grounds:resourcepacks-dialogue-runtime:0.0.0-edge.69.g8bd399940a56")
+    else implementation("gg.grounds:resourcepacks-dialogue-runtime:0.0.0-edge.204.gcae91c2c6ffe")
     if (existingNpcCatalog != null) implementation(files(existingNpcCatalog))
     else implementation("gg.grounds:resourcepacks-catalog:1.3.0")
     implementation("gg.grounds:npc-core:${npcVersion.get()}")

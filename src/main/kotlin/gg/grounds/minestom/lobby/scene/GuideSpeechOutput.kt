@@ -44,8 +44,10 @@ internal class GuideSpeechOutput(
     private var deadline: Long? = null
     private var phaseMood: GuideSpeechMood? = null
     private var frameNanos = 35_000_000L
+    private var initialAlternateFrameNanos = 35_000_000L
     private var lastCallback: Long? = null
     private var completedPlan = false
+    private var variationSeed = 0
     private val planner = GuideSpeechPlanner(bank)
     private var unavailable = false
 
@@ -55,7 +57,9 @@ internal class GuideSpeechOutput(
             stop(false)
             deadline = endNanos
             frameNanos = maxOf(graphemeDelayNanos, 50_000_000L)
+            initialAlternateFrameNanos = graphemeDelayNanos.coerceIn(1_000_000L, 100_000_000L)
             phaseMood = mood
+            variationSeed = voiceDraw(0..Int.MAX_VALUE)
             completedPlan = false
         }
 
@@ -79,12 +83,72 @@ internal class GuideSpeechOutput(
                         phaseMood == GuideSpeechMood.FAREWELL && !farewelled -> phaseMood
                         else -> null
                     }
-                var plan = planner.plan(now, end, frameNanos, recentTalk.toList(), cue)
+                val firstChecks = HashMap<Pair<String, Long>, Boolean>()
+                val initialAllowed: ((GuideVoice) -> Boolean)? =
+                    if (
+                        activeEnd == null &&
+                            frameNanos != initialAlternateFrameNanos &&
+                            bank.clips.any { it.kind == "ending" }
+                    ) {
+                        { voice ->
+                            firstChecks.getOrPut(voice.key to voice.durationNanos) {
+                                if (end - now - voice.durationNanos <= 100_000_000L) true
+                                else if (firstChecks.size >= 32) false
+                                else {
+                                    val index = bank.clips.indexOfFirst { it.key == voice.key }
+                                    val history =
+                                        if (bank.clips[index].kind == "speech")
+                                            (recentTalk.toList() + index).takeLast(2)
+                                        else recentTalk.toList()
+                                    val alternate = initialAlternateFrameNanos
+                                    var offset =
+                                        ((voice.durationNanos + 40_000_000L + alternate - 1) /
+                                            alternate) * alternate
+                                    var fits = false
+                                    while (!fits && offset <= voice.durationNanos + 100_000_000L) {
+                                        val suffix =
+                                            planner.plan(
+                                                now + offset,
+                                                end,
+                                                alternate,
+                                                history,
+                                                null,
+                                                variationSeed,
+                                            )
+                                        val last = suffix.lastOrNull()
+                                        fits =
+                                            last != null &&
+                                                end - last.onsetNanos - last.voice.durationNanos in
+                                                    GuideSpeechPlanner.END_GUARD_NANOS..100_000_000L
+                                        offset += alternate
+                                    }
+                                    fits
+                                }
+                            }
+                        }
+                    } else null
+                var plan =
+                    planner.plan(
+                        now,
+                        end,
+                        frameNanos,
+                        recentTalk.toList(),
+                        cue,
+                        variationSeed,
+                        initialAllowed,
+                    )
                 var choice = frameNanos
                 val latest = activeEnd?.let { it - now + 100_000_000L }
                 while (latest != null && choice <= latest) {
                     val alternative =
-                        planner.plan(now + choice, end, frameNanos, recentTalk.toList(), cue)
+                        planner.plan(
+                            now + choice,
+                            end,
+                            frameNanos,
+                            recentTalk.toList(),
+                            cue,
+                            variationSeed,
+                        )
                     fun finish(candidate: List<PlannedGuideVoice>) =
                         candidate.lastOrNull()?.let { it.onsetNanos - now + it.voice.durationNanos }
                             ?: 0L
