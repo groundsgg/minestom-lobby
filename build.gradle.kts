@@ -57,7 +57,7 @@ tasks.register<JavaExec>("migrateQueueNpcScene") {
 
 val sceneVersion = providers.gradleProperty("sceneVersion").orElse("1.0.1")
 val npcVersion = providers.gradleProperty("npcVersion").orElse("2.0.0")
-val dialogueVersion = providers.gradleProperty("dialogueVersion").orElse("1.7.0")
+val dialogueVersion = providers.gradleProperty("dialogueVersion").orElse("1.8.0")
 
 application { mainClass.set("gg.grounds.minestom.lobby.MainKt") }
 
