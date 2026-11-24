@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import stat
 import subprocess
 import tarfile
 import tempfile
@@ -75,6 +76,9 @@ def verify_embedded_catalog(host_jar, catalog_jar):
                             name == 'META-INF/resourcepacks-catalog.kotlin_module')]
             if len(set(selected)) != len(selected):
                 raise ValueError('Duplicate embedded catalog entries')
+            require_contract(len(selected) <= 1024 and
+                             sum(archive.getinfo(name).file_size for name in selected) <= 64 * 1024 * 1024,
+                             'Selected catalog metadata exceeds size limits')
             return {name: archive.read(name) for name in selected}
     if entries(host_jar) != entries(catalog_jar):
         raise ValueError('Executable catalog differs from the selected immutable catalog')
@@ -83,6 +87,232 @@ def verify_embedded_catalog(host_jar, catalog_jar):
 def digest(path, algorithm='sha256'):
     with Path(path).open('rb') as stream:
         return hashlib.file_digest(stream, algorithm).hexdigest()
+
+
+# This allowlist mirrors LobbyDialogueProfileExport.requireToolingEnvironment.
+TOOLING_ENVIRONMENT = frozenset(('PATH', 'JAVA_HOME', 'HOME', 'LANG', 'LC_ALL',
+    'TMPDIR', 'TEMP', 'TMP', 'TZ', 'SYSTEMROOT', 'WINDIR', 'COMSPEC', 'PATHEXT', 'OS'))
+DIALOGUE_FILES = {'executable': 'minestom-lobby.jar', 'serverContent': 'server-content.zip',
+    'addon': 'npc-addon.zip', 'catalog': 'catalog.jar', 'scene': 'dialogue/scene.json',
+    'profile': 'dialogue/profile.json', 'hostCatalog': 'dialogue/context/host-catalog.json'}
+JSON_LIMIT = 1024 * 1024
+
+
+def require_contract(condition, message):
+    if not condition:
+        raise ValueError(message)
+
+
+def regular_path(path):
+    path = Path(os.path.abspath(path))
+    try:
+        require_contract(not any(part.is_symlink() for part in (path, *path.parents)),
+                         'Dialogue paths must not contain symlinks')
+        require_contract(stat.S_ISREG(path.lstat().st_mode), 'Dialogue file must be regular')
+    except OSError as error:
+        raise ValueError('Dialogue file is missing or inaccessible') from error
+    return path
+
+
+def file_pin(path, *, addon=False):
+    path = regular_path(path)
+    before = path.stat()
+    hashes = {name: hashlib.new(name) for name in (('sha256', 'sha1') if addon else ('sha256',))}
+    size = 0
+    with path.open('rb') as stream:
+        require_contract(os.fstat(stream.fileno()) == before, 'Dialogue file changed before hashing')
+        while block := stream.read(65536):
+            size += len(block)
+            for value in hashes.values(): value.update(block)
+    after = path.stat()
+    def identity(value):
+        return (value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns, value.st_ctime_ns)
+    require_contract(identity(before) == identity(after) and size == before.st_size,
+                     'Dialogue file changed while hashing')
+    return dict({name: value.hexdigest() for name, value in hashes.items()}, size=size)
+
+
+def strict_json(data):
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            require_contract(key not in result, 'Duplicate JSON field: ' + key)
+            result[key] = value
+        return result
+    def invalid(value):
+        raise ValueError('Non-finite JSON number')
+    try:
+        return json.loads(data, object_pairs_hook=pairs, parse_constant=invalid)
+    except (UnicodeError, RecursionError, json.JSONDecodeError) as error:
+        raise ValueError('Invalid dialogue JSON') from error
+
+
+def bounded_json(path, limit=JSON_LIMIT):
+    path = regular_path(path)
+    require_contract(path.stat().st_size <= limit, 'Dialogue JSON exceeds size limit')
+    with path.open('rb') as stream:
+        data = stream.read(limit + 1)
+    require_contract(len(data) <= limit, 'Dialogue JSON exceeds size limit')
+    return strict_json(data), data
+
+
+def fields(value, expected):
+    require_contract(type(value) is dict and set(value) == set(expected), 'Unexpected dialogue JSON fields')
+
+
+def reference(value):
+    fields(value, ('id', 'version'))
+    for item in value.values():
+        require_contract(type(item) is str and 0 < len(item) <= 128 and item.isascii(),
+                         'Invalid catalog/provider reference')
+
+
+def verify_dialogue_profile(root, expected_scene_sha256):
+    """Verify private exporter artifacts; this is digest integrity, not authentication."""
+    root = Path(root)
+    binding_pin = file_pin(root / 'dialogue/binding.json')
+    binding, binding_bytes = bounded_json(root / 'dialogue/binding.json')
+    require_contract(hashlib.sha256(binding_bytes).hexdigest() == binding_pin['sha256'],
+                     'Dialogue binding changed while reading')
+    profile, profile_bytes = bounded_json(root / DIALOGUE_FILES['profile'])
+    host, host_bytes = bounded_json(root / DIALOGUE_FILES['hostCatalog'])
+    fields(binding, ('schemaVersion', 'id', 'version', 'generation', 'manifest', 'files'))
+    fields(profile, ('schemaVersion', 'id', 'version', 'hostCatalogJson', 'assetCatalog',
+                     'actionCatalogs', 'startActions', 'npcAssets'))
+    fields(host, ('schemaVersion', 'generation', 'speakers', 'conditions', 'actions',
+                  'gestures', 'capabilities', 'durableOutcomes'))
+    manifest = binding['manifest']
+    fields(manifest, ('schemaVersion', 'serviceVariant', 'provider', 'dialogueId', 'roles',
+                      'actionProviders', 'assetCatalog', 'actionCatalogs', 'contentId', 'files'))
+    for value in (binding, profile, host, manifest):
+        require_contract(type(value['schemaVersion']) is int and value['schemaVersion'] == 1,
+                         'Invalid dialogue schema version')
+    fields(binding['files'], DIALOGUE_FILES)
+    fields(manifest['files'], list(DIALOGUE_FILES)[:5])
+    actual_pins = {}
+    for role, name in DIALOGUE_FILES.items():
+        pin = binding['files'][role]
+        expected_fields = {'file', 'sha256', 'size'} | ({'sha1'} if role == 'addon' else set())
+        fields(pin, expected_fields)
+        require_contract(pin['file'] == name, 'Dialogue file path substitution')
+        require_contract(type(pin['size']) is int and pin['size'] >= 0, 'Invalid dialogue pin size')
+        for algorithm in ('sha256', 'sha1') if role == 'addon' else ('sha256',):
+            require_contract(type(pin[algorithm]) is str and
+                             re.fullmatch('[0-9a-f]{' + str(hashlib.new(algorithm).digest_size * 2) + '}', pin[algorithm]),
+                             'Invalid dialogue digest')
+        actual = file_pin(root / name, addon=role == 'addon')
+        require_contract(pin == dict(actual, file=name), 'Dialogue artifact differs from pin: ' + role)
+        actual_pins[role] = actual
+        if role in manifest['files']:
+            fields(manifest['files'][role], expected_fields - {'file'})
+            require_contract(type(manifest['files'][role]['size']) is int and manifest['files'][role] == actual,
+                             'Dialogue manifest pin differs: ' + role)
+    require_contract(hashlib.sha256(profile_bytes).hexdigest() == actual_pins['profile']['sha256'] and
+                     hashlib.sha256(host_bytes).hexdigest() == actual_pins['hostCatalog']['sha256'],
+                     'Dialogue output changed while reading')
+    require_contract(actual_pins['scene']['size'] <= 16 * JSON_LIMIT and
+                     actual_pins['scene']['sha256'] == expected_scene_sha256,
+                     'Dialogue selected scene differs from snapshot')
+    reference(manifest['provider'])
+    require_contract(manifest['serviceVariant'] == 'grounds.lobby.navigator' and
+                     manifest['provider']['id'] == manifest['serviceVariant'], 'Invalid dialogue service provider')
+    reference(manifest['assetCatalog'])
+    catalogs = manifest['actionCatalogs']
+    require_contract(type(catalogs) is list and 1 <= len(catalogs) <= 16, 'Invalid action catalogs')
+    for catalog in catalogs: reference(catalog)
+    require_contract(catalogs == sorted(catalogs, key=lambda ref: (ref['id'], ref['version'])) and
+                     len({(ref['id'], ref['version']) for ref in catalogs}) == len(catalogs),
+                     'Invalid action catalog ordering')
+    roles = manifest['roles']
+    require_contract(type(roles) is dict and set(roles) == {'guide'} and
+                     all(type(body) is str and body and body.isascii() for body in roles.values()),
+                     'Invalid dialogue role mapping')
+    providers = manifest['actionProviders']
+    require_contract(type(providers) is dict, 'Invalid action providers')
+    if manifest['dialogueId'] == 'grounds:lobby-guide':
+        profile_id = 'grounds:lobby-guide'
+        require_contract(set(providers) == {'grounds:lobby/open_navigator', 'grounds:lobby/open_duel_menu'},
+                         'Invalid Guide action providers')
+    else:
+        require_contract(manifest['dialogueId'] == 'stage:mechanic', 'Unsupported dialogue ID')
+        profile_id = 'grounds:stage-dialogue'
+        require_contract(providers == {}, 'Stage has no action providers')
+    for spec in providers.values():
+        fields(spec, ('arguments', 'durable'))
+        require_contract(spec['arguments'] == {} and spec['durable'] is False, 'Invalid action provider spec')
+    # All defined manifest values are ASCII; no escaping or whitespace participates in identity.
+    canonical = json.dumps(manifest, sort_keys=True, ensure_ascii=False, separators=(',', ':'), allow_nan=False)
+    require_contract(canonical.isascii(), 'Manifest values must be ASCII')
+    generation = hashlib.sha256(canonical.encode('utf-8')).hexdigest()
+    require_contract(binding['id'] == profile['id'] == profile_id and
+                     binding['version'] == binding['generation'] == profile['version'] == host['generation'] == generation,
+                     'Dialogue generation or profile identity differs from canonical manifest')
+    require_contract(type(profile['hostCatalogJson']) is str and
+                     profile['hostCatalogJson'].encode('utf-8') == host_bytes,
+                     'Embedded host catalog differs from written host bytes')
+    require_contract(host['speakers'] == sorted(roles) and host['actions'] == providers and
+                     host['conditions'] == {} and host['gestures'] == [] and
+                     host['capabilities'] == [] and host['durableOutcomes'] is False,
+                     'Host catalog claims differ from manifest')
+    require_contract(profile['assetCatalog'] == manifest['assetCatalog'] and
+                     profile['actionCatalogs'] == catalogs and
+                     profile['npcAssets'] == {body: {'gestures': {}} for body in roles.values()},
+                     'Profile roles/catalogs differ from manifest')
+    require_contract(profile['startActions'] == {'grounds:lobby/start_dialogue': {
+        'dialogueArgument': 'dialogue', 'speakerArgument': 'speaker'}}, 'Invalid dialogue start action')
+    catalog = root / DIALOGUE_FILES['catalog']
+    require_contract(manifest['assetCatalog']['id'] == 'grounds:resourcepacks', 'Invalid asset catalog')
+    existing_catalog_version(catalog, actual_pins['catalog']['sha256'])
+    verify_catalog_metadata(catalog, manifest['assetCatalog']['version'])
+    verify_embedded_catalog(root / DIALOGUE_FILES['executable'], catalog)
+    content = root / DIALOGUE_FILES['serverContent']
+    with zipfile.ZipFile(content) as archive:
+        info = archive.getinfo('bundle.json')
+        require_contract(info.file_size <= 16 * JSON_LIMIT, 'Content bundle metadata exceeds size limit')
+        contract = strict_json(archive.read(info))
+    require_contract(type(contract) is dict and type(manifest['contentId']) is str and
+                     re.fullmatch('[0-9a-f]{64}', manifest['contentId']) and
+                     contract.get('contentId') == manifest['contentId'], 'Content ID differs from actual bundle')
+    require_contract(set(roles.values()) <= {model['id'] for model in contract['models']},
+                     'Dialogue role body is missing from actual bundle')
+    verify_pair(root / DIALOGUE_FILES['executable'], root / DIALOGUE_FILES['addon'],
+                actual_pins['addon']['sha1'], content)
+    # Detect changes during the metadata/archive verification as well as during each streamed hash.
+    for role, name in DIALOGUE_FILES.items():
+        require_contract(file_pin(root / name, addon=role == 'addon') == actual_pins[role],
+                         'Dialogue input changed during verification: ' + role)
+    require_contract(file_pin(root / 'dialogue/binding.json') == binding_pin,
+                     'Dialogue binding changed during verification')
+    return dict(id=profile_id, version=generation, generation=generation,
+                **{role: dict(actual_pins[role], file=DIALOGUE_FILES[role]) for role in ('profile', 'hostCatalog')},
+                binding=dict(binding_pin, file='dialogue/binding.json'))
+
+
+def finalize_distribution(staging, output, receipt, dialogue_scene=None, expected_scene_sha256=None, *, java='java'):
+    """The production publication boundary: exporter and final verification precede receipt/rename."""
+    receipt = dict(receipt)
+    if dialogue_scene is not None:
+        require_contract(file_pin(dialogue_scene / 'scene.json')['sha256'] == expected_scene_sha256,
+                         'Dialogue scene snapshot changed before export')
+        environment = {key: value for key, value in os.environ.items() if key.upper() in TOOLING_ENVIRONMENT}
+        with (staging / 'dialogue-export.log').open('w') as log:
+            subprocess.run([java, '-cp', str(staging / 'minestom-lobby.jar'),
+                            'gg.grounds.minestom.lobby.scene.LobbyDialogueProfileExport',
+                            '--distribution', str(staging), '--scene', str(dialogue_scene)],
+                           check=True, env=environment, stdout=log, stderr=subprocess.STDOUT, timeout=120)
+        receipt['dialogueProfile'] = verify_dialogue_profile(staging, expected_scene_sha256)
+    shutil.rmtree(staging / 'inputs')
+    if dialogue_scene is not None:
+        require_contract(verify_dialogue_profile(staging, expected_scene_sha256) == receipt['dialogueProfile'],
+                         'Dialogue profile changed before publication')
+    require_contract(not output.exists(), 'Distribution output must not exist')
+    try:
+        (staging / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
+        staging.rename(output)
+    except BaseException:
+        (staging / 'receipt.json').unlink(missing_ok=True)
+        raise
+    return receipt
 
 
 def verify_checkout(directory, commit):
@@ -205,6 +435,7 @@ def main():
     parser.add_argument('--addon-sha256', required=True)
     parser.add_argument('--addon-sha1', required=True)
     parser.add_argument('--map', type=Path, required=True)
+    parser.add_argument('--dialogue-profile-scene', type=Path)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--gradle')
     parser.add_argument('--java', default='java')
@@ -245,6 +476,11 @@ def main():
         raise ValueError('Map must select the exact private catalog build identity: ' + catalog_version)
     policy_sha256 = digest(args.composite_policy)
     scene_sha256 = digest(args.map / 'scene.json')
+    dialogue_scene_sha256 = None
+    if args.dialogue_profile_scene is not None:
+        selected = regular_path(args.dialogue_profile_scene / 'scene.json')
+        require_contract(selected.stat().st_size <= 16 * JSON_LIMIT, 'Dialogue scene exceeds 16 MiB')
+        dialogue_scene_sha256 = file_pin(selected)['sha256']
     args.output.parent.mkdir(parents=True, exist_ok=True)
     # Failed attempts retain their logs, but never a qualified receipt or final output.
     with tempfile.TemporaryDirectory(prefix='.npc-distribution-', dir=args.output.parent, delete=False) as directory:
@@ -294,6 +530,13 @@ def main():
         shutil.copyfile(args.map / 'scene.json', selected_map / 'scene.json')
         if digest(selected_map / 'scene.json') != scene_sha256:
             raise ValueError('Scene changed during snapshot')
+        dialogue_scene = None
+        if args.dialogue_profile_scene is not None:
+            dialogue_scene = inputs / 'dialogue-scene'
+            dialogue_scene.mkdir()
+            shutil.copyfile(args.dialogue_profile_scene / 'scene.json', dialogue_scene / 'scene.json')
+            require_contract(file_pin(dialogue_scene / 'scene.json')['sha256'] == dialogue_scene_sha256,
+                             'Dialogue scene changed during snapshot')
         addon = staging / 'npc-addon.zip'
         shutil.copyfile(args.addon, addon)
         if digest(addon) != args.addon_sha256 or digest(addon, 'sha1') != args.addon_sha1:
@@ -392,9 +635,7 @@ def main():
         }
         if receipt['addonSha256'] != args.addon_sha256:
             raise ValueError('Addon changed before distribution assembly')
-        shutil.rmtree(inputs)
-        (staging / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
-        staging.rename(args.output)
+        receipt = finalize_distribution(staging, args.output, receipt, dialogue_scene, dialogue_scene_sha256, java=args.java)
     print(json.dumps(receipt, indent=2))
 
 
