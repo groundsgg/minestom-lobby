@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.27.2](https://github.com/groundsgg/minestom-lobby/compare/v2.27.1...v2.27.2) (2026-11-24)
+
+
+### Bug Fixes
+
+* **guide:** match speech to the full typing duration ([#298](https://github.com/groundsgg/minestom-lobby/issues/298)) ([3154213](https://github.com/groundsgg/minestom-lobby/commit/31542139fdc63cb3ebdce11fb51a729ab0628c17))
+
 ## [2.27.1](https://github.com/groundsgg/minestom-lobby/compare/v2.27.0...v2.27.1) (2026-11-24)
 
 
