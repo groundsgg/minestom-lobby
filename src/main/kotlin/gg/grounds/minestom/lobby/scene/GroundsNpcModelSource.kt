@@ -40,6 +40,46 @@ internal object GroundsNpcModelSource {
             }
     }
 
+    /**
+     * Required private binding for one-shot qualification; normal neutral loading stays optional.
+     */
+    fun requireContentBinding(
+        contentId: String,
+        resource: () -> java.io.InputStream? = {
+            GroundsNpcModelSource::class
+                .java
+                .getResourceAsStream("/gg/grounds/minestom/lobby/npc-content-id.txt")
+        },
+    ) {
+        val bound =
+            requireNotNull(resource()) {
+                    "NPC content binding missing; build a qualified private distribution"
+                }
+                .use {
+                    val bytes = it.readNBytes(130)
+                    require(bytes.size <= 129) { "NPC content binding exceeds size limit" }
+                    bytes.toString(Charsets.US_ASCII).removeSuffix("\n")
+                }
+        require(bound == contentId) { "NPC content differs from private distribution binding" }
+    }
+
+    fun loadRequired(assets: AssetCatalog, path: java.nio.file.Path): LoadedContent {
+        val content = read(path)
+        requireContentBinding(content.contentId)
+        return LoadedContent(content, models(assets, content))
+    }
+
+    class LoadedContent
+    internal constructor(
+        private val content: gg.grounds.npc.core.io.content.NpcContent,
+        val models: Map<AssetKey, NpcModel>,
+    ) {
+        val contentId
+            get() = content.contentId
+
+        fun verifyAddon(path: java.nio.file.Path) = content.verifyResourcePack(path)
+    }
+
     private fun models(
         assets: AssetCatalog,
         content: gg.grounds.npc.core.io.content.NpcContent?,

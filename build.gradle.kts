@@ -297,7 +297,7 @@ dependencies {
     implementation("org.slf4j:slf4j-api")
 
     testImplementation("org.junit.jupiter:junit-jupiter")
-    testImplementation("gg.grounds:library-jvm-modules-module-core:0.1.0")
+    implementation("gg.grounds:library-jvm-modules-module-core:0.1.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     runtimeOnly("org.slf4j:slf4j-simple")

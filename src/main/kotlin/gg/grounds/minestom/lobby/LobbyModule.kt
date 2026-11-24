@@ -6,11 +6,7 @@ import gg.grounds.minestom.lobby.feature.lod.LobbyLodServing
 import gg.grounds.minestom.lobby.scene.LobbyDialogues
 import gg.grounds.minestom.lobby.scene.LobbySceneHost
 import gg.grounds.minestom.lobby.scene.LobbySceneLoader
-import gg.grounds.minestom.lobby.scene.dialogueBindings
-import gg.grounds.minestom.lobby.scene.runtimeRequest
 import gg.grounds.minestom.lobby.scene.stageDialoguePreviewEnabled
-import gg.grounds.minestom.lobby.scene.withDialogueLabels
-import gg.grounds.minestom.lobby.scene.withStageDialoguePreview
 import gg.grounds.modules.get
 import gg.grounds.permissions.Permissions
 import gg.grounds.runtime.GroundsModule
@@ -78,36 +74,26 @@ internal class LobbyModule(
                     }
                     .also { if (demoEnabled) requireStageNpcDemoMap(loaded.source, it?.scene) }
                     ?.let { prepared ->
-                        val preview =
-                            if (dialoguePreview) prepared.withStageDialoguePreview() else null
-                        val selected = preview?.prepared ?: prepared
-                        val bindings = selected.dialogueBindings()
-                        val starter =
-                            if (bindings.isEmpty()) null
-                            else
-                                LobbyDialogues(
-                                    instanceContainer,
-                                    selected.identity,
-                                    bindings,
-                                    ctx.services.get<gg.grounds.lobby.LobbyNavigatorService>(),
-                                    ctx.services.get<gg.grounds.lobby.LobbyQueueService>(),
-                                )
-                        stageDialogue = starter
+                        val composition =
+                            gg.grounds.minestom.lobby.scene.LobbySceneComposition.create(
+                                prepared,
+                                instanceContainer,
+                                ctx.services,
+                                dialoguePreview,
+                            )
+                        stageDialogue = composition.dialogues
                         if (
-                            bindings.any {
-                                it.dialogue ==
-                                    gg.grounds.minestom.lobby.scene.LobbyGuideContent.DIALOGUE_ID
-                            }
+                            composition.registrations.containsKey(
+                                gg.grounds.minestom.lobby.scene.LobbyGuideContent.DIALOGUE_ID
+                            )
                         )
                             logger.info(
                                 "Prepared lobby guide successfully (sceneId={}, mapVersion={}, elementId={})",
-                                selected.identity.sceneId.value,
-                                selected.identity.mapVersion,
+                                composition.request.identity.sceneId.value,
+                                composition.request.identity.mapVersion,
                                 "spawn-guide",
                             )
-                        (if (starter == null) selected
-                            else selected.withDialogueLabels(starter, bindings))
-                            .runtimeRequest(instanceContainer, ctx.services, starter)
+                        composition.request
                     }
                     .also { request ->
                         val started = System.nanoTime()
