@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.27.1](https://github.com/groundsgg/minestom-lobby/compare/v2.27.0...v2.27.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* keep guide speech phrases connected ([#296](https://github.com/groundsgg/minestom-lobby/issues/296)) ([088f308](https://github.com/groundsgg/minestom-lobby/commit/088f308e071ff185c5e506f759cc435771094320))
+
 ## [2.27.0](https://github.com/groundsgg/minestom-lobby/compare/v2.26.0...v2.27.0) (2026-11-23)
 
 
