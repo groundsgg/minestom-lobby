@@ -293,6 +293,7 @@ internal class LobbyDialogues(
             val language = normalize(locale(session.player))
             if (language != session.language) {
                 session.language = language
+                session.speech?.invalidate(language)
                 session.ticket.refreshLocale(LocaleContext(language, ++session.revision, "en"))
             }
         }

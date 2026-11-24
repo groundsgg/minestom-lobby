@@ -228,7 +228,8 @@ class GuideNpcPresentationsTest {
                     {},
                     bank = testGuideVoiceBank(),
                 )
-            output.reveal("a", remainingNanos = 10_000_000_000L)
+            output.beginSpeech(System.nanoTime() + 10_000_000_000L, 35_000_000L)
+            output.reveal("a")
             tickUntil {
                 fixture.instance.entities.count {
                     it.entityType == net.minestom.server.entity.EntityType.ITEM_DISPLAY

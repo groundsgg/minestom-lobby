@@ -86,6 +86,22 @@ class GuideSpeechListenerTest {
             listener.onRevealed(event(role = "other"))
             listener.onRevealed(event(remaining = 1))
             assertTrue(sounds().isEmpty())
+            val begin = event()
+            listener.onBegin(
+                MinestomDialogueSpeechBeginEvent(
+                    begin.view(),
+                    begin.speakerRole(),
+                    begin.speaker(),
+                    TypingTiming(
+                        begin.view().sessionId(),
+                        begin.view().nodeVisitId(),
+                        begin.view().renderRevision(),
+                        35_000_000L,
+                        now,
+                        now + 3_500_000_000L,
+                    ),
+                )
+            )
             listener.onRevealed(event())
             val first = sounds().single()
             assertEquals("dialogue:guide/greeting/hello01", first.soundEvent().key().asString())
@@ -93,12 +109,50 @@ class GuideSpeechListenerTest {
             assertEquals(-5.0, first.origin().x())
             assertEquals(143.6, first.origin().y())
             assertEquals(115.0, first.origin().z())
+            listener.invalidate()
+            listener.onBegin(
+                MinestomDialogueSpeechBeginEvent(
+                    begin.view(),
+                    begin.speakerRole(),
+                    begin.speaker(),
+                    TypingTiming(
+                        begin.view().sessionId(),
+                        begin.view().nodeVisitId(),
+                        begin.view().renderRevision(),
+                        35_000_000L,
+                        now,
+                        now + 3_500_000_000L,
+                    ),
+                )
+            )
+            listener.onRevealed(begin)
+            assertEquals(
+                1,
+                sounds().size,
+                "An already queued begin cannot revive the invalidated locale",
+            )
             listener.onStop(MinestomDialogueSpeechListener.StopReason.PAUSED)
             val stop = player.connection.packets.filterIsInstance<StopSoundPacket>().single()
             assertEquals(first.soundEvent().key().asString(), stop.sound())
             assertEquals(Sound.Source.VOICE, stop.source())
             now += 5_000_000_000
-            listener.onRevealed(event(locale = "de"))
+            val german = event(locale = "de")
+            listener.onBegin(
+                MinestomDialogueSpeechBeginEvent(
+                    german.view(),
+                    german.speakerRole(),
+                    german.speaker(),
+                    TypingTiming(
+                        german.view().sessionId(),
+                        german.view().nodeVisitId(),
+                        german.view().renderRevision(),
+                        35_000_000L,
+                        now,
+                        now + 3_500_000_000L,
+                    ),
+                )
+            )
+            listener.onRevealed(german)
             assertTrue(
                 sounds().last().soundEvent().key().asString().startsWith("dialogue:guide/speech/")
             )

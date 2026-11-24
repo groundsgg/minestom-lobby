@@ -26,7 +26,12 @@ internal class GuideVoiceBank private constructor(val clips: List<GuideVoiceClip
                         .asJsonObject
                 require(root.keySet() == setOf("schemaVersion", "clips"))
                 require(root["schemaVersion"].asJsonPrimitive.isNumber)
-                require(root["schemaVersion"].asBigDecimal.intValueExact() == 1)
+                val schema = root["schemaVersion"].asBigDecimal.intValueExact()
+                require(schema == 1 || schema == 2)
+                val expected =
+                    if (schema == 2)
+                        expected + listOf("end01", "end02", "end03").associateWith { "ending" }
+                    else expected
                 val clips = root.getAsJsonObject("clips")
                 require(clips.keySet() == expected.keys)
                 val parsed =
@@ -36,7 +41,14 @@ internal class GuideVoiceBank private constructor(val clips: List<GuideVoiceClip
                         require(clip["kind"].asString == kind)
                         require(clip["durationMillis"].asJsonPrimitive.isNumber)
                         val duration = clip["durationMillis"].asBigDecimal.intValueExact()
-                        require(duration in if (kind == "speech") 600..1800 else 450..1100)
+                        require(
+                            duration in
+                                when (kind) {
+                                    "speech" -> 600..1800
+                                    "ending" -> 250..650
+                                    else -> 450..1100
+                                }
+                        )
                         GuideVoiceClip(name, kind, duration)
                     }
                 GuideVoiceBank(java.util.List.copyOf(parsed))

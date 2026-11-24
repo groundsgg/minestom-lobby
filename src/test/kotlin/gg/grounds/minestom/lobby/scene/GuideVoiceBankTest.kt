@@ -64,12 +64,42 @@ class GuideVoiceBankTest {
     fun `published fluent runtime provides the exact accepted pin and voice bank`() {
         val assets = StageDialogueAssets.load()
         assertEquals(
-            "235523aa263c3c382e38f68fff545af6f747b930f104bbd80afa47a0712b8d6f",
+            "5206c7d254460e8dd9accb7c9152d32f27d4693ea154a2c80ccfc22ceaad05db",
             assets.pin(),
         )
         val entries = assets.entries()
-        assertEquals(614, entries.size)
+        assertEquals(617, entries.size)
         assertNotNullBank(checkNotNull(entries[GuideVoiceBank.PATH]))
+    }
+
+    @Test
+    fun `schema two requires all three bounded ending clips and exact known metadata`() {
+        val bytes = checkNotNull(StageDialogueAssets.load().entries()[GuideVoiceBank.PATH])
+        val bank = assertNotNullBank(bytes)
+        assertEquals(17, bank.clips.size)
+        assertEquals(
+            listOf(300, 450, 600),
+            bank.clips.filter { it.kind == "ending" }.map { it.durationMillis },
+        )
+        for (mutate in
+            listOf<(com.google.gson.JsonObject) -> Unit>(
+                { it.getAsJsonObject("clips").remove("end01") },
+                {
+                    it.getAsJsonObject("clips")
+                        .getAsJsonObject("end02")
+                        .addProperty("kind", "speech")
+                },
+                {
+                    it.getAsJsonObject("clips")
+                        .getAsJsonObject("end03")
+                        .addProperty("durationMillis", 900)
+                },
+                { it.addProperty("schemaVersion", 3) },
+            )) {
+            val root = JsonParser.parseString(bytes.toString(Charsets.UTF_8)).asJsonObject
+            mutate(root)
+            assertNull(GuideVoiceBank.load(root.toString().toByteArray()))
+        }
     }
 
     private fun assertNotNullBank(bytes: ByteArray): GuideVoiceBank =
