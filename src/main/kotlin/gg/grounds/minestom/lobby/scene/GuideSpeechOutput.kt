@@ -49,7 +49,11 @@ internal class GuideSpeechOutput(
             if (text.codePoints().noneMatch(Character::isLetterOrDigit)) {
                 speaking = false
                 optional { handle?.followSharedHeadLook() }
-                if (text.codePoints().anyMatch { !Character.isWhitespace(it) }) {
+                if (
+                    text.codePoints().anyMatch {
+                        it <= Char.MAX_VALUE.code && it.toChar() in ".,!?:;…"
+                    }
+                ) {
                     val deadline = clock() + randomMillis(PUNCTUATION_GAP_MILLIS)
                     if (silentUntil == null || deadline - silentUntil!! > 0) silentUntil = deadline
                 }
@@ -202,8 +206,8 @@ internal class GuideSpeechOutput(
 
     companion object {
         internal const val END_SAFETY_NANOS = 100_000_000L
-        internal val BREATH_GAP_MILLIS = 275..430
-        internal val PUNCTUATION_GAP_MILLIS = 400..700
+        internal val BREATH_GAP_MILLIS = 40..100
+        internal val PUNCTUATION_GAP_MILLIS = 120..240
     }
 
     private fun selectVoice(mood: GuideSpeechMood?, remainingNanos: Long): GuideVoice? {
