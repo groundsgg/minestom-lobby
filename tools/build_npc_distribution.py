@@ -250,6 +250,11 @@ def verify_dialogue_profile(root, expected_scene_sha256):
     require_contract(type(profile['hostCatalogJson']) is str and
                      profile['hostCatalogJson'].encode('utf-8') == host_bytes,
                      'Embedded host catalog differs from written host bytes')
+    fields(host['actions'], providers)
+    for spec in host['actions'].values():
+        fields(spec, ('arguments', 'durable'))
+        require_contract(spec['arguments'] == {} and spec['durable'] is False,
+                         'Invalid host action provider spec')
     require_contract(host['speakers'] == sorted(roles) and host['actions'] == providers and
                      host['conditions'] == {} and host['gestures'] == [] and
                      host['capabilities'] == [] and host['durableOutcomes'] is False,
@@ -261,7 +266,7 @@ def verify_dialogue_profile(root, expected_scene_sha256):
     require_contract(profile['startActions'] == {'grounds:lobby/start_dialogue': {
         'dialogueArgument': 'dialogue', 'speakerArgument': 'speaker'}}, 'Invalid dialogue start action')
     catalog = root / DIALOGUE_FILES['catalog']
-    require_contract(manifest['assetCatalog']['id'] == 'grounds:resourcepacks', 'Invalid asset catalog')
+    require_contract(manifest['assetCatalog']['id'] == 'grounds:assets', 'Invalid asset catalog')
     existing_catalog_version(catalog, actual_pins['catalog']['sha256'])
     verify_catalog_metadata(catalog, manifest['assetCatalog']['version'])
     verify_embedded_catalog(root / DIALOGUE_FILES['executable'], catalog)

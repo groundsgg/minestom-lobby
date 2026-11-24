@@ -278,7 +278,7 @@ class DialogueDistributionTest(unittest.TestCase):
                          'dialogueId': 'grounds:lobby-guide', 'roles': {'guide': 'grounds:npc/example'},
                          'actionProviders': {name: {'arguments': {}, 'durable': False} for name in
                                              ('grounds:lobby/open_duel_menu', 'grounds:lobby/open_navigator')},
-                         'assetCatalog': {'id': 'grounds:resourcepacks', 'version': '1.2.3'},
+                         'assetCatalog': {'id': 'grounds:assets', 'version': '1.2.3'},
                          'actionCatalogs': [{'id': 'grounds:lobby', 'version': '4'}],
                          'contentId': 'a' * 64, 'files': {}}
         self.refresh()
@@ -319,6 +319,33 @@ class DialogueDistributionTest(unittest.TestCase):
         self.assertEqual(set(result), {'id', 'version', 'generation', 'profile', 'hostCatalog', 'binding'})
         self.assertEqual(result['profile'], dict(self.pin('profile'), file='dialogue/profile.json'))
         self.assertEqual(result['generation'], self.binding['generation'])
+
+    def test_accepts_actual_scene_asset_catalog_identity(self):
+        self.fixture()
+        # GroundsAssetCatalog.catalog.id, distinct from the PackSet/artifact ID.
+        self.manifest['assetCatalog']['id'] = 'grounds:assets'
+        self.refresh()
+        self.assertEqual(self.verify()['id'], 'grounds:lobby-guide')
+
+    def test_rejects_numeric_host_provider_durable_after_coherent_repinning(self):
+        self.fixture()
+        for durable in (0, 0.0):
+            for provider in self.manifest['actionProviders']:
+                self.refresh()
+                host_path = self.root / self.names['hostCatalog']
+                host = json.loads(host_path.read_text())
+                host['actions'][provider]['durable'] = durable
+                host_path.write_text(json.dumps(host))
+                profile_path = self.root / self.names['profile']
+                profile = json.loads(profile_path.read_text())
+                profile['hostCatalogJson'] = host_path.read_text()
+                profile_path.write_text(json.dumps(profile))
+                for role in ('profile', 'hostCatalog'):
+                    self.binding['files'][role] = dict(self.pin(role), file=self.names[role])
+                self.write_binding()
+                with self.subTest(durable=durable, type=type(durable).__name__, provider=provider):
+                    with self.assertRaisesRegex(ValueError, '[Hh]ost'):
+                        self.verify()
 
     def test_rejects_missing_extra_duplicate_oversized_and_wrong_type_json(self):
         self.fixture()
@@ -438,6 +465,36 @@ class DialogueDistributionTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 distribution.finalize_distribution(self.root, output, {'qualified': True}, selected, self.scene_sha)
         self.assertFalse(output.exists()); self.assertFalse((self.root / 'receipt.json').exists())
+
+
+    def test_finalizer_rejects_binding_only_mutation_after_initial_verification(self):
+        self.fixture(); (self.root / 'inputs').mkdir()
+        selected = self.root / 'inputs/selected'; selected.mkdir(); (selected / 'scene.json').write_bytes(self.scene)
+        output = self.root / 'out'
+        real_rmtree = __import__('shutil').rmtree
+        def mutate_binding_after_checks(path):
+            real_rmtree(path)
+            binding = self.root / 'dialogue/binding.json'
+            binding.write_bytes(binding.read_bytes() + b' ')
+            # Still semantically valid: only comparison with the initial binding pin rejects it.
+            self.assertEqual(self.verify()['id'], 'grounds:lobby-guide')
+        with mock.patch.object(distribution.subprocess, 'run'), \
+                mock.patch.object(distribution.shutil, 'rmtree', side_effect=mutate_binding_after_checks):
+            with self.assertRaisesRegex(ValueError, 'changed before publication'):
+                distribution.finalize_distribution(self.root, output, {'qualified': True}, selected, self.scene_sha)
+        self.assertFalse(output.exists())
+        self.assertFalse((self.root / 'receipt.json').exists())
+
+    def test_finalizer_removes_receipt_when_atomic_rename_fails(self):
+        self.fixture(); (self.root / 'inputs').mkdir()
+        selected = self.root / 'inputs/selected'; selected.mkdir(); (selected / 'scene.json').write_bytes(self.scene)
+        output = self.root / 'out'
+        with mock.patch.object(distribution.subprocess, 'run'), \
+                mock.patch.object(Path, 'rename', side_effect=OSError('injected rename failure')):
+            with self.assertRaisesRegex(OSError, 'injected rename failure'):
+                distribution.finalize_distribution(self.root, output, {'qualified': True}, selected, self.scene_sha)
+        self.assertFalse(output.exists())
+        self.assertFalse((self.root / 'receipt.json').exists())
 
 
 if __name__ == '__main__':
