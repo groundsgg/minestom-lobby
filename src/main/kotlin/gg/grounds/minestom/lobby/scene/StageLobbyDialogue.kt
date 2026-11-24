@@ -19,7 +19,7 @@ internal class StageLobbyDialogue(
     assets: AssetBundle = StageDialogueAssets.load(),
     proxyPackEnabled: Boolean = StageDialogueAssets.isPackaged(),
     theme: DialogueTheme = LobbyDialogues.defaultTheme(),
-    content: (String, String) -> ValidatedDialogue = LobbyDialogues::builtInContent,
+    content: ((String, String) -> ValidatedDialogue)? = null,
     locale: (Player) -> String,
 ) : LobbySceneDialogueStarter {
     private val owner =

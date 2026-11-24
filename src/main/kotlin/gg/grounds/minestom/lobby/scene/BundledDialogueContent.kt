@@ -19,13 +19,16 @@ internal class BundledDialogueContent
 private constructor(private val project: String, private val snapshot: ValidatedDialogue) {
     val texts = snapshot.texts()
 
-    fun validated(generation: String): ValidatedDialogue {
+    fun validated(generation: String): ValidatedDialogue =
+        validated(snapshot.catalog().withGeneration(generation))
+
+    fun validated(host: HostCatalog): ValidatedDialogue {
         val result =
             DialogueValidator()
                 .validate(
                     snapshot.definition(),
                     texts,
-                    snapshot.catalog().withGeneration(generation),
+                    host,
                     limits,
                 )
         return requireNotNull(result.validated()) {
