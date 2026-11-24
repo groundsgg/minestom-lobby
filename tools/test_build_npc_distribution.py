@@ -1,10 +1,13 @@
 import hashlib
+import copy
+import os
 import json
 from pathlib import Path
 import subprocess
 import tempfile
 import unittest
 import warnings
+from unittest import mock
 import zipfile
 
 import build_npc_distribution as distribution
@@ -246,6 +249,195 @@ class DistributionTest(unittest.TestCase):
             archive.writestr('META-INF/example.kotlin_module', b'second')
         with self.assertRaisesRegex(ValueError, 'Duplicate executable JAR'):
             distribution.verify_pair(jar, addon, sha1, content)
+
+
+class DialogueDistributionTest(unittest.TestCase):
+    setUp = DistributionTest.setUp
+    pair = DistributionTest.pair
+    """Neutral unit ZIP/JSON fixtures; these do not qualify actual private content."""
+
+    def fixture(self):
+        jar, addon, _, content = self.pair()
+        jar.rename(self.root / 'minestom-lobby.jar')
+        addon.rename(self.root / 'npc-addon.zip')
+        catalog_entries = {'gg/grounds/resourcepacks/catalog/catalog-version.txt': b'1.2.3',
+                           'gg/grounds/resourcepacks/catalog/GroundsAssetCatalog.class': b'neutral class fixture'}
+        with zipfile.ZipFile(self.root / 'catalog.jar', 'w') as archive:
+            for name, data in catalog_entries.items(): archive.writestr(name, data)
+        with zipfile.ZipFile(self.root / 'minestom-lobby.jar', 'a') as archive:
+            for name, data in catalog_entries.items(): archive.writestr(name, data)
+        (self.root / 'dialogue/context').mkdir(parents=True)
+        self.scene = b'{"unitFixture":true}'
+        (self.root / 'dialogue/scene.json').write_bytes(self.scene)
+        self.scene_sha = hashlib.sha256(self.scene).hexdigest()
+        self.names = {'executable': 'minestom-lobby.jar', 'serverContent': 'server-content.zip',
+                      'addon': 'npc-addon.zip', 'catalog': 'catalog.jar', 'scene': 'dialogue/scene.json',
+                      'profile': 'dialogue/profile.json', 'hostCatalog': 'dialogue/context/host-catalog.json'}
+        self.manifest = {'schemaVersion': 1, 'serviceVariant': 'grounds.lobby.navigator',
+                         'provider': {'id': 'grounds.lobby.navigator', 'version': '2.24.0'},
+                         'dialogueId': 'grounds:lobby-guide', 'roles': {'guide': 'grounds:npc/example'},
+                         'actionProviders': {name: {'arguments': {}, 'durable': False} for name in
+                                             ('grounds:lobby/open_duel_menu', 'grounds:lobby/open_navigator')},
+                         'assetCatalog': {'id': 'grounds:resourcepacks', 'version': '1.2.3'},
+                         'actionCatalogs': [{'id': 'grounds:lobby', 'version': '4'}],
+                         'contentId': 'a' * 64, 'files': {}}
+        self.refresh()
+
+    def pin(self, role):
+        path = self.root / self.names[role]
+        pin = {'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'size': path.stat().st_size}
+        if role == 'addon': pin['sha1'] = hashlib.sha1(path.read_bytes()).hexdigest()
+        return pin
+
+    def refresh(self):
+        self.manifest['files'] = {role: self.pin(role) for role in list(self.names)[:5]}
+        generation = hashlib.sha256(json.dumps(self.manifest, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+        host = {'schemaVersion': 1, 'generation': generation, 'speakers': ['guide'], 'conditions': {},
+                'actions': self.manifest['actionProviders'], 'gestures': [], 'capabilities': [], 'durableOutcomes': False}
+        host_bytes = json.dumps(host, separators=(',', ':')).encode()
+        (self.root / self.names['hostCatalog']).write_bytes(host_bytes)
+        profile = {'schemaVersion': 1, 'id': 'grounds:lobby-guide', 'version': generation,
+                   'hostCatalogJson': host_bytes.decode(), 'assetCatalog': self.manifest['assetCatalog'],
+                   'actionCatalogs': self.manifest['actionCatalogs'],
+                   'startActions': {'grounds:lobby/start_dialogue': {'dialogueArgument': 'dialogue', 'speakerArgument': 'speaker'}},
+                   'npcAssets': {'grounds:npc/example': {'gestures': {}}}}
+        (self.root / self.names['profile']).write_text(json.dumps(profile))
+        self.binding = {'schemaVersion': 1, 'id': 'grounds:lobby-guide', 'version': generation, 'generation': generation,
+                        'manifest': self.manifest,
+                        'files': {role: dict(self.pin(role), file=name) for role, name in self.names.items()}}
+        self.write_binding()
+
+    def write_binding(self):
+        (self.root / 'dialogue/binding.json').write_text(json.dumps(self.binding))
+
+    def verify(self):
+        return distribution.verify_dialogue_profile(self.root, self.scene_sha)
+
+    def test_valid_binding_returns_exact_receipt_pins(self):
+        self.fixture()
+        result = self.verify()
+        self.assertEqual(set(result), {'id', 'version', 'generation', 'profile', 'hostCatalog', 'binding'})
+        self.assertEqual(result['profile'], dict(self.pin('profile'), file='dialogue/profile.json'))
+        self.assertEqual(result['generation'], self.binding['generation'])
+
+    def test_rejects_missing_extra_duplicate_oversized_and_wrong_type_json(self):
+        self.fixture()
+        paths = ['dialogue/binding.json', self.names['profile'], self.names['hostCatalog']]
+        for name in paths:
+            path = self.root / name; original = path.read_bytes()
+            for value in (b'{}', b'[]', b'{"schemaVersion":1,"schemaVersion":1}', b' ' * (1048576 + 1)):
+                with self.subTest(name=name, value=value[:40]):
+                    path.write_bytes(value)
+                    with self.assertRaises(ValueError): self.verify()
+            path.write_bytes(original)
+        original = copy.deepcopy(self.binding)
+        for target in ('binding', 'manifest', 'provider', 'pin'):
+            self.binding = copy.deepcopy(original)
+            obj = {'binding': self.binding, 'manifest': self.binding['manifest'],
+                   'provider': self.binding['manifest']['provider'], 'pin': self.binding['files']['scene']}[target]
+            obj['extra'] = True; self.write_binding()
+            with self.subTest(target=target), self.assertRaises(ValueError): self.verify()
+        self.binding = original; self.binding['manifest']['files']['scene']['size'] = True; self.write_binding()
+        with self.assertRaises(ValueError): self.verify()
+
+    def test_each_changed_artifact_and_missing_binding_is_rejected(self):
+        self.fixture()
+        for name in self.names.values():
+            path = self.root / name; original = path.read_bytes(); path.write_bytes(original + b' ')
+            with self.subTest(name=name), self.assertRaises(ValueError): self.verify()
+            path.write_bytes(original)
+        (self.root / 'dialogue/binding.json').unlink()
+        with self.assertRaises(ValueError): self.verify()
+
+    def test_content_id_must_match_actual_bundle_even_after_repinning(self):
+        self.fixture()
+        self.manifest['contentId'] = 'b' * 64; self.refresh()
+        with self.assertRaisesRegex(ValueError, '[Cc]ontent'): self.verify()
+
+    def test_embedded_host_must_match_written_bytes_even_after_repinning(self):
+        self.fixture()
+        path = self.root / self.names['profile']; profile = json.loads(path.read_text())
+        profile['hostCatalogJson'] += ' '; path.write_text(json.dumps(profile))
+        self.binding['files']['profile'] = dict(self.pin('profile'), file=self.names['profile']); self.write_binding()
+        with self.assertRaisesRegex(ValueError, '[Hh]ost'): self.verify()
+
+    def test_path_substitution_and_file_or_parent_symlinks_are_rejected(self):
+        self.fixture()
+        self.binding['files']['profile']['file'] = 'other.json'; self.write_binding()
+        with self.assertRaises(ValueError): self.verify()
+        self.binding['files']['profile']['file'] = self.names['profile']; self.write_binding()
+        path = self.root / self.names['profile']; other = self.root / 'other.json'; path.rename(other); path.symlink_to(other)
+        with self.assertRaises(ValueError): self.verify()
+        path.unlink(); other.rename(path)
+        context = self.root / 'dialogue/context'; moved = self.root / 'elsewhere'; context.rename(moved); context.symlink_to(moved)
+        with self.assertRaises(ValueError): self.verify()
+
+    def test_canonical_generation_must_be_recomputed_not_trusted(self):
+        self.fixture()
+        self.binding['manifest']['provider']['version'] = 'changed'; self.write_binding()
+        with self.assertRaisesRegex(ValueError, '[Gg]eneration'): self.verify()
+
+    def test_profile_role_catalog_and_host_claims_match_manifest(self):
+        self.fixture()
+        for field, value in [('npcAssets', {}), ('assetCatalog', {'id': 'wrong', 'version': '1'}),
+                             ('actionCatalogs', []), ('startActions', {})]:
+            path = self.root / self.names['profile']; original = path.read_bytes(); profile = json.loads(original)
+            profile[field] = value; path.write_text(json.dumps(profile))
+            self.binding['files']['profile'] = dict(self.pin('profile'), file=self.names['profile']); self.write_binding()
+            with self.subTest(field=field), self.assertRaises(ValueError): self.verify()
+            path.write_bytes(original)
+        self.refresh()
+        host_path = self.root / self.names['hostCatalog']; host = json.loads(host_path.read_text())
+        host['durableOutcomes'] = True; host_path.write_text(json.dumps(host))
+        profile_path = self.root / self.names['profile']; profile = json.loads(profile_path.read_text())
+        profile['hostCatalogJson'] = host_path.read_text(); profile_path.write_text(json.dumps(profile))
+        for role in ('profile', 'hostCatalog'): self.binding['files'][role] = dict(self.pin(role), file=self.names[role])
+        self.write_binding()
+        with self.assertRaises(ValueError): self.verify()
+
+    def test_finalizer_preserves_legacy_optional_path(self):
+        staging = self.root / 'staging'; staging.mkdir(); (staging / 'inputs').mkdir()
+        output = self.root / 'out'
+        distribution.finalize_distribution(staging, output, {'qualified': True})
+        self.assertTrue(output.is_dir())
+        self.assertEqual(json.loads((output / 'receipt.json').read_text()), {'qualified': True})
+
+    def test_exporter_failure_does_not_publish_receipt_or_output(self):
+        staging = self.root / 'staging'; staging.mkdir(); (staging / 'inputs').mkdir()
+        selected = self.root / 'selected'; selected.mkdir(); (selected / 'scene.json').write_text('{}')
+        output = self.root / 'out'
+        with mock.patch.object(distribution.subprocess, 'run', side_effect=subprocess.CalledProcessError(1, ['java'])):
+            with self.assertRaises(subprocess.CalledProcessError):
+                distribution.finalize_distribution(staging, output, {'qualified': True}, selected, hashlib.sha256(b'{}').hexdigest())
+        self.assertFalse(output.exists()); self.assertFalse((staging / 'receipt.json').exists())
+        self.assertTrue((staging / 'dialogue-export.log').exists())
+
+    def test_finalizer_runs_exact_jar_with_sanitized_env_then_reverifies(self):
+        self.fixture(); (self.root / 'inputs').mkdir()
+        selected = self.root / 'inputs/selected'; selected.mkdir(); (selected / 'scene.json').write_bytes(self.scene)
+        output = self.root.parent / (self.root.name + '-qualified'); self.addCleanup(lambda: __import__('shutil').rmtree(output, ignore_errors=True))
+        def exporter(command, **kwargs):
+            self.assertEqual(command, ['chosen-java', '-cp', str(self.root / 'minestom-lobby.jar'),
+                                     'gg.grounds.minestom.lobby.scene.LobbyDialogueProfileExport',
+                                     '--distribution', str(self.root), '--scene', str(selected)])
+            self.assertEqual(kwargs['env'], {'PATH': '/bin', 'HOME': '/tmp'})
+        with mock.patch.dict(os.environ, {'PATH': '/bin', 'HOME': '/tmp', 'JAVA_TOOL_OPTIONS': 'bad', 'NATS_URL': 'bad'}, clear=True), \
+                mock.patch.object(distribution.subprocess, 'run', side_effect=exporter):
+            distribution.finalize_distribution(self.root, output, {'qualified': True}, selected, self.scene_sha, java='chosen-java')
+        self.assertEqual(json.loads((output / 'receipt.json').read_text())['dialogueProfile']['id'], 'grounds:lobby-guide')
+
+    def test_final_verification_failure_produces_no_receipt_or_output(self):
+        self.fixture(); (self.root / 'inputs').mkdir()
+        selected = self.root / 'inputs/selected'; selected.mkdir(); (selected / 'scene.json').write_bytes(self.scene)
+        output = self.root / 'out'
+        real_rmtree = __import__('shutil').rmtree
+        def mutate_after_checks(path):
+            real_rmtree(path)
+            (self.root / 'minestom-lobby.jar').write_bytes(b'tampered after initial verification')
+        with mock.patch.object(distribution.subprocess, 'run'), mock.patch.object(distribution.shutil, 'rmtree', side_effect=mutate_after_checks):
+            with self.assertRaises(ValueError):
+                distribution.finalize_distribution(self.root, output, {'qualified': True}, selected, self.scene_sha)
+        self.assertFalse(output.exists()); self.assertFalse((self.root / 'receipt.json').exists())
 
 
 if __name__ == '__main__':

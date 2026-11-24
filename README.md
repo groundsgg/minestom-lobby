@@ -217,6 +217,41 @@ directory created, with `minestom-lobby.jar`, `server-content.zip`, `npc-addon.z
 logs and `receipt.json`. The receipt pins the catalog coordinate, version, size and SHA-256. Failed
 attempts keep their temporary logs and produce no qualification receipt.
 
+Add `--dialogue-profile-scene /private/selected-dialogue-scene` to the command above to
+export a private Dialogue profile from an explicitly authored scene directory containing
+`scene.json`. This input is snapshotted separately from `--map`: the existing Stage acceptance
+scene remains required and unchanged. The selected dialogue scene must resolve to exactly one
+supported built-in dialogue with role bodies backed by the loaded private models. There is no
+implicit Guide selection.
+
+After standalone and embedded catalog verification, the exact distribution JAR runs
+`gg.grounds.minestom.lobby.scene.LobbyDialogueProfileExport` in a sanitized child environment.
+It installs the real Lobby module and creates the same Scene composition and Dialogue owner
+used at runtime, without starting a listener or invoking menus. The JAR must contain matching
+addon SHA-1 and content-ID resources. The distribution additionally retains:
+
+- `dialogue/profile.json`, with the E1 profile's eight fields.
+- `dialogue/context/host-catalog.json`, byte-identical to the embedded host JSON.
+- `dialogue/scene.json`, the exact selected dialogue scene snapshot.
+- `dialogue/binding.json`, the manifest and artifact pins.
+- `dialogue-export.log`, the isolated exporter process output.
+
+Profile version and host generation are the same SHA-256 of the canonical manifest. The
+manifest binds provider identity, service variant, dialogue/role/provider/catalog metadata,
+validated content ID, and the exact executable, content, addon, catalog and scene hashes/sizes.
+It excludes paths, timestamps, random session/world IDs and output digests. Guide profiles retain
+the two installed menu providers; Stage profiles have no action providers. Both keep empty
+gesture, condition and capability claims and disable durable outcomes.
+
+The builder independently checks bounded, duplicate-free JSON, canonical generation, every
+artifact pin, actual bundle content ID and embedded host bytes. It repeats verification after
+cleanup, immediately before writing `receipt.json` and atomically renaming the output directory.
+Only successful opt-in builds add `dialogueProfile` to the receipt, with identity and
+profile/host/binding pins. Export or verification failures retain attempt logs and produce no
+qualified receipt or final distribution. Omitting the option preserves the existing build path.
+These hashes provide artifact integrity, not receipt authentication or runtime Story admission;
+native client acceptance and cross-proxy behavior remain separate checks.
+
 The JAR contains the addon SHA-1 and content-ID bindings. Set
 `GROUNDS_NPC_CONTENT=/absolute/path/server-content.zip` (or `-Dgrounds.npc.content=...`)
 when starting the private host. The file is loaded once per server run and must match
