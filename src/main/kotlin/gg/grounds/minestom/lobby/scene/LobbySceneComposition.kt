@@ -21,10 +21,29 @@ private constructor(val request: SceneRuntimeRequest, val dialogues: LobbyDialog
             services: ServiceRegistry,
             stagePreview: Boolean = false,
             admission: LobbyDialogueAdmission = LobbyDialogueAdmission(false),
+        ): LobbySceneComposition =
+            prepare(prepared, instance, services, stagePreview, admission, null)
+
+        /** Describes installed handlers with a permanently closed session path and no graph. */
+        fun prepareMetadata(
+            prepared: PreparedLobbyScene,
+            instance: Instance,
+            services: ServiceRegistry,
+            contract: LobbyDialogueHostContract,
+        ): LobbySceneComposition =
+            prepare(prepared, instance, services, false, LobbyDialogueAdmission(true), contract)
+
+        private fun prepare(
+            prepared: PreparedLobbyScene,
+            instance: Instance,
+            services: ServiceRegistry,
+            stagePreview: Boolean,
+            admission: LobbyDialogueAdmission,
+            metadataContract: LobbyDialogueHostContract?,
         ): LobbySceneComposition {
             val selected =
                 if (stagePreview) prepared.withStageDialoguePreview().prepared else prepared
-            val bindings = selected.dialogueBindings()
+            val bindings = selected.dialogueBindings(metadataContract)
             val owner =
                 if (bindings.isEmpty()) null
                 else
@@ -35,6 +54,7 @@ private constructor(val request: SceneRuntimeRequest, val dialogues: LobbyDialog
                         services.get<LobbyNavigatorService>(),
                         services.get<LobbyQueueService>(),
                         admission = admission,
+                        metadataContract = metadataContract,
                     )
             try {
                 val labeled =

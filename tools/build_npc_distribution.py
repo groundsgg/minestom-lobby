@@ -167,7 +167,7 @@ def reference(value):
                          'Invalid catalog/provider reference')
 
 
-def verify_dialogue_profile(root, expected_scene_sha256):
+def verify_dialogue_profile(root, expected_scene_sha256, *, host_contract=None):
     """Verify private exporter artifacts; this is digest integrity, not authentication."""
     root = Path(root)
     binding_pin = file_pin(root / 'dialogue/binding.json')
@@ -229,12 +229,17 @@ def verify_dialogue_profile(root, expected_scene_sha256):
                      'Invalid dialogue role mapping')
     providers = manifest['actionProviders']
     require_contract(type(providers) is dict, 'Invalid action providers')
-    if manifest['dialogueId'] == 'grounds:lobby-guide':
+    require_contract(host_contract is None or (type(host_contract) is str and host_contract in
+                     ('grounds:lobby-guide', 'grounds:stage-dialogue')), 'Unsupported host contract')
+    dialogue_id = manifest['dialogueId']
+    require_contract(type(dialogue_id) is str and bool(dialogue_id) and dialogue_id.isascii(), 'Invalid dialogue ID')
+    if host_contract == 'grounds:lobby-guide' or (host_contract is None and dialogue_id == 'grounds:lobby-guide'):
+        require_contract(dialogue_id != 'stage:mechanic', 'Built-in dialogue contract mismatch')
         profile_id = 'grounds:lobby-guide'
         require_contract(set(providers) == {'grounds:lobby/open_navigator', 'grounds:lobby/open_duel_menu'},
                          'Invalid Guide action providers')
     else:
-        require_contract(manifest['dialogueId'] == 'stage:mechanic', 'Unsupported dialogue ID')
+        require_contract(dialogue_id == 'stage:mechanic', 'Unsupported dialogue ID')
         profile_id = 'grounds:stage-dialogue'
         require_contract(providers == {}, 'Stage has no action providers')
     for spec in providers.values():
@@ -293,8 +298,11 @@ def verify_dialogue_profile(root, expected_scene_sha256):
                 binding=dict(binding_pin, file='dialogue/binding.json'))
 
 
-def finalize_distribution(staging, output, receipt, dialogue_scene=None, expected_scene_sha256=None, *, java='java'):
+def finalize_distribution(staging, output, receipt, dialogue_scene=None, expected_scene_sha256=None, *, java='java', host_contract=None):
     """The production publication boundary: exporter and final verification precede receipt/rename."""
+    require_contract(host_contract is None or (type(host_contract) is str and host_contract in
+                     ('grounds:lobby-guide', 'grounds:stage-dialogue')), 'Unsupported host contract')
+    require_contract(host_contract is None or dialogue_scene is not None, 'Host contract requires dialogue scene')
     receipt = dict(receipt)
     if dialogue_scene is not None:
         # Freeze the earlier Stage/catalog qualification checkpoint, independently of export metadata.
@@ -317,13 +325,14 @@ def finalize_distribution(staging, output, receipt, dialogue_scene=None, expecte
         with (staging / 'dialogue-export.log').open('w') as log:
             subprocess.run([java, '-cp', str(staging / 'minestom-lobby.jar'),
                             'gg.grounds.minestom.lobby.scene.LobbyDialogueProfileExport',
-                            '--distribution', str(staging), '--scene', str(dialogue_scene)],
+                            '--distribution', str(staging), '--scene', str(dialogue_scene)] +
+                           (['--host-contract', host_contract] if host_contract is not None else []),
                            check=True, env=environment, stdout=log, stderr=subprocess.STDOUT, timeout=120)
         verify_qualified_inputs()
-        receipt['dialogueProfile'] = verify_dialogue_profile(staging, expected_scene_sha256)
+        receipt['dialogueProfile'] = verify_dialogue_profile(staging, expected_scene_sha256, host_contract=host_contract)
     shutil.rmtree(staging / 'inputs')
     if dialogue_scene is not None:
-        require_contract(verify_dialogue_profile(staging, expected_scene_sha256) == receipt['dialogueProfile'],
+        require_contract(verify_dialogue_profile(staging, expected_scene_sha256, host_contract=host_contract) == receipt['dialogueProfile'],
                          'Dialogue profile changed before publication')
         verify_qualified_inputs()
     require_contract(not output.exists(), 'Distribution output must not exist')
@@ -457,6 +466,7 @@ def main():
     parser.add_argument('--addon-sha1', required=True)
     parser.add_argument('--map', type=Path, required=True)
     parser.add_argument('--dialogue-profile-scene', type=Path)
+    parser.add_argument('--dialogue-host-contract', choices=('grounds:lobby-guide', 'grounds:stage-dialogue'))
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--gradle')
     parser.add_argument('--java', default='java')
@@ -497,6 +507,8 @@ def main():
         raise ValueError('Map must select the exact private catalog build identity: ' + catalog_version)
     policy_sha256 = digest(args.composite_policy)
     scene_sha256 = digest(args.map / 'scene.json')
+    require_contract(args.dialogue_host_contract is None or args.dialogue_profile_scene is not None,
+                     'Host contract requires --dialogue-profile-scene')
     dialogue_scene_sha256 = None
     if args.dialogue_profile_scene is not None:
         selected = regular_path(args.dialogue_profile_scene / 'scene.json')
@@ -656,7 +668,7 @@ def main():
         }
         if receipt['addonSha256'] != args.addon_sha256:
             raise ValueError('Addon changed before distribution assembly')
-        receipt = finalize_distribution(staging, args.output, receipt, dialogue_scene, dialogue_scene_sha256, java=args.java)
+        receipt = finalize_distribution(staging, args.output, receipt, dialogue_scene, dialogue_scene_sha256, java=args.java, host_contract=args.dialogue_host_contract)
     print(json.dumps(receipt, indent=2))
 
 

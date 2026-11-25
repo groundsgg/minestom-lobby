@@ -321,6 +321,58 @@ class DialogueDistributionTest(unittest.TestCase):
                 'catalog': dict(self.pin('catalog'), id='grounds:resourcepacks'),
                 'sceneSha256': 'f' * 64}  # Legacy Stage acceptance scene, a different input.
 
+    def test_authored_id_needs_explicit_trusted_contract_and_keeps_five_pins(self):
+        self.fixture()
+        self.manifest['dialogueId'] = 'author:arrival'
+        self.refresh()
+        with self.assertRaises(ValueError):
+            self.verify()
+        receipt = distribution.verify_dialogue_profile(self.root, self.scene_sha,
+                                                       host_contract='grounds:lobby-guide')
+        self.assertEqual(receipt['id'], 'grounds:lobby-guide')
+        self.assertEqual(set(self.manifest['files']), {'executable', 'serverContent', 'addon', 'catalog', 'scene'})
+        for contract in ('author:arrival', True, 'grounds:stage-dialogue'):
+            with self.assertRaises(ValueError):
+                distribution.verify_dialogue_profile(self.root, self.scene_sha, host_contract=contract)
+
+    def test_explicit_contract_is_forwarded_and_failure_cannot_publish(self):
+        self.fixture(); (self.root / 'inputs').mkdir()
+        selected = self.root / 'inputs/selected'; selected.mkdir(); (selected / 'scene.json').write_bytes(self.scene)
+        output = self.root / 'out'
+        def exporter(command, **kwargs):
+            self.assertEqual(command[-2:], ['--host-contract', 'grounds:lobby-guide'])
+            raise subprocess.CalledProcessError(1, command)
+        with mock.patch.object(distribution.subprocess, 'run', side_effect=exporter):
+            with self.assertRaises(subprocess.CalledProcessError):
+                distribution.finalize_distribution(self.root, output, self.qualified_receipt(), selected,
+                                                   self.scene_sha, host_contract='grounds:lobby-guide')
+        self.assertFalse(output.exists()); self.assertFalse((self.root / 'receipt.json').exists())
+
+    def test_authored_finalizer_preserves_explicit_contract_through_reverification(self):
+        self.fixture(); self.manifest['dialogueId'] = 'author:arrival'; self.refresh()
+        (self.root / 'inputs').mkdir()
+        selected = self.root / 'inputs/selected'; selected.mkdir(); (selected / 'scene.json').write_bytes(self.scene)
+        output = self.root.parent / (self.root.name + '-authored')
+        self.addCleanup(lambda: __import__('shutil').rmtree(output, ignore_errors=True))
+        def exporter(command, **kwargs):
+            self.assertEqual(command[-2:], ['--host-contract', 'grounds:lobby-guide'])
+        with mock.patch.object(distribution.subprocess, 'run', side_effect=exporter):
+            receipt = distribution.finalize_distribution(self.root, output, self.qualified_receipt(), selected,
+                                                        self.scene_sha, host_contract='grounds:lobby-guide')
+        self.assertEqual(receipt['dialogueProfile']['id'], 'grounds:lobby-guide')
+        self.assertTrue(output.is_dir())
+
+    def test_invalid_or_unpaired_host_contract_never_invokes_exporter(self):
+        self.fixture()
+        for contract in (True, 'author:arrival', 'grounds:lobby-guide'):
+            with mock.patch.object(distribution.subprocess, 'run') as exporter:
+                with self.assertRaises(ValueError):
+                    distribution.finalize_distribution(self.root, self.root / 'out', self.qualified_receipt(),
+                                                       host_contract=contract)
+                exporter.assert_not_called()
+        self.assertFalse((self.root / 'out').exists())
+        self.assertFalse((self.root / 'receipt.json').exists())
+
     def test_rejects_utf16_and_utf32_profiles_after_coherent_repinning(self):
         self.fixture()
         profile_path = self.root / self.names['profile']

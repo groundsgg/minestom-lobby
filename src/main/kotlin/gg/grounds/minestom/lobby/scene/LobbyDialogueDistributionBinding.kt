@@ -96,9 +96,9 @@ internal object LobbyDialogueDistributionBinding {
                 request.identity,
                 request.renderers,
             )
-        val bindings = prepared.dialogueBindings()
+        val bindings = prepared.dialogueBindings(composition.dialogues?.metadataContract)
         val dialogue = bindings.map { it.dialogue }.distinct().singleOrNull()
-        require(dialogue != null) { "Export requires exactly one supported built-in dialogue" }
+        require(dialogue != null) { "Export requires exactly one supported dialogue" }
         require(composition.registrations.keys == setOf(dialogue)) {
             "Dialogue owner registration mismatch"
         }
@@ -146,12 +146,7 @@ internal object LobbyDialogueDistributionBinding {
             "Binding manifest strings must be ASCII"
         }
         val generation = generation(manifest)
-        val id =
-            when (dialogue) {
-                LobbyGuideContent.DIALOGUE_ID -> "grounds:lobby-guide"
-                StageDialogueContent.DIALOGUE_ID -> "grounds:stage-dialogue"
-                else -> error("Unsupported lobby dialogue")
-            }
+        val id = registration.contract.profileId
         val profile =
             LobbyDialogueProfile(
                 id,

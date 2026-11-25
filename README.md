@@ -221,13 +221,17 @@ Add `--dialogue-profile-scene /private/selected-dialogue-scene` to the command a
 export a private Dialogue profile from an explicitly authored scene directory containing
 `scene.json`. This input is snapshotted separately from `--map`: the existing Stage acceptance
 scene remains required and unchanged. The selected dialogue scene must resolve to exactly one
-supported built-in dialogue with role bodies backed by the loaded private models. There is no
-implicit Guide selection.
+scene-bound dialogue with role bodies backed by the loaded private models. Built-in Guide and
+Stage IDs retain their existing defaults. For an authored entry ID, explicitly add
+`--dialogue-host-contract grounds:lobby-guide`; the builder forwards this trusted choice as
+exporter `--host-contract grounds:lobby-guide`. Story IDs never select providers. The Guide
+contract requires one primary NPC start and the `guide` role; Stage remains built-in only.
 
 After standalone and embedded catalog verification, the exact distribution JAR runs
 `gg.grounds.minestom.lobby.scene.LobbyDialogueProfileExport` in a sanitized child environment.
 It installs the real Lobby module and creates the same Scene composition and Dialogue owner
-used at runtime, without starting a listener or invoking menus. The JAR must contain matching
+used at runtime in explicit metadata preparation mode, without starting a listener or invoking menus.
+This mode holds admission closed, contains no validated graph and cannot open a session. The JAR must contain matching
 addon SHA-1 and content-ID resources. The distribution additionally retains:
 
 - `dialogue/profile.json`, with the E1 profile's eight fields.
@@ -239,7 +243,9 @@ addon SHA-1 and content-ID resources. The distribution additionally retains:
 Profile version and host generation are the same SHA-256 of the canonical manifest. The
 manifest binds provider identity, service variant, dialogue/role/provider/catalog metadata,
 validated content ID, and the exact executable, content, addon, catalog and scene hashes/sizes.
-It excludes paths, timestamps, random session/world IDs and output digests. Guide profiles retain
+It excludes paths, timestamps, random session/world IDs and output digests. Authored graphs/texts,
+`grounds/dialogue.json`, author host snapshots and generated profile outputs are not generation
+inputs. Export the profile first, then author the binding from its exact identity and host bytes. Guide profiles retain
 the two installed menu providers; Stage profiles have no action providers. Both keep empty
 gesture, condition and capability claims and disable durable outcomes.
 

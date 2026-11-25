@@ -62,12 +62,23 @@ object LobbyDialogueProfileExport {
     }
 
     internal fun export(arguments: Array<String>, environment: Map<String, String>) {
-        require(arguments.size == 4) { "Expected --distribution ROOT --scene DIR" }
+        require(arguments.size in setOf(4, 6)) {
+            "Expected --distribution ROOT --scene DIR [--host-contract ID]"
+        }
         val options = arguments.toList().chunked(2)
-        require(options.map { it[0] }.toSet() == setOf("--distribution", "--scene")) {
+        require(
+            options.map { it[0] }.distinct().size == options.size &&
+                options.map { it[0] }.toSet() in
+                    setOf(
+                        setOf("--distribution", "--scene"),
+                        setOf("--distribution", "--scene", "--host-contract"),
+                    )
+        ) {
             "Expected unique distribution and scene flags"
         }
         val flags = options.associate { it[0] to it[1] }
+        val selectedContract =
+            flags["--host-contract"]?.let(LobbyDialogueHostContract::fromProfileId)
         requireToolingEnvironment(environment)
         require(System.getProperty("grounds.npc.content") == null) {
             "Export requires explicit distribution content"
@@ -179,7 +190,13 @@ object LobbyDialogueProfileExport {
                 ) {
                     "Selected scene is missing"
                 }
-            composition = LobbySceneComposition.create(prepared, instance, services)
+            val contract =
+                selectedContract
+                    ?: LobbyDialogueHostContract.forBuiltIn(
+                        prepared.dialogueBindings().map { it.dialogue }.distinct().single()
+                    )
+            composition =
+                LobbySceneComposition.prepareMetadata(prepared, instance, services, contract)
             bound = LobbyDialogueDistributionBinding.manifest(composition, provider, content, pins)
         } catch (caught: Throwable) {
             failure = caught

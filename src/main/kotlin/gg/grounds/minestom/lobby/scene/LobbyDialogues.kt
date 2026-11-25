@@ -46,6 +46,7 @@ internal class LobbyDialogues(
     private val observeLocale: (Player, Runnable) -> AutoCloseable =
         gg.grounds.minigame.minestom.SidebarLocale::observe,
     private val admission: LobbyDialogueAdmission = LobbyDialogueAdmission(false),
+    internal val metadataContract: LobbyDialogueHostContract? = null,
 ) : LobbySceneDialogueStarter {
     private val lock = Any()
     @Volatile private var closed = false
@@ -86,10 +87,21 @@ internal class LobbyDialogues(
             bindings
                 .map { it.dialogue }
                 .distinct()
-                .associateWith { LobbyDialogueHostRegistration.create(it, navigator, queues) }
+                .associateWith {
+                    if (metadataContract == null)
+                        LobbyDialogueHostRegistration.create(it, navigator, queues)
+                    else
+                        LobbyDialogueHostRegistration.create(
+                            metadataContract,
+                            it,
+                            navigator,
+                            queues,
+                        )
+                }
         )
     private val contents =
-        registrations.mapValues { (dialogue, registration) ->
+        (if (metadataContract == null) registrations else emptyMap()).mapValues {
+            (dialogue, registration) ->
             when (dialogue) {
                 StageDialogueContent.DIALOGUE_ID ->
                     StageDialogueContent.validated(generation, registration)
@@ -179,7 +191,8 @@ internal class LobbyDialogues(
         speaker: String,
     ): CompletionStage<SceneActionResult> =
         synchronized(lock) {
-            if (!admission.allowed) return rejected("Lobby dialogue admission denied")
+            if (metadataContract != null || !admission.allowed)
+                return rejected("Lobby dialogue admission denied")
             val binding =
                 bindings.singleOrNull {
                     it.elementId == context.elementId &&
