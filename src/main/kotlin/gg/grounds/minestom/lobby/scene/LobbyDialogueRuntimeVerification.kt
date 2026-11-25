@@ -79,8 +79,9 @@ internal object LobbyDialogueRuntimeVerification {
                     require(integer(record["size"]) >= 0)
                     if (role == "addon") require(sha1.matches(string(record["sha1"])))
                     requireSafe(path)
-                    jsonLimit(role)?.let { requireSize(path, it) }
-                    val pin = LobbyDialogueDistributionBinding.pin(path, role == "addon")
+                    val pin =
+                        jsonLimit(role)?.let { LobbyDialogueFileSnapshot.pin(bounded(path, it)) }
+                            ?: LobbyDialogueDistributionBinding.pin(path, role == "addon")
                     require(
                         LobbyDialogueDistributionBinding.canonical(
                             JsonParser.parseString(
@@ -98,17 +99,20 @@ internal object LobbyDialogueRuntimeVerification {
             strictJson(bounded(paths.getValue("scene"), 16 * 1024 * 1024))
             phase = "runtime_provenance_invalid"
             val executable = paths.getValue("executable")
-            listOf(
+            val actual = requireNotNull(composition)
+            val serviceTypes = actual.registrations.values.flatMap { it.requireQualifiedServices() }
+            val runtimeTypes =
+                listOf(
                     LobbyDialogueRuntimeVerification::class.java,
                     GroundsAssetCatalog::class.java,
                     GroundsPluginLobbyProvider::class.java,
                     NpcAddonBinding::class.java,
-                )
-                .forEach { type ->
-                    val origin =
-                        Path.of(requireNotNull(type.protectionDomain.codeSource).location.toURI())
-                    require(Files.isSameFile(origin, executable))
-                }
+                ) + serviceTypes
+            LobbyDialogueExecutableIdentity.requireOpened(
+                executable,
+                pins.getValue("executable"),
+                runtimeTypes,
+            )
             listOf(
                     "gg/grounds/minestom/lobby/npc-content-id.txt",
                     "gg/grounds/minestom/lobby/npc-addon-sha1.txt",
@@ -122,11 +126,9 @@ internal object LobbyDialogueRuntimeVerification {
             )
             NpcAddonBinding.load().requireMatches(pins.getValue("addon").getValue("sha1") as String)
             phase = "runtime_scene_invalid"
-            val actual = requireNotNull(composition)
             val source = requireNotNull(selectedRawScene)
             requireSafe(source)
-            requireSize(source, 16 * 1024 * 1024)
-            val selectedPin = LobbyDialogueDistributionBinding.pin(source)
+            val selectedPin = LobbyDialogueFileSnapshot.pin(bounded(source, 16 * 1024 * 1024))
             require(selectedPin == pins.getValue("scene"))
             val content = requireRuntimeSnapshot(actual, selectedPin, transformedScene)
             phase = "runtime_content_invalid"
@@ -157,13 +159,17 @@ internal object LobbyDialogueRuntimeVerification {
             phase = "inputs_changed"
             paths.forEach { (role, path) ->
                 requireSafe(path)
-                jsonLimit(role)?.let { requireSize(path, it) }
-                require(
-                    LobbyDialogueDistributionBinding.pin(path, role == "addon") ==
-                        pins.getValue(role)
-                )
+                val current =
+                    jsonLimit(role)?.let { LobbyDialogueFileSnapshot.pin(bounded(path, it)) }
+                        ?: LobbyDialogueDistributionBinding.pin(path, role == "addon")
+                require(current == pins.getValue(role))
             }
-            require(LobbyDialogueDistributionBinding.pin(source) == selectedPin)
+            require(LobbyDialogueFileSnapshot.pin(bounded(source, 16 * 1024 * 1024)) == selectedPin)
+            LobbyDialogueExecutableIdentity.requireOpened(
+                executable,
+                pins.getValue("executable"),
+                runtimeTypes,
+            )
             require(bounded(binding, 1048576).contentEquals(receiptBytes))
             Admitted(generation)
         } catch (_: Exception) {
@@ -204,27 +210,9 @@ internal object LobbyDialogueRuntimeVerification {
             else -> null
         }
 
-    private fun requireSize(path: Path, limit: Int) {
-        val attributes =
-            Files.readAttributes(
-                path,
-                java.nio.file.attribute.BasicFileAttributes::class.java,
-                NOFOLLOW_LINKS,
-            )
-        require(attributes.isRegularFile && attributes.size() <= limit)
-    }
-
     private fun bounded(path: Path, limit: Int): ByteArray {
         requireSafe(path)
-        requireSize(path, limit)
-        val before = LobbyDialogueDistributionBinding.pin(path)
-        require((before.getValue("size") as Long) <= limit)
-        val bytes = Files.newInputStream(path, NOFOLLOW_LINKS).use { it.readNBytes(limit + 1) }
-        require(
-            bytes.size <= limit && LobbyDialogueDistributionBinding.hash(bytes) == before["sha256"]
-        )
-        require(LobbyDialogueDistributionBinding.pin(path) == before)
-        return bytes
+        return LobbyDialogueFileSnapshot.file(path, limit)
     }
 
     internal fun requireResource(executable: Path, name: String) {

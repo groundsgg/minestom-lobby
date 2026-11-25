@@ -15,7 +15,11 @@ private constructor(val dialogueId: String, providers: List<ActionProvider>) {
     internal constructor(
         val key: String,
         private val operation: ((Player) -> CompletionStage<Boolean>)?,
+        private val service: Any? = null,
     ) {
+        internal val serviceType: Class<*>?
+            get() = service?.javaClass
+
         val spec = HostCatalog.ProviderSpec(emptyMap(), false)
         val installed: Boolean
             get() = operation != null
@@ -49,6 +53,31 @@ private constructor(val dialogueId: String, providers: List<ActionProvider>) {
         }
     }
 
+    internal fun requireQualifiedServices(): List<Class<*>> {
+        requireExportReady()
+        return actionProviders.map { provider ->
+            val expected =
+                when (provider.key) {
+                    LobbyGuideContent.NAVIGATOR_ACTION ->
+                        "gg.grounds.lobby.DefaultLobbyNavigatorService"
+                    LobbyGuideContent.DUELS_ACTION -> "gg.grounds.lobby.DefaultLobbyQueueService"
+                    else -> error("Unqualified action provider")
+                }
+            val actual = requireNotNull(provider.serviceType)
+            require(
+                actual ===
+                    Class.forName(
+                        expected,
+                        false,
+                        gg.grounds.lobby.GroundsPluginLobbyProvider::class.java.classLoader,
+                    )
+            ) {
+                "Installed dialogue service is not the qualified provider implementation"
+            }
+            actual
+        }
+    }
+
     companion object {
         fun create(
             dialogueId: String,
@@ -62,10 +91,12 @@ private constructor(val dialogueId: String, providers: List<ActionProvider>) {
                             ActionProvider(
                                 LobbyGuideContent.NAVIGATOR_ACTION,
                                 navigator?.let { it::open },
+                                navigator,
                             ),
                             ActionProvider(
                                 LobbyGuideContent.DUELS_ACTION,
                                 queues?.let { it::openDuels },
+                                queues,
                             ),
                         )
                     StageDialogueContent.DIALOGUE_ID -> emptyList()
