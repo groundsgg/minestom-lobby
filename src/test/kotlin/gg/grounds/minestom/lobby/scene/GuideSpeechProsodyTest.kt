@@ -44,6 +44,49 @@ class GuideSpeechProsodyTest {
     }
 
     @Test
+    fun `German multipart abbreviations suppress periods across Unicode whitespace`() {
+        for (space in listOf(" ", "  ", "\u00a0", "\u202f", "\u2007", "\t")) {
+            for (first in
+                listOf(
+                    "Du kannst z.${space}B. hier spielen.",
+                    "Das bedeutet d.${space}h. hier etwas.",
+                    "Hier geht u.${space}a. dieser Weg.",
+                )) {
+                val text = first + " Danach geht es weiter."
+                val points = breaks(text, "de-DE")
+                assertEquals(
+                    listOf(Graphemes.split(first).size, Graphemes.split(text).size),
+                    points.map { it.count },
+                    text,
+                )
+                assertEquals(listOf(240, 240), points.map { it.pauseMillis }, text)
+            }
+        }
+        val text =
+            "👩‍👩‍👧‍👦 é: Dr. A. Meier kann\u00a0z.\u00a0B.\u00a0dort spielen. Danach geht es weiter."
+        val points = breaks(text, "de")
+        assertEquals(listOf(180, 240, 240), points.map { it.pauseMillis })
+        assertEquals(Graphemes.split(text.substringBefore(" Danach")).size, points[1].count)
+    }
+
+    @Test
+    fun `incomplete multipart spellings retain their genuine sentence stops`() {
+        for (first in listOf("Das endet z.", "Das endet d.", "Das endet az.")) {
+            val text = first + " Danach geht es weiter."
+            assertEquals(
+                listOf(Graphemes.split(first).size, Graphemes.split(text).size),
+                breaks(text, "de").map { it.count },
+                text,
+            )
+        }
+        val text = "Das endet d. Heute geht es weiter."
+        assertEquals(
+            listOf(Graphemes.split("Das endet d.").size, Graphemes.split(text).size),
+            breaks(text, "de").map { it.count },
+        )
+    }
+
+    @Test
     fun `URL queries and email token punctuation never create interior pauses`() {
         val points =
             breaks("Open https://a.b:8443/x?q=one,two;v=2.4 and mail a.b@example.com. Done!")

@@ -30,8 +30,9 @@ internal object GuideSpeechProsody {
     fun boundaries(text: String, locale: String): List<GuideSpeechBoundary> {
         val graphemes = Graphemes.split(text)
         val result = mutableListOf<GuideSpeechBoundary>()
+        val language = locale.substringBefore('-').lowercase()
         val abbreviations =
-            when (locale.substringBefore('-').lowercase()) {
+            when (language) {
                 "de" ->
                     setOf(
                         "dr.",
@@ -60,6 +61,9 @@ internal object GuideSpeechProsody {
                         "u.s.",
                     )
             }
+        val multipartPeriods =
+            if (language == "de") multipartAbbreviationPeriods(graphemes, abbreviations)
+            else emptySet()
         fun punctuation(value: String) =
             value in setOf(",", "，", "、", ":", ";", ".", "!", "?", "。", "！", "？", "…")
         var i = 0
@@ -125,7 +129,8 @@ internal object GuideSpeechProsody {
                         .trimStart('(', '[', '“', '"')
                 val abbreviation =
                     value == "." &&
-                        (token.lowercase() in abbreviations ||
+                        (i in multipartPeriods ||
+                            token.lowercase() in abbreviations ||
                             token.matches(Regex("[A-Z]\\.")) ||
                             token.matches(Regex("(?:[A-Za-z]\\.){2,}")))
                 if (numeric || internal || abbreviation) {
@@ -171,6 +176,55 @@ internal object GuideSpeechProsody {
             i = end
         }
         return java.util.List.copyOf(result)
+    }
+
+    /** Recognize only reviewed multipart spellings; offsets remain SDK grapheme indices. */
+    private fun multipartAbbreviationPeriods(
+        graphemes: List<String>,
+        abbreviations: Set<String>,
+    ): Set<Int> {
+        val patterns =
+            abbreviations.filter { word -> word.count { it == '.' } > 1 }.map(Graphemes::split)
+        val periods = mutableSetOf<Int>()
+        for (start in graphemes.indices) {
+            if (
+                graphemes
+                    .getOrNull(start - 1)
+                    ?.codePoints()
+                    ?.anyMatch(Character::isLetterOrDigit) == true
+            )
+                continue
+            for (pattern in patterns) {
+                var cursor = start
+                val matchedPeriods = mutableListOf<Int>()
+                var matched = true
+                for ((index, expected) in pattern.withIndex()) {
+                    if (index > 0 && pattern[index - 1] == ".") {
+                        while (
+                            cursor < graphemes.size &&
+                                graphemes[cursor].codePoints().allMatch {
+                                    Character.isWhitespace(it) || Character.isSpaceChar(it)
+                                }
+                        ) cursor++
+                    }
+                    if (graphemes.getOrNull(cursor)?.equals(expected, ignoreCase = true) != true) {
+                        matched = false
+                        break
+                    }
+                    if (expected == ".") matchedPeriods += cursor
+                    cursor++
+                }
+                if (
+                    matched &&
+                        graphemes
+                            .getOrNull(cursor)
+                            ?.codePoints()
+                            ?.anyMatch(Character::isLetterOrDigit) != true
+                )
+                    periods += matchedPeriods
+            }
+        }
+        return periods
     }
 
     fun windows(
