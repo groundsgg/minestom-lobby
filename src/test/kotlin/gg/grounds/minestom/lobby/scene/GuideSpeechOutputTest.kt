@@ -186,6 +186,86 @@ class GuideSpeechOutputTest {
         assertEquals(2, fixture.sounds)
     }
 
+    @Test
+    fun `punctuation silence settles the private head without cutting a live clip`() {
+        val fixture = Fixture()
+        val text = "A long complete first sentence. " + "Another complete sentence ".repeat(3)
+        val count = gg.grounds.dialogue.core.text.Graphemes.split(text).size
+        val entered = fixture.now - 35_000_000L
+        val timing =
+            gg.grounds.dialogue.core.runtime.TypingTiming(
+                java.util.UUID(0, 0),
+                1,
+                1,
+                35_000_000L,
+                entered,
+                entered + count * 35_000_000L,
+            )
+        fixture.output.beginSpeech(GuideSpeechContext(text, "en", "explain", count, 1, timing))
+        fixture.output.reveal("A", 1)
+        fixture.ready.complete(NpcPresentationResult.Ready(fixture.handle))
+        assertEquals(1, fixture.handle.published)
+        for (revealed in 2..32) {
+            fixture.now = entered + revealed * 35_000_000L
+            fixture.output.reveal("a", revealed)
+        }
+        assertTrue(
+            fixture.handle.shared > 0,
+            "Private head follows shared pose in punctuation silence",
+        )
+        fixture.stoppedAt.forEachIndexed { index, stop ->
+            assertTrue(stop >= fixture.onsets[index] + fixture.voices[index].durationNanos)
+        }
+        val sounds = fixture.sounds
+        fixture.output.stop(false)
+        fixture.now += 300_000_000L
+        fixture.output.reveal("a", 41)
+        assertEquals(sounds, fixture.sounds)
+    }
+
+    @Test
+    fun `failed Mhm playback does not consume the owner cue budget`() {
+        val bank = testTimedGuideVoiceBank()
+        var now = 35_000_000L
+        var fail = true
+        val voices = mutableListOf<GuideVoice>()
+        val output =
+            GuideSpeechOutput(
+                { true },
+                { true },
+                { null },
+                {
+                    if (fail) throw IllegalStateException("optional transport unavailable")
+                    voices += it
+                },
+                {},
+                { now },
+                bank = bank,
+            )
+        val text = "A long complete explanation ".repeat(6)
+        val count = gg.grounds.dialogue.core.text.Graphemes.split(text).size
+        fun begin(visit: Long) {
+            val timing =
+                gg.grounds.dialogue.core.runtime.TypingTiming(
+                    java.util.UUID(0, 0),
+                    visit,
+                    1,
+                    35_000_000L,
+                    now - 35_000_000L,
+                    now + count * 35_000_000L,
+                )
+            output.beginSpeech(GuideSpeechContext(text, "en", "games", count, 1, timing))
+            output.reveal("A", 1)
+        }
+        begin(1)
+        assertTrue(voices.isEmpty())
+        fail = false
+        now += 7_000_000_000L
+        begin(2)
+        assertEquals("dialogue:guide/ending/end01", voices.single().key)
+        output.close()
+    }
+
     private class Fixture(
         var reduced: Boolean = false,
         talkMillis: Int = 600,
