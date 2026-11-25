@@ -12,16 +12,17 @@ internal object GroundsNpcModelSource {
             System.getProperty("grounds.npc.content") ?: System.getenv("GROUNDS_NPC_CONTENT")
         configured?.let {
             require(it.isNotBlank()) { "NPC content path must not be blank" }
-            read(java.nio.file.Path.of(it)).also(::requireBinding)
+            capture(java.nio.file.Path.of(it)).also { loaded -> requireBinding(loaded.content) }
         }
     }
 
     /** One immutable snapshot per host startup; absent configuration means neutral content. */
-    fun load(assets: AssetCatalog): Map<AssetKey, NpcModel> = models(assets, configuredContent)
+    fun load(assets: AssetCatalog): Map<AssetKey, NpcModel> =
+        configuredContent?.also { validate(assets, it.models) }?.models ?: emptyMap()
 
     /** Explicit path for tooling and host tests. Configured errors are never treated as absence. */
     fun load(assets: AssetCatalog, contentPath: java.nio.file.Path?): Map<AssetKey, NpcModel> =
-        models(assets, contentPath?.let(::read))
+        contentPath?.let(::capture)?.also { validate(assets, it.models) }?.models ?: emptyMap()
 
     private fun read(path: java.nio.file.Path): gg.grounds.npc.core.io.content.NpcContent {
         val content = gg.grounds.npc.core.io.content.NpcContentLoader.load(path)
@@ -64,21 +65,83 @@ internal object GroundsNpcModelSource {
     }
 
     fun loadRequired(assets: AssetCatalog, path: java.nio.file.Path): LoadedContent {
-        val content = read(path)
-        requireContentBinding(content.contentId)
-        return LoadedContent(content, models(assets, content))
+        return capture(path).also {
+            requireContentBinding(it.contentId)
+            validate(assets, it.models)
+        }
     }
 
     class LoadedContent
     internal constructor(
-        private val content: gg.grounds.npc.core.io.content.NpcContent,
+        internal val content: gg.grounds.npc.core.io.content.NpcContent,
         val models: Map<AssetKey, NpcModel>,
+        val sourcePin: Map<String, Any> = emptyMap(),
     ) {
         val contentId
             get() = content.contentId
 
         fun verifyAddon(path: java.nio.file.Path) = content.verifyResourcePack(path)
     }
+
+    private fun capture(path: java.nio.file.Path): LoadedContent {
+        if (java.nio.file.Files.isDirectory(path, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+            val content = read(path)
+            return LoadedContent(
+                content,
+                Collections.unmodifiableMap(content.models.mapKeys { AssetKey(it.key) }),
+            )
+        }
+        val before = LobbyDialogueDistributionBinding.pin(path)
+        val snapshot = java.nio.file.Files.createTempFile("lobby-npc-snapshot-", ".zip")
+        try {
+            java.nio.file.Files.newInputStream(path, java.nio.file.LinkOption.NOFOLLOW_LINKS).use {
+                input ->
+                java.nio.file.Files.newOutputStream(snapshot).use { output -> input.copyTo(output) }
+            }
+            require(LobbyDialogueDistributionBinding.pin(snapshot) == before) {
+                "NPC content changed while copying"
+            }
+            val content = read(snapshot)
+            require(LobbyDialogueDistributionBinding.pin(path) == before) {
+                "NPC content changed while loading"
+            }
+            val models = CapturedModels(content, before)
+            return LoadedContent(content, models, before)
+        } finally {
+            java.nio.file.Files.deleteIfExists(snapshot)
+        }
+    }
+
+    private class CapturedModels(
+        val content: gg.grounds.npc.core.io.content.NpcContent,
+        val pin: Map<String, Any>,
+    ) :
+        Map<AssetKey, NpcModel> by Collections.unmodifiableMap(
+            content.models.mapKeys { AssetKey(it.key) }
+        )
+
+    internal fun snapshot(models: Map<AssetKey, NpcModel>): LoadedContent? =
+        (models as? CapturedModels)?.let { LoadedContent(it.content, models, it.pin) }
+
+    internal class RendererSnapshot(
+        val content: LoadedContent?,
+        val sourcePin: Map<String, Any>,
+        val effectiveScene: SceneDocument,
+    )
+
+    private class CapturedRenderers(
+        delegate: gg.grounds.scene.minestom.SceneAssetRendererRegistry,
+        val snapshot: RendererSnapshot,
+    ) : gg.grounds.scene.minestom.SceneAssetRendererRegistry by delegate
+
+    internal fun remember(
+        registry: gg.grounds.scene.minestom.SceneAssetRendererRegistry,
+        snapshot: RendererSnapshot,
+    ): gg.grounds.scene.minestom.SceneAssetRendererRegistry = CapturedRenderers(registry, snapshot)
+
+    internal fun rendererSnapshot(
+        registry: gg.grounds.scene.minestom.SceneAssetRendererRegistry
+    ): RendererSnapshot? = (registry as? CapturedRenderers)?.snapshot
 
     private fun models(
         assets: AssetCatalog,

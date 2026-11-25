@@ -35,6 +35,8 @@ internal class LobbySceneLoader(
                 throw IllegalStateException("Cannot inspect lobby scene $file", failure)
             }
         check(attributes.isRegularFile) { "Lobby scene $file must be a regular, non-symlink file" }
+        check(attributes.size() <= MAX_SCENE_BYTES) { "Lobby scene exceeds 16 MiB" }
+        val sourcePin = LobbyDialogueDistributionBinding.pin(file)
         val bytes =
             try {
                 Files.newInputStream(file, READ, NOFOLLOW_LINKS).use {
@@ -44,6 +46,9 @@ internal class LobbySceneLoader(
                 throw IllegalStateException("Cannot read lobby scene $file", failure)
             }
         check(bytes.size <= MAX_SCENE_BYTES) { "Lobby scene $file exceeds 16 MiB" }
+        check(LobbyDialogueDistributionBinding.hash(bytes) == sourcePin["sha256"]) {
+            "Lobby scene changed while loading"
+        }
         val scene =
             when (val decoded = SceneJson.decode(bytes)) {
                 is SceneDecodeResult.Success -> decoded.scene
@@ -155,13 +160,16 @@ internal class LobbySceneLoader(
                         0,
                     )
             }
-        return PreparedLobbyScene(
-            scene,
-            assets,
-            actions,
-            identity,
-            SceneAssetRendererRegistry { asset, kind -> snapshot[asset to kind] },
-        )
+        val registry =
+            GroundsNpcModelSource.remember(
+                SceneAssetRendererRegistry { asset, kind -> snapshot[asset to kind] },
+                GroundsNpcModelSource.RendererSnapshot(
+                    (renderers as? LobbySceneRenderers)?.contentSnapshot,
+                    sourcePin,
+                    scene,
+                ),
+            )
+        return PreparedLobbyScene(scene, assets, actions, identity, registry)
     }
 
     private companion object {
