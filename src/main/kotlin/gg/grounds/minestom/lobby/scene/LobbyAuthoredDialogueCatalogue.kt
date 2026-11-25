@@ -10,6 +10,7 @@ import gg.grounds.dialogue.core.validation.ValidationLimits
 import gg.grounds.dialogue.json.DialogueCatalogLoader
 import gg.grounds.scene.format.AssetKind
 import gg.grounds.scene.format.Npc
+import java.util.Locale
 
 /** Entire captured catalogue or failure; loading does not admit a scene or a session. */
 internal object LobbyAuthoredDialogueCatalogue {
@@ -43,8 +44,11 @@ internal object LobbyAuthoredDialogueCatalogue {
         val texts: TextCatalog = validated.texts()
         val resolver: TextResolver = TextResolver.catalogue(texts, defaultLocale)
 
-        fun locale(requested: String, revision: Long) =
-            LocaleContext(requested, revision, defaultLocale)
+        fun locale(requested: String, revision: Long): LocaleContext {
+            val selected = Locale.forLanguageTag(requested.replace('_', '-'))
+            val tag = if (selected.language.isEmpty()) defaultLocale else selected.toLanguageTag()
+            return LocaleContext(tag, revision, defaultLocale)
+        }
     }
 
     class Candidate
@@ -121,12 +125,19 @@ internal object LobbyAuthoredDialogueCatalogue {
             val actual = registrations.getValue(primary)
             require(actual.contract == contract && actual.dialogueId == primary)
             actual.requireExportReady()
+            val scopedCatalogues = mutableMapOf<Set<String>, TextCatalog>()
+            val checkedTexts =
+                mutableMapOf<Pair<Set<String>, String>, MutableSet<Pair<String, String>>>()
             val result =
                 entries.mapValues { (id, source) ->
                     val definition = source.definition()
                     val supported = definition.locales().supported().toSet()
                     val scoped =
-                        TextCatalog(source.texts().locales().filterKeys { it in supported })
+                        scopedCatalogues.getOrPut(supported) {
+                            if (source.texts().locales().keys == supported) source.texts()
+                            else
+                                TextCatalog(source.texts().locales().filterKeys { it in supported })
+                        }
                     val report =
                         DialogueValidator()
                             .validate(
@@ -138,9 +149,65 @@ internal object LobbyAuthoredDialogueCatalogue {
                     require(report.isValid()) {
                         "Runtime dialogue invalid (dialogue=$id, problems=${report.problems()})"
                     }
-                    Entry(requireNotNull(report.validated()))
+                    Entry(requireNotNull(report.validated())).also { entry ->
+                        preflightTexts(
+                            id,
+                            entry,
+                            checkedTexts.getOrPut(supported to entry.defaultLocale) {
+                                mutableSetOf()
+                            },
+                        )
+                    }
                 }
             return java.util.Map.copyOf(result)
+        }
+
+        /** Execute only the SDK's pure resolver, with the runtime's empty text argument context. */
+        private fun preflightTexts(
+            id: String,
+            entry: Entry,
+            checked: MutableSet<Pair<String, String>>,
+        ) {
+            val messages =
+                entry.validated
+                    .definition()
+                    .nodes()
+                    .values
+                    .filterIsInstance<DialogueDefinition.Message>()
+            for (locale in entry.supportedLocales) {
+                val context = entry.locale(locale, 0)
+                for (message in messages) {
+                    val keys = linkedSetOf(message.text())
+                    message.choices().forEach { keys.add(it.text) }
+                    val speakerKey = "speaker.${message.speaker()}"
+                    // Optional speaker names are requested only when present in this fallback
+                    // chain.
+                    if (
+                        linkedSetOf(
+                                context.tag(),
+                                Locale.forLanguageTag(context.tag()).language,
+                                context.fallbackTag(),
+                                entry.defaultLocale,
+                            )
+                            .any { entry.texts.locales()[it]?.containsKey(speakerKey) == true }
+                    )
+                        keys.add(speakerKey)
+                    for (key in keys) {
+                        if (!checked.add(locale to key)) continue
+                        try {
+                            entry.resolver
+                                .resolve(TextResolver.TextRequest(key, emptyMap(), context))
+                                .toCompletableFuture()
+                                .join()
+                        } catch (failure: RuntimeException) {
+                            throw IllegalArgumentException(
+                                "Runtime dialogue text unavailable (dialogue=$id, key=$key, locale=$locale, fallbackLocale=${entry.defaultLocale})",
+                                failure.cause ?: failure,
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 

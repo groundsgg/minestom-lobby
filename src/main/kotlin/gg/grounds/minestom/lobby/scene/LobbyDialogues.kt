@@ -270,10 +270,12 @@ internal class LobbyDialogues(
                     return rejected("A dialogue is already active")
                 previous?.let(::release)
                 val session = Session(context.player, binding)
-                session.language = normalize(locale(context.player))
+                val entry = authoredEntries[dialogue]
+                session.language =
+                    entry?.locale(locale(context.player), 0)?.tag()
+                        ?: normalize(locale(context.player))
                 ended.remove(context.player)
                 sessions[context.player] = session
-                val entry = authoredEntries[dialogue]
                 val texts =
                     if (dialogue == LobbyGuideContent.DIALOGUE_ID) LobbyGuideContent.texts
                     else StageDialogueContent.texts
@@ -395,7 +397,10 @@ internal class LobbyDialogues(
                     )
                     return@synchronized
                 }
-                val language = normalize(locale(session.player))
+                val entry = authoredEntries[session.binding.dialogue]
+                val language =
+                    entry?.locale(locale(session.player), session.revision)?.tag()
+                        ?: normalize(locale(session.player))
                 if (language != session.language) {
                     session.language = language
                     session.speech?.invalidate(language)

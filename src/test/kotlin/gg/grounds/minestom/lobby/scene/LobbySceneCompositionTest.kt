@@ -532,6 +532,124 @@ class LobbySceneCompositionTest {
         }
     }
 
+    @Test
+    fun `Stage metadata preserves multiple identical starts and rejects mixed duplicate and conflicting bindings`() {
+        RendererFixture().use { fixture ->
+            val base = prepared(fixture, StageDialogueContent.DIALOGUE_ID)
+            val original = base.scene.elements.filterIsInstance<Npc>().single()
+            fun npc(
+                id: String,
+                body: AssetKey = original.body,
+                bindings: List<TriggerBinding> = original.bindings,
+            ) =
+                Npc(
+                    LocalId(id),
+                    original.group,
+                    original.transform,
+                    original.visible,
+                    original.activation,
+                    body,
+                    original.label,
+                    original.labelOffset,
+                    original.look,
+                    original.initialAnimation,
+                    original.interactionBounds,
+                    original.proximity,
+                    bindings,
+                )
+            fun metadata(elements: List<Npc>) =
+                LobbySceneComposition.prepareMetadata(
+                    base.copy(scene = base.scene.with(elements = elements)),
+                    fixture.instance,
+                    DefaultServiceRegistry(),
+                    LobbyDialogueHostContract.STAGE,
+                )
+            val first = npc("stage-one")
+            val second = npc("stage-two")
+            val composition = metadata(listOf(first, second))
+            try {
+                val bound =
+                    LobbyDialogueDistributionBinding.manifest(
+                        composition,
+                        GroundsPluginLobbyProvider(),
+                        content(),
+                        pins(),
+                    )
+                assertEquals("grounds:stage-dialogue", bound.id)
+                assertEquals(
+                    StageDialogueContent.DIALOGUE_ID,
+                    bound.manifest.asJsonObject["dialogueId"].asString,
+                )
+                assertEquals(
+                    mapOf("guide" to guideKey.value),
+                    bound.manifest.asJsonObject["roles"].asJsonObject.entrySet().associate {
+                        it.key to it.value.asString
+                    },
+                )
+                assertEquals(
+                    setOf(StageDialogueContent.DIALOGUE_ID),
+                    composition.registrations.keys,
+                )
+                assertEquals(
+                    2,
+                    base
+                        .copy(scene = base.scene.with(elements = listOf(first, second)))
+                        .dialogueBindings(LobbyDialogueHostContract.STAGE)
+                        .size,
+                )
+            } finally {
+                composition.dialogues!!.closeAsync().toCompletableFuture().join()
+            }
+            for (invalid in
+                listOf(
+                    listOf(first, first),
+                    listOf(
+                        first,
+                        npc(
+                            "spawn-guide",
+                            bindings =
+                                prepared(fixture, LobbyGuideContent.DIALOGUE_ID)
+                                    .scene
+                                    .elements
+                                    .filterIsInstance<Npc>()
+                                    .single()
+                                    .bindings,
+                        ),
+                    ),
+                    listOf(
+                        first,
+                        npc(
+                            "stage-two",
+                            bindings =
+                                prepared(fixture, StageDialogueContent.DIALOGUE_ID, "intruder")
+                                    .scene
+                                    .elements
+                                    .filterIsInstance<Npc>()
+                                    .single()
+                                    .bindings,
+                        ),
+                    ),
+                )) {
+                assertThrows(IllegalArgumentException::class.java) { metadata(invalid) }
+            }
+            val conflict = metadata(listOf(first, npc("stage-two", AssetKey("test:other"))))
+            try {
+                val failure =
+                    assertThrows(IllegalArgumentException::class.java) {
+                        LobbyDialogueDistributionBinding.manifest(
+                            conflict,
+                            GroundsPluginLobbyProvider(),
+                            content(listOf(guideKey, AssetKey("test:other"))),
+                            pins(),
+                        )
+                    }
+                assertEquals("Conflicting dialogue role bodies", failure.message)
+            } finally {
+                conflict.dialogues!!.closeAsync().toCompletableFuture().join()
+            }
+        }
+    }
+
     companion object {
         @JvmStatic
         @BeforeAll
