@@ -91,14 +91,18 @@ internal object GroundsNpcModelSource {
                 Collections.unmodifiableMap(content.models.mapKeys { AssetKey(it.key) }),
             )
         }
-        val bytes = LobbyDialogueFileSnapshot.file(path, 128 * 1024 * 1024)
+        val bytes = LobbyDialogueFileSnapshot.file(path, 512 * 1024 * 1024)
         val sourcePin = LobbyDialogueFileSnapshot.pin(bytes)
+        val expected = archiveDirectory(bytes)
+        val consumed = hashSetOf<String>()
         val resources = linkedMapOf<String, ByteArray>()
         val names = hashSetOf<String>()
         var total = 0
         java.util.zip.ZipInputStream(bytes.inputStream()).use { archive ->
             while (true) {
                 val entry = archive.nextEntry ?: break
+                val description = requireNotNull(expected[entry.name]) { "Unindexed NPC ZIP entry" }
+                require(consumed.add(entry.name)) { "Duplicate NPC ZIP entry" }
                 val name = entry.name.removeSuffix("/")
                 require(
                     name.isNotEmpty() &&
@@ -126,12 +130,116 @@ internal object GroundsNpcModelSource {
                     resources[name] = payload
                 }
                 archive.closeEntry()
+                require(
+                    entry.method == description.method &&
+                        entry.crc == description.crc &&
+                        entry.size == description.size &&
+                        entry.compressedSize == description.compressedSize
+                ) {
+                    "NPC ZIP entry differs from validated directory"
+                }
             }
         }
+        require(consumed == expected.keys) { "Missing indexed NPC ZIP entry" }
         val content = gg.grounds.npc.core.io.content.NpcContentLoader.load(resources)
         require(content.target == "26.3") { "NPC content must target this host's Minecraft 26.3" }
         val models = CapturedModels(content, sourcePin)
         return LoadedContent(content, models, sourcePin)
+    }
+
+    private data class ZipDescription(
+        val method: Int,
+        val crc: Long,
+        val size: Long,
+        val compressedSize: Long,
+    )
+
+    private fun archiveDirectory(bytes: ByteArray): Map<String, ZipDescription> {
+        // Preserve the SDK's bounded, single-disk, non-ZIP64 directory contract before the
+        // general-purpose parser allocates an index. Parse the exact captured bytes, never a path.
+        fun u16(offset: Int) =
+            (bytes[offset].toInt() and 255) or ((bytes[offset + 1].toInt() and 255) shl 8)
+        fun u32(offset: Int) =
+            (0..3).fold(0L) { value, index ->
+                value or ((bytes[offset + index].toLong() and 255L) shl (index * 8))
+            }
+        require(bytes.size >= 22) { "Missing NPC ZIP directory" }
+        val end =
+            requireNotNull(
+                (bytes.size - 22 downTo maxOf(0, bytes.size - 65557)).firstOrNull {
+                    u32(it) == 0x06054b50L && it + 22 + u16(it + 20) == bytes.size
+                }
+            ) {
+                "Missing NPC ZIP directory"
+            }
+        val count = u16(end + 10)
+        val offset = u32(end + 16)
+        require(
+            u16(end + 4) == 0 &&
+                u16(end + 6) == 0 &&
+                u16(end + 8) == count &&
+                count <= 8192 &&
+                offset + u32(end + 12) == end.toLong()
+        ) {
+            "Unsupported NPC ZIP directory"
+        }
+        var cursor = offset.toInt()
+        repeat(count) {
+            require(cursor >= 0 && cursor.toLong() + 46 <= end && u32(cursor) == 0x02014b50L) {
+                "Truncated NPC ZIP directory"
+            }
+            val nameSize = u16(cursor + 28)
+            val next = cursor + 46 + nameSize + u16(cursor + 30) + u16(cursor + 32)
+            require(
+                nameSize in 1..1025 &&
+                    next <= end &&
+                    u32(cursor + 20) != 0xffffffffL &&
+                    u32(cursor + 24) != 0xffffffffL
+            ) {
+                "Invalid NPC ZIP directory entry"
+            }
+            cursor = next
+        }
+        require(cursor == end) { "Unvalidated NPC ZIP directory entries" }
+        return org.apache.commons.compress.archivers.zip.ZipFile.builder()
+            .setSeekableByteChannel(
+                org.apache.commons.compress.utils.SeekableInMemoryByteChannel(bytes)
+            )
+            .setUseUnicodeExtraFields(false)
+            .get()
+            .use { archive ->
+                val result = linkedMapOf<String, ZipDescription>()
+                archive.entries.asSequence().forEach { entry ->
+                    val rawName =
+                        Charsets.UTF_8.newDecoder()
+                            .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                            .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                            .decode(java.nio.ByteBuffer.wrap(entry.rawName))
+                            .toString()
+                    require(
+                        entry.name == rawName &&
+                            entry.diskNumberStart == 0L &&
+                            (entry.externalAttributes ushr 16).toInt() and 0xf000 != 0xa000
+                    ) {
+                        "Unsupported NPC ZIP entry"
+                    }
+                    require(
+                        result.put(
+                            rawName,
+                            ZipDescription(
+                                entry.method,
+                                entry.crc,
+                                entry.size,
+                                entry.compressedSize,
+                            ),
+                        ) == null
+                    ) {
+                        "Duplicate NPC ZIP directory entry"
+                    }
+                }
+                require(result.size == count) { "NPC ZIP directory count mismatch" }
+                result
+            }
     }
 
     private class CapturedModels(

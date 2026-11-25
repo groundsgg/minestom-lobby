@@ -58,6 +58,43 @@ class LobbyDialogueRuntimeSnapshotTest {
         return path
     }
 
+    @Test
+    fun `truncated central directory with intact local payloads cannot load`() {
+        val path = content()
+        val bytes = Files.readAllBytes(path)
+        val centralOffset =
+            java.nio.ByteBuffer.wrap(bytes)
+                .order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                .getInt(bytes.size - 6)
+        Files.write(path, bytes.copyOf(centralOffset))
+        assertThrows(Exception::class.java) {
+            gg.grounds.npc.core.io.content.NpcContentLoader.load(path)
+        }
+        assertThrows(Exception::class.java) { GroundsNpcModelSource.load(assets, path) }
+    }
+
+    @Test
+    fun `central metadata and membership must agree with streamed local records`() {
+        listOf(10, 16, 20, 24, 46).forEach { field ->
+            val path = content()
+            val bytes = Files.readAllBytes(path)
+            val centralOffset =
+                java.nio.ByteBuffer.wrap(bytes)
+                    .order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                    .getInt(bytes.size - 6)
+            bytes[centralOffset + field] = (bytes[centralOffset + field].toInt() xor 1).toByte()
+            Files.write(path, bytes)
+            assertThrows(Exception::class.java) {
+                gg.grounds.npc.core.io.content.NpcContentLoader.load(path)
+            }
+            assertThrows(
+                Exception::class.java,
+                { GroundsNpcModelSource.load(assets, path) },
+                "directory field=$field",
+            )
+        }
+    }
+
     private fun prepared(
         models: Map<AssetKey, gg.grounds.npc.core.model.NpcModel>
     ): PreparedLobbyScene {
