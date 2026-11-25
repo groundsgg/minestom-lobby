@@ -123,5 +123,19 @@ internal fun PreparedLobbyScene.withDialogueLabels(
                 },
             )
     }
-    return copy(scene = document, renderers = owner.captureGuideRenderers(registry))
+    var captured = owner.captureGuideRenderers(registry)
+    GroundsNpcModelSource.rendererSnapshot(renderers)
+        ?.takeIf { it.effectiveScene === scene }
+        ?.let { provenance ->
+            captured =
+                GroundsNpcModelSource.remember(
+                    captured,
+                    GroundsNpcModelSource.RendererSnapshot(
+                        provenance.content,
+                        provenance.sourcePin,
+                        document,
+                    ),
+                )
+        }
+    return copy(scene = document, renderers = captured)
 }
