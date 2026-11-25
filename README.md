@@ -272,6 +272,16 @@ classpath arrangements remain supported for unconfigured startup only. Stage pre
 scene transformations cannot qualify. Ordinary Docker packaging does not add private artifacts;
 mount and configure this distribution explicitly.
 
+Configured verification currently requires Linux with readable `/proc/self/fd` and the standard
+JVM application classloader. Before opening any verification archives, it requires exactly one
+already-open executable archive handle, checks its inode and pinned bytes, and checks again before
+admission. Missing, ambiguous or replaced handles deny Dialogue admission. Launch using the exact
+mounted executable path; custom classloaders and archive launch aliases are not qualified.
+Keep the executable mounted read-only and never modify it in place during the JVM's lifetime:
+open-handle checks detect atomic pathname replacement, but cannot reconstruct already-loaded
+class bytes after an in-place rewrite. Unconfigured startup retains its existing platform behavior.
+NPC ZIP snapshots load in bounded memory and do not require writable temporary storage.
+
 With neither variable present, existing startup behavior is preserved. Either variable being
 present enables verification, including blank, incomplete or malformed configuration. Dialogue
 admission remains closed until verification succeeds. A verification denial rejects scene and

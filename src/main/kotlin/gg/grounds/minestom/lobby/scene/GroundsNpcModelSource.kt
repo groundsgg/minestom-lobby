@@ -91,25 +91,47 @@ internal object GroundsNpcModelSource {
                 Collections.unmodifiableMap(content.models.mapKeys { AssetKey(it.key) }),
             )
         }
-        val before = LobbyDialogueDistributionBinding.pin(path)
-        val snapshot = java.nio.file.Files.createTempFile("lobby-npc-snapshot-", ".zip")
-        try {
-            java.nio.file.Files.newInputStream(path, java.nio.file.LinkOption.NOFOLLOW_LINKS).use {
-                input ->
-                java.nio.file.Files.newOutputStream(snapshot).use { output -> input.copyTo(output) }
+        val bytes = LobbyDialogueFileSnapshot.file(path, 128 * 1024 * 1024)
+        val sourcePin = LobbyDialogueFileSnapshot.pin(bytes)
+        val resources = linkedMapOf<String, ByteArray>()
+        val names = hashSetOf<String>()
+        var total = 0
+        java.util.zip.ZipInputStream(bytes.inputStream()).use { archive ->
+            while (true) {
+                val entry = archive.nextEntry ?: break
+                val name = entry.name.removeSuffix("/")
+                require(
+                    name.isNotEmpty() &&
+                        name.length <= 1024 &&
+                        !name.startsWith('/') &&
+                        '\\' !in name &&
+                        ':' !in name &&
+                        name.none { it.code < 32 } &&
+                        name.split('/').none { it.isEmpty() || it == "." || it == ".." } &&
+                        java.text.Normalizer.normalize(name, java.text.Normalizer.Form.NFC) == name
+                )
+                require(names.add(name.lowercase(java.util.Locale.ROOT)) && names.size <= 8192) {
+                    "Duplicate or excessive NPC archive entries"
+                }
+                if (entry.isDirectory)
+                    require(archive.read() == -1) { "NPC directory has a payload" }
+                else {
+                    val maximum =
+                        minOf(
+                            64 * 1024 * 1024 - total,
+                            if (name == "bundle.json") 4 * 1024 * 1024 else 2 * 1024 * 1024,
+                        )
+                    val payload = LobbyDialogueFileSnapshot.read(archive, maximum)
+                    total += payload.size
+                    resources[name] = payload
+                }
+                archive.closeEntry()
             }
-            require(LobbyDialogueDistributionBinding.pin(snapshot) == before) {
-                "NPC content changed while copying"
-            }
-            val content = read(snapshot)
-            require(LobbyDialogueDistributionBinding.pin(path) == before) {
-                "NPC content changed while loading"
-            }
-            val models = CapturedModels(content, before)
-            return LoadedContent(content, models, before)
-        } finally {
-            java.nio.file.Files.deleteIfExists(snapshot)
         }
+        val content = gg.grounds.npc.core.io.content.NpcContentLoader.load(resources)
+        require(content.target == "26.3") { "NPC content must target this host's Minecraft 26.3" }
+        val models = CapturedModels(content, sourcePin)
+        return LoadedContent(content, models, sourcePin)
     }
 
     private class CapturedModels(

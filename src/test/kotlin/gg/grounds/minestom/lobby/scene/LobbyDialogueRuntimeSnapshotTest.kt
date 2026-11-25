@@ -176,6 +176,36 @@ class LobbyDialogueRuntimeSnapshotTest {
         }
     }
 
+    @Test
+    fun `ordinary archive loading needs no writable temporary directory`() {
+        val process =
+            ProcessBuilder(
+                    Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                    "-Djava.io.tmpdir=" + directory.resolve("missing-temp"),
+                    "-cp",
+                    requireNotNull(System.getProperty("lobby.test.runtimeClasspath")),
+                    LobbyContentNoTempProbe::class.java.name,
+                    directory.toString(),
+                )
+                .redirectErrorStream(true)
+                .start()
+        try {
+            assertTrue(process.waitFor(10, java.util.concurrent.TimeUnit.SECONDS))
+            val output = process.inputStream.bufferedReader().readText()
+            assertEquals(0, process.exitValue(), output)
+            assertTrue(output.contains("CONTENT_LOADED_NO_TEMP"), output)
+        } finally {
+            if (process.isAlive) process.destroyForcibly()
+        }
+    }
+
+    internal fun probeNoTemp() {
+        System.setProperty("grounds.npc.content", content().toString())
+        val models = GroundsNpcModelSource.load(assets)
+        check(models.getValue(guideKey).id == guideKey.value)
+        println("CONTENT_LOADED_NO_TEMP")
+    }
+
     companion object {
         @JvmStatic
         @BeforeAll
@@ -183,5 +213,14 @@ class LobbyDialogueRuntimeSnapshotTest {
             System.setProperty("minestom.shutdown-on-signal", "false")
             MinecraftServer.init()
         }
+    }
+}
+
+internal object LobbyContentNoTempProbe {
+    @JvmStatic
+    fun main(arguments: Array<String>) {
+        LobbyDialogueRuntimeSnapshotTest()
+            .apply { directory = Path.of(arguments.single()) }
+            .probeNoTemp()
     }
 }

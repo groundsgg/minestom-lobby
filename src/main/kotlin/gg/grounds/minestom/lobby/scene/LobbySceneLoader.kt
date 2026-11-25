@@ -9,7 +9,6 @@ import gg.grounds.scene.minestom.*
 import java.nio.file.Files
 import java.nio.file.LinkOption.NOFOLLOW_LINKS
 import java.nio.file.NoSuchFileException
-import java.nio.file.StandardOpenOption.READ
 import java.nio.file.attribute.BasicFileAttributes
 
 internal data class PreparedLobbyScene(
@@ -36,19 +35,13 @@ internal class LobbySceneLoader(
             }
         check(attributes.isRegularFile) { "Lobby scene $file must be a regular, non-symlink file" }
         check(attributes.size() <= MAX_SCENE_BYTES) { "Lobby scene exceeds 16 MiB" }
-        val sourcePin = LobbyDialogueDistributionBinding.pin(file)
         val bytes =
             try {
-                Files.newInputStream(file, READ, NOFOLLOW_LINKS).use {
-                    it.readNBytes(MAX_SCENE_BYTES + 1)
-                }
+                LobbyDialogueFileSnapshot.file(file, MAX_SCENE_BYTES)
             } catch (failure: Exception) {
                 throw IllegalStateException("Cannot read lobby scene $file", failure)
             }
-        check(bytes.size <= MAX_SCENE_BYTES) { "Lobby scene $file exceeds 16 MiB" }
-        check(LobbyDialogueDistributionBinding.hash(bytes) == sourcePin["sha256"]) {
-            "Lobby scene changed while loading"
-        }
+        val sourcePin = LobbyDialogueFileSnapshot.pin(bytes)
         val scene =
             when (val decoded = SceneJson.decode(bytes)) {
                 is SceneDecodeResult.Success -> decoded.scene

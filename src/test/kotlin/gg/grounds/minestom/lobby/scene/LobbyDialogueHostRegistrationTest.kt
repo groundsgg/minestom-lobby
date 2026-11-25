@@ -81,6 +81,26 @@ class LobbyDialogueHostRegistrationTest {
     }
 
     @Test
+    fun `substitute installed menu implementations cannot claim the qualified provider`() {
+        val navigator =
+            object : LobbyNavigatorService {
+                override fun open(player: Player) = CompletableFuture.completedFuture(true)
+            }
+        val queues =
+            object : LobbyQueueService {
+                override fun openDuels(player: Player) = CompletableFuture.completedFuture(true)
+
+                override fun toggleQueue(player: Player, modeId: String) =
+                    CompletableFuture.completedFuture(true)
+            }
+        val registration = LobbyDialogueHostRegistration.create(guide, navigator, queues)
+        registration.requireExportReady()
+        assertThrows(IllegalArgumentException::class.java) {
+            registration.requireQualifiedServices()
+        }
+    }
+
+    @Test
     fun `metadata preparation never calls installed menu operations`() {
         val navigator =
             object : LobbyNavigatorService {
