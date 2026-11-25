@@ -60,6 +60,7 @@ class LobbySceneCompositionTest {
     private fun prepared(
         fixture: RendererFixture,
         dialogue: String = LobbyGuideContent.DIALOGUE_ID,
+        speaker: String = "guide",
     ): PreparedLobbyScene {
         val authored = lobbySceneFixture(assets, Vec3(0.0, 0.0, 0.0), Vec3(1.0, 0.0, 0.0))
         val original = authored.elements.filterIsInstance<Npc>().single()
@@ -99,7 +100,7 @@ class LobbySceneCompositionTest {
                                                     gg.grounds.lobby.scene.LobbySceneCatalogs
                                                         .DIALOGUE_ID to StringArgument(dialogue),
                                                     gg.grounds.lobby.scene.LobbySceneCatalogs
-                                                        .SPEAKER to StringArgument("guide"),
+                                                        .SPEAKER to StringArgument(speaker),
                                                 ),
                                             )
                                         ),
@@ -377,6 +378,156 @@ class LobbySceneCompositionTest {
                 assertEquals("Conflicting dialogue role bodies", failure.message)
             } finally {
                 owner.dialogues!!.closeAsync().toCompletableFuture().join()
+            }
+        }
+    }
+
+    @Test
+    fun `authored metadata retains finite envelope and rejects runtime without catalogue`() {
+        RendererFixture().use { fixture ->
+            val services = DefaultServiceRegistry()
+            val hooks = mutableListOf<() -> Unit>()
+            val module = GroundsPluginLobbyProvider().create()
+            module.install(
+                object : GroundsServerContext {
+                    override val serverType = ServerType.LOBBY
+                    override val environment = RuntimeEnvironment.TEST
+                    override val services: ServiceRegistry = services
+
+                    override fun eventNode(name: String): EventNode<Event> = EventNode.all(name)
+
+                    override fun onShutdown(action: () -> Unit) {
+                        hooks += action
+                    }
+                }
+            )
+            try {
+                val selected = prepared(fixture, "author:arrival")
+                assertThrows(IllegalArgumentException::class.java) {
+                    LobbySceneComposition.create(selected, fixture.instance, services)
+                }
+                val composition =
+                    LobbySceneComposition.prepareMetadata(
+                        selected,
+                        fixture.instance,
+                        services,
+                        LobbyDialogueHostContract.GUIDE,
+                    )
+                try {
+                    val bound =
+                        LobbyDialogueDistributionBinding.manifest(
+                            composition,
+                            GroundsPluginLobbyProvider(),
+                            content(),
+                            pins(),
+                        )
+                    assertEquals("grounds:lobby-guide", bound.id)
+                    assertEquals(
+                        "author:arrival",
+                        bound.manifest.asJsonObject["dialogueId"].asString,
+                    )
+                    assertEquals(
+                        setOf(
+                            "schemaVersion",
+                            "id",
+                            "version",
+                            "hostCatalogJson",
+                            "assetCatalog",
+                            "actionCatalogs",
+                            "startActions",
+                            "npcAssets",
+                        ),
+                        com.google.gson.JsonParser.parseString(String(bound.profile.profileBytes))
+                            .asJsonObject
+                            .keySet(),
+                    )
+                    assertEquals(
+                        setOf("executable", "serverContent", "addon", "catalog", "scene"),
+                        bound.manifest.asJsonObject["files"].asJsonObject.keySet(),
+                    )
+                    assertEquals(
+                        2,
+                        bound.manifest.asJsonObject["actionProviders"].asJsonObject.size(),
+                    )
+                    assertEquals(
+                        setOf(
+                            "schemaVersion",
+                            "serviceVariant",
+                            "provider",
+                            "dialogueId",
+                            "roles",
+                            "actionProviders",
+                            "assetCatalog",
+                            "actionCatalogs",
+                            "contentId",
+                            "files",
+                        ),
+                        bound.manifest.asJsonObject.keySet(),
+                    )
+                    assertEquals(setOf("author:arrival"), composition.registrations.keys)
+                    val player = fixture.player()
+                    val result =
+                        composition.dialogues!!
+                            .start(
+                                gg.grounds.scene.minestom.SceneActionContext(
+                                    selected.identity,
+                                    player,
+                                    LocalId("spawn-guide"),
+                                    SceneTrigger.RIGHT_CLICK,
+                                    SceneHand.MAIN,
+                                    0,
+                                    emptyMap(),
+                                    gg.grounds.scene.minestom.SceneViewerVisualState(),
+                                ),
+                                "author:arrival",
+                                "guide",
+                            )
+                            .toCompletableFuture()
+                            .join()
+                    assertInstanceOf(
+                        gg.grounds.scene.minestom.SceneActionResult.Rejected::class.java,
+                        result,
+                    )
+                    assertNull(composition.dialogues.presentation(player))
+                    assertThrows(IllegalArgumentException::class.java) {
+                        LobbyDialogueDistributionBinding.manifest(
+                            composition,
+                            GroundsPluginLobbyProvider(),
+                            content(listOf(AssetKey("test:other"))),
+                            pins(),
+                        )
+                    }
+                } finally {
+                    composition.dialogues!!.closeAsync().toCompletableFuture().join()
+                }
+                assertThrows(IllegalArgumentException::class.java) {
+                    LobbySceneComposition.prepareMetadata(
+                        selected,
+                        fixture.instance,
+                        services,
+                        LobbyDialogueHostContract.STAGE,
+                    )
+                }
+                assertThrows(IllegalArgumentException::class.java) {
+                    LobbySceneComposition.prepareMetadata(
+                        prepared(fixture, "author:arrival", "intruder"),
+                        fixture.instance,
+                        services,
+                        LobbyDialogueHostContract.GUIDE,
+                    )
+                }
+                val npc = selected.scene.elements.single()
+                assertThrows(IllegalArgumentException::class.java) {
+                    LobbySceneComposition.prepareMetadata(
+                        selected.copy(scene = selected.scene.with(elements = listOf(npc, npc))),
+                        fixture.instance,
+                        services,
+                        LobbyDialogueHostContract.GUIDE,
+                    )
+                }
+            } finally {
+                module.stop()
+                hooks.asReversed().forEach { it() }
             }
         }
     }

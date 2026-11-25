@@ -15,6 +15,21 @@ class LobbyDialogueHostRegistrationTest {
     private val stage = StageDialogueContent.DIALOGUE_ID
 
     @Test
+    fun `explicit trusted contract selects providers independently of authored ID`() {
+        val registration =
+            LobbyDialogueHostRegistration.create(LobbyDialogueHostContract.GUIDE, "author:arrival")
+        assertEquals("author:arrival", registration.dialogueId)
+        assertEquals("grounds:lobby-guide", registration.contract.profileId)
+        assertEquals(
+            setOf(LobbyGuideContent.NAVIGATOR_ACTION, LobbyGuideContent.DUELS_ACTION),
+            registration.catalog("generation").actions().keys,
+        )
+        assertThrows(IllegalArgumentException::class.java) {
+            LobbyDialogueHostContract.fromProfileId("author:arrival")
+        }
+    }
+
+    @Test
     fun `guide metadata and guarded bindings retain both provider specs with missing services`() {
         val registration = LobbyDialogueHostRegistration.create(guide)
         val catalog = registration.catalog("test-generation")

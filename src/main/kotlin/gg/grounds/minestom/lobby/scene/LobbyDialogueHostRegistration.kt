@@ -10,7 +10,11 @@ import net.minestom.server.entity.Player
 
 /** Shares built-in provider metadata and the actual installed menu operations. */
 internal class LobbyDialogueHostRegistration
-private constructor(val dialogueId: String, providers: List<ActionProvider>) {
+private constructor(
+    val contract: LobbyDialogueHostContract,
+    val dialogueId: String,
+    providers: List<ActionProvider>,
+) {
     class ActionProvider
     internal constructor(
         val key: String,
@@ -83,10 +87,33 @@ private constructor(val dialogueId: String, providers: List<ActionProvider>) {
             dialogueId: String,
             navigator: LobbyNavigatorService? = null,
             queues: LobbyQueueService? = null,
+        ): LobbyDialogueHostRegistration =
+            create(LobbyDialogueHostContract.forBuiltIn(dialogueId), dialogueId, navigator, queues)
+
+        fun create(
+            contract: LobbyDialogueHostContract,
+            dialogueId: String,
+            navigator: LobbyNavigatorService? = null,
+            queues: LobbyQueueService? = null,
         ): LobbyDialogueHostRegistration {
+            require(dialogueId.isNotBlank()) { "Dialogue ID is required" }
+            require(
+                contract == LobbyDialogueHostContract.GUIDE ||
+                    dialogueId == contract.builtInDialogueId
+            ) {
+                "Stage contract supports only the built-in dialogue"
+            }
+            require(
+                dialogueId !in
+                    LobbyDialogueHostContract.entries
+                        .filter { it != contract }
+                        .map { it.builtInDialogueId }
+            ) {
+                "Built-in dialogue cannot select another host contract"
+            }
             val providers =
-                when (dialogueId) {
-                    LobbyGuideContent.DIALOGUE_ID ->
+                when (contract) {
+                    LobbyDialogueHostContract.GUIDE ->
                         listOf(
                             ActionProvider(
                                 LobbyGuideContent.NAVIGATOR_ACTION,
@@ -99,10 +126,9 @@ private constructor(val dialogueId: String, providers: List<ActionProvider>) {
                                 queues,
                             ),
                         )
-                    StageDialogueContent.DIALOGUE_ID -> emptyList()
-                    else -> throw IllegalArgumentException("Unsupported lobby dialogue $dialogueId")
+                    LobbyDialogueHostContract.STAGE -> emptyList()
                 }
-            return LobbyDialogueHostRegistration(dialogueId, providers)
+            return LobbyDialogueHostRegistration(contract, dialogueId, providers)
         }
     }
 }

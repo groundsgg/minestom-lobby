@@ -171,6 +171,50 @@ class LobbyDialogueAdmissionTest {
         return future.get(1, java.util.concurrent.TimeUnit.SECONDS)
     }
 
+    @Test
+    fun `metadata owner cannot start even with independently admitted gate`() {
+        RendererFixture().use { fixture ->
+            val identity = SceneRuntimeIdentity(SceneId("test:metadata"), "test:map", 1)
+            val gate = LobbyDialogueAdmission(true)
+            gate.complete(LobbyDialogueRuntimeVerification.Admitted("verified"))
+            val owner =
+                LobbyDialogues(
+                    fixture.instance,
+                    identity,
+                    listOf(
+                        LobbyDialogueBinding(LocalId("guide"), Pos.ZERO, "author:arrival", "guide")
+                    ),
+                    admission = gate,
+                    metadataContract = LobbyDialogueHostContract.GUIDE,
+                )
+            try {
+                val player = fixture.player()
+                val result =
+                    owner
+                        .start(
+                            SceneActionContext(
+                                identity,
+                                player,
+                                LocalId("guide"),
+                                SceneTrigger.RIGHT_CLICK,
+                                SceneHand.MAIN,
+                                0,
+                                emptyMap(),
+                                SceneViewerVisualState(),
+                            ),
+                            "author:arrival",
+                            "guide",
+                        )
+                        .toCompletableFuture()
+                        .join()
+                assertInstanceOf(SceneActionResult.Rejected::class.java, result)
+                assertNull(owner.presentation(player))
+            } finally {
+                owner.closeAsync().toCompletableFuture().join()
+            }
+        }
+    }
+
     companion object {
         @JvmStatic
         @BeforeAll

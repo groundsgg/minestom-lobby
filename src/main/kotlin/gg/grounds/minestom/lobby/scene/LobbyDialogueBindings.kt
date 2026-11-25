@@ -5,7 +5,9 @@ import gg.grounds.scene.format.*
 import net.minestom.server.coordinate.Pos
 
 /** Validate every declared dialogue binding before accepting this scene. */
-internal fun PreparedLobbyScene.dialogueBindings(): List<LobbyDialogueBinding> =
+internal fun PreparedLobbyScene.dialogueBindings(
+    contract: LobbyDialogueHostContract? = null
+): List<LobbyDialogueBinding> =
     scene.elements
         .filterIsInstance<Npc>()
         .flatMap { npc ->
@@ -22,11 +24,14 @@ internal fun PreparedLobbyScene.dialogueBindings(): List<LobbyDialogueBinding> =
                         require(
                             action.arguments.keys ==
                                 setOf(LobbySceneCatalogs.DIALOGUE_ID, LobbySceneCatalogs.SPEAKER) &&
-                                dialogue in
+                                dialogue != null &&
+                                (dialogue in
                                     setOf(
                                         LobbyGuideContent.DIALOGUE_ID,
                                         StageLobbyDialogue.DIALOGUE_ID,
-                                    ) &&
+                                    ) ||
+                                    (contract == LobbyDialogueHostContract.GUIDE &&
+                                        dialogue.isNotBlank())) &&
                                 speaker == LobbyGuideContent.SPEAKER_ROLE &&
                                 binding.trigger == SceneTrigger.RIGHT_CLICK &&
                                 binding.conditions
@@ -53,13 +58,17 @@ internal fun PreparedLobbyScene.dialogueBindings(): List<LobbyDialogueBinding> =
                                 -npc.transform.rotation.yaw.toFloat(),
                                 0f,
                             ),
-                            dialogue!!,
+                            dialogue,
                             speaker,
                         )
                     }
             }
         }
         .also { bindings ->
+            if (contract != null) {
+                require(bindings.size == 1) { "Host metadata requires one primary NPC start" }
+                LobbyDialogueHostRegistration.create(contract, bindings.single().dialogue)
+            }
             require(bindings.map { it.elementId }.distinct().size == bindings.size) {
                 "Duplicate lobby dialogue binding"
             }
