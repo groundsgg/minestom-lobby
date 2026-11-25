@@ -215,12 +215,23 @@ class LobbyDialogueRuntimeSnapshotTest {
 
     @Test
     fun `ordinary archive loading needs no writable temporary directory`() {
+        val fixtureId = gg.grounds.npc.core.io.content.NpcContentLoader.load(content()).contentId
+        val bindings = directory.resolve("fixture-classpath")
+        val resource = bindings.resolve("gg/grounds/minestom/lobby/npc-content-id.txt")
+        Files.createDirectories(resource.parent)
+        Files.writeString(resource, fixtureId + "\n")
+        // This unconfigured-startup fixture owns both its content and matching legacy binding.
+        // Real private build resources later on the classpath must not bind synthetic test models.
+        val classpath =
+            bindings.toString() +
+                java.io.File.pathSeparator +
+                requireNotNull(System.getProperty("lobby.test.runtimeClasspath"))
         val process =
             ProcessBuilder(
                     Path.of(System.getProperty("java.home"), "bin", "java").toString(),
                     "-Djava.io.tmpdir=" + directory.resolve("missing-temp"),
                     "-cp",
-                    requireNotNull(System.getProperty("lobby.test.runtimeClasspath")),
+                    classpath,
                     LobbyContentNoTempProbe::class.java.name,
                     directory.toString(),
                 )
