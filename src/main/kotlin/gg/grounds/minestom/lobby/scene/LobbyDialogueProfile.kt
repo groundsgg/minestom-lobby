@@ -22,15 +22,18 @@ internal class LobbyDialogueProfile(
     registry: SceneActionRegistry,
     assets: AssetCatalog,
     actionCatalogs: List<ActionCatalog>,
-    renderers: AnimatedSceneRenderers,
+    renderers: gg.grounds.scene.minestom.SceneAssetRendererRegistry,
     startActions: Map<ActionKey, LobbyDialogueStartAction>,
     roles: Map<String, LobbyDialogueRole>,
-    capabilities: Set<String>,
+    registration: LobbyDialogueHostRegistration,
 ) {
     private val profile: ByteArray
     private val host: ByteArray
 
     init {
+        registration.requireExportReady()
+        val catalog = registration.catalog(generation)
+        require(roles.keys == catalog.speakers()) { "Unsupported dialogue speaker roles" }
         fun text(value: String) = require(value.isNotBlank() && value.length <= 128)
         fun identifier(value: String) {
             text(value)
@@ -73,6 +76,9 @@ internal class LobbyDialogueProfile(
             identifier(role)
             text(binding.asset.value)
             require(binding.gestures.size <= 4096)
+            require(binding.gestures.keys.all { it in catalog.gestures() }) {
+                "Unsupported dialogue gesture mapping for $role"
+            }
             val asset =
                 requireNotNull(assets.assets[binding.asset]) {
                     "Missing role asset: ${binding.asset.value}"
@@ -86,7 +92,10 @@ internal class LobbyDialogueProfile(
                 text(animation.value)
                 require(
                     animation in asset.animations &&
-                        renderers.supportsAnimation(binding.asset, animation)
+                        (renderers as? AnimatedSceneRenderers)?.supportsAnimation(
+                            binding.asset,
+                            animation,
+                        ) == true
                 ) {
                     "Unsupported gesture animation: ${binding.asset.value}/${animation.value}"
                 }
@@ -98,19 +107,27 @@ internal class LobbyDialogueProfile(
                 "Conflicting gesture mappings for ${binding.asset.value}"
             }
         }
-        capabilities.forEach(::identifier)
         val gson = GsonBuilder().disableHtmlEscaping().create()
         val hostJson =
             gson.toJson(
                 linkedMapOf(
                     "schemaVersion" to 1,
-                    "generation" to generation,
-                    "speakers" to roles.keys.sorted(),
-                    "conditions" to emptyMap<String, Any>(),
-                    "actions" to emptyMap<String, Any>(),
-                    "gestures" to roles.values.flatMap { it.gestures.keys }.distinct().sorted(),
-                    "capabilities" to capabilities.sorted(),
-                    "durableOutcomes" to false,
+                    "generation" to catalog.generation(),
+                    "speakers" to catalog.speakers().sorted(),
+                    "conditions" to catalog.conditions(),
+                    "actions" to
+                        registration.actionProviders
+                            .sortedBy { it.key }
+                            .associate { provider ->
+                                provider.key to
+                                    linkedMapOf(
+                                        "arguments" to provider.spec.arguments(),
+                                        "durable" to provider.spec.durable(),
+                                    )
+                            },
+                    "gestures" to catalog.gestures().sorted(),
+                    "capabilities" to catalog.capabilities().sorted(),
+                    "durableOutcomes" to catalog.durableOutcomes(),
                 )
             )
         fun reference(ref: CatalogReference) =

@@ -1,14 +1,10 @@
 package gg.grounds.minestom.lobby
 
 import gg.grounds.GameServerRetirement
-import gg.grounds.minestom.lobby.scene.LobbyDialogues
+import gg.grounds.minestom.lobby.scene.*
 import gg.grounds.minestom.lobby.scene.LobbySceneHost
 import gg.grounds.minestom.lobby.scene.LobbySceneLoader
-import gg.grounds.minestom.lobby.scene.dialogueBindings
-import gg.grounds.minestom.lobby.scene.runtimeRequest
 import gg.grounds.minestom.lobby.scene.stageDialoguePreviewEnabled
-import gg.grounds.minestom.lobby.scene.withDialogueLabels
-import gg.grounds.minestom.lobby.scene.withStageDialoguePreview
 import gg.grounds.modules.get
 import gg.grounds.permissions.Permissions
 import gg.grounds.runtime.GroundsModule
@@ -61,11 +57,34 @@ internal class LobbyModule(
         val created = createWorld()
         world = created
         val (instanceContainer, spawn, loaded) = created
+        val admission =
+            gg.grounds.minestom.lobby.scene.LobbyDialogueAdmission(
+                "GROUNDS_DIALOGUE_DISTRIBUTION" in lodEnvironment ||
+                    "GROUNDS_DIALOGUE_BINDING_SHA256" in lodEnvironment
+            )
+        var composition: gg.grounds.minestom.lobby.scene.LobbySceneComposition? = null
         var stageDialogue: LobbyDialogues? = null
         val prepared =
             try {
+                val authoredInputs =
+                    LobbyAuthoredDialogueInputs.read(loaded.root.toAbsolutePath().normalize())
+                val operatorPreparation = LobbyDialogueRuntimeVerification.prepare(lodEnvironment)
+                val catalogue =
+                    LobbyAuthoredDialogueCatalogue.load(
+                        authoredInputs,
+                        operatorPreparation as? LobbyDialogueRuntimeVerification.Prepared,
+                    )
+                val candidate = (catalogue as? LobbyAuthoredDialogueCatalogue.Present)?.candidate
+                require(candidate == null || (!dialoguePreview && !nativeSolidEnabled)) {
+                    "Authored Story cannot use a transformed scene"
+                }
                 LobbySceneLoader()
                     .load(loaded)
+                    .also {
+                        require(candidate == null || it != null) {
+                            "Authored Story requires a scene"
+                        }
+                    }
                     ?.let { prepared ->
                         if (nativeSolidEnabled)
                             prepared.copy(
@@ -78,36 +97,86 @@ internal class LobbyModule(
                     }
                     .also { if (demoEnabled) requireStageNpcDemoMap(loaded.source, it?.scene) }
                     ?.let { prepared ->
-                        val preview =
-                            if (dialoguePreview) prepared.withStageDialoguePreview() else null
-                        val selected = preview?.prepared ?: prepared
-                        val bindings = selected.dialogueBindings()
-                        val starter =
-                            if (bindings.isEmpty()) null
-                            else
-                                LobbyDialogues(
+                        val composed =
+                            if (candidate != null)
+                                LobbySceneComposition.createAuthored(
+                                    prepared,
                                     instanceContainer,
-                                    selected.identity,
-                                    bindings,
-                                    ctx.services.get<gg.grounds.lobby.LobbyNavigatorService>(),
-                                    ctx.services.get<gg.grounds.lobby.LobbyQueueService>(),
+                                    ctx.services,
+                                    candidate,
+                                    admission,
                                 )
-                        stageDialogue = starter
+                            else
+                                gg.grounds.minestom.lobby.scene.LobbySceneComposition.create(
+                                    prepared,
+                                    instanceContainer,
+                                    ctx.services,
+                                    dialoguePreview,
+                                    admission,
+                                )
+                        composition = composed
+                        stageDialogue = composed.dialogues
+                        composed.request
+                    }
+                    .also {
+                        candidate?.requireUnchanged()
+                        val decision =
+                            if (operatorPreparation is LobbyDialogueRuntimeVerification.Prepared)
+                                LobbyDialogueRuntimeVerification.verify(
+                                    operatorPreparation,
+                                    loaded.root.resolve("scene.json"),
+                                    composition,
+                                    dialoguePreview || nativeSolidEnabled,
+                                )
+                            else
+                                when (operatorPreparation) {
+                                    is LobbyDialogueRuntimeVerification.Denied ->
+                                        LobbyDialogueRuntimeVerification.Denied(
+                                            operatorPreparation.code
+                                        )
+                                    else -> LobbyDialogueRuntimeVerification.Unconfigured
+                                }
+                        require(
+                            candidate == null ||
+                                decision is LobbyDialogueRuntimeVerification.Admitted
+                        ) {
+                            "Authored Story runtime admission denied: $decision"
+                        }
+                        candidate?.requireUnchanged()
+                        admission.complete(decision)
+                        when (decision) {
+                            is gg.grounds.minestom.lobby.scene.LobbyDialogueRuntimeVerification.Denied ->
+                                logger.warn(
+                                    "Dialogue startup denied (sceneId={}, mapVersion={}, reason={})",
+                                    it?.identity?.sceneId?.value ?: "absent",
+                                    it?.identity?.mapVersion ?: "absent",
+                                    decision.code,
+                                )
+                            is gg.grounds.minestom.lobby.scene.LobbyDialogueRuntimeVerification.Admitted ->
+                                logger.info(
+                                    "Dialogue startup admitted (sceneId={}, mapVersion={}, buildGeneration={})",
+                                    it?.identity?.sceneId?.value,
+                                    it?.identity?.mapVersion,
+                                    decision.buildGeneration,
+                                )
+                            gg.grounds.minestom.lobby.scene.LobbyDialogueRuntimeVerification
+                                .Unconfigured -> Unit
+                        }
                         if (
-                            bindings.any {
-                                it.dialogue ==
-                                    gg.grounds.minestom.lobby.scene.LobbyGuideContent.DIALOGUE_ID
-                            }
+                            admission.allowed &&
+                                composition
+                                    ?.registrations
+                                    ?.containsKey(
+                                        gg.grounds.minestom.lobby.scene.LobbyGuideContent
+                                            .DIALOGUE_ID
+                                    ) == true
                         )
                             logger.info(
                                 "Prepared lobby guide successfully (sceneId={}, mapVersion={}, elementId={})",
-                                selected.identity.sceneId.value,
-                                selected.identity.mapVersion,
+                                composition.request.identity.sceneId.value,
+                                composition.request.identity.mapVersion,
                                 "spawn-guide",
                             )
-                        (if (starter == null) selected
-                            else selected.withDialogueLabels(starter, bindings))
-                            .runtimeRequest(instanceContainer, ctx.services, starter)
                     }
                     .also { request ->
                         val started = System.nanoTime()
@@ -165,7 +234,7 @@ internal class LobbyModule(
                 prepared.assets.version,
                 prepared.actions.version,
             )
-        if (preparedDialogue != null && prepared != null)
+        if (admission.allowed && preparedDialogue != null && prepared != null)
             logger.info(
                 "Prepared lobby dialogues successfully (sceneId={}, mapVersion={})",
                 prepared.identity.sceneId.value,

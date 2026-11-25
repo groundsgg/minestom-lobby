@@ -4,7 +4,6 @@ import gg.grounds.dialogue.core.definition.DialogueBuilder
 import gg.grounds.dialogue.core.definition.DialogueDefinition.*
 import gg.grounds.dialogue.core.text.TextCatalog
 import gg.grounds.dialogue.core.validation.DialogueValidator
-import gg.grounds.dialogue.core.validation.HostCatalog
 import gg.grounds.dialogue.core.validation.ValidatedDialogue
 import gg.grounds.dialogue.core.validation.ValidationLimits
 import gg.grounds.lobby.scene.LobbySceneCatalogs
@@ -59,22 +58,13 @@ internal object LobbyGuideContent {
             )
         )
 
-    fun validated(generation: String): ValidatedDialogue {
-        val actions =
-            mapOf(
-                NAVIGATOR_ACTION to HostCatalog.ProviderSpec(emptyMap(), false),
-                DUELS_ACTION to HostCatalog.ProviderSpec(emptyMap(), false),
-            )
-        val host =
-            HostCatalog(
-                generation,
-                setOf(SPEAKER_ROLE),
-                emptyMap(),
-                actions,
-                emptySet(),
-                emptySet(),
-                false,
-            )
+    fun validated(
+        generation: String,
+        registration: LobbyDialogueHostRegistration =
+            LobbyDialogueHostRegistration.create(DIALOGUE_ID),
+    ): ValidatedDialogue {
+        require(registration.dialogueId == DIALOGUE_ID)
+        val host = registration.catalog(generation)
         val definition =
             DialogueBuilder.dialogue(DIALOGUE_ID)
                 .locales("en", "en", "de")

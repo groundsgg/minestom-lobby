@@ -212,6 +212,7 @@ dependencies {
     implementation("gg.grounds:grounds-minestom-runtime-runtime-world:0.15.1")
     implementation("gg.grounds:scene-npc-minestom:${sceneVersion.get()}")
     implementation("gg.grounds:scene-interaction:${sceneVersion.get()}")
+    implementation("gg.grounds:dialogue-json:${dialogueVersion.get()}")
     implementation("gg.grounds:dialogue-minestom:${dialogueVersion.get()}")
     val dialogueAssetsJar = providers.gradleProperty("dialogueAssetsJar").orNull
     if (dialogueAssetsJar != null) implementation(files(dialogueAssetsJar))
@@ -269,7 +270,7 @@ dependencies {
     implementation("org.slf4j:slf4j-api")
 
     testImplementation("org.junit.jupiter:junit-jupiter")
-    testImplementation("gg.grounds:library-jvm-modules-module-core:0.1.0")
+    implementation("gg.grounds:library-jvm-modules-module-core:0.1.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     runtimeOnly("org.slf4j:slf4j-simple")
@@ -318,6 +319,7 @@ val dialogueArtifacts =
 repositories.exclusiveContent {
     forRepositories(dialogueArtifacts)
     filter {
+        includeModule("gg.grounds", "dialogue-json")
         includeModule("gg.grounds", "dialogue-core")
         includeModule("gg.grounds", "dialogue-presentation")
         includeModule("gg.grounds", "dialogue-minestom")

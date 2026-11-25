@@ -217,6 +217,102 @@ directory created, with `minestom-lobby.jar`, `server-content.zip`, `npc-addon.z
 logs and `receipt.json`. The receipt pins the catalog coordinate, version, size and SHA-256. Failed
 attempts keep their temporary logs and produce no qualification receipt.
 
+Add `--dialogue-profile-scene /private/selected-dialogue-scene` to the command above to
+export a private Dialogue profile from an explicitly authored scene directory containing
+`scene.json`. This input is snapshotted separately from `--map`: the existing Stage acceptance
+scene remains required and unchanged. The selected dialogue scene must resolve to exactly one
+scene-bound dialogue with role bodies backed by the loaded private models. Built-in Guide and
+Stage IDs retain their existing defaults. For an authored entry ID, explicitly add
+`--dialogue-host-contract grounds:lobby-guide`; the builder forwards this trusted choice as
+exporter `--host-contract grounds:lobby-guide`. Story IDs never select providers. The Guide
+contract requires one primary NPC start and the `guide` role; Stage remains built-in only.
+
+After standalone and embedded catalog verification, the exact distribution JAR runs
+`gg.grounds.minestom.lobby.scene.LobbyDialogueProfileExport` in a sanitized child environment.
+It installs the real Lobby module and creates the same Scene composition and Dialogue owner
+used at runtime in explicit metadata preparation mode, without starting a listener or invoking menus.
+This mode holds admission closed, contains no validated graph and cannot open a session. The JAR must contain matching
+addon SHA-1 and content-ID resources. The distribution additionally retains:
+
+- `dialogue/profile.json`, with the E1 profile's eight fields.
+- `dialogue/context/host-catalog.json`, byte-identical to the embedded host JSON.
+- `dialogue/scene.json`, the exact selected dialogue scene snapshot.
+- `dialogue/binding.json`, the manifest and artifact pins.
+- `dialogue-export.log`, the isolated exporter process output.
+
+Profile version and host generation are the same SHA-256 of the canonical manifest. The
+manifest binds provider identity, service variant, dialogue/role/provider/catalog metadata,
+validated content ID, and the exact executable, content, addon, catalog and scene hashes/sizes.
+It excludes paths, timestamps, random session/world IDs and output digests. Authored graphs/texts,
+`grounds/dialogue.json`, author host snapshots and generated profile outputs are not generation
+inputs. Export the profile first, then author the binding from its exact identity and host bytes. Guide profiles retain
+the two installed menu providers; Stage profiles have no action providers. Both keep empty
+gesture, condition and capability claims and disable durable outcomes.
+
+The builder independently checks bounded, duplicate-free JSON, canonical generation, every
+artifact pin, actual bundle content ID and embedded host bytes. It repeats verification after
+cleanup, immediately before writing `receipt.json` and atomically renaming the output directory.
+Only successful opt-in builds add `dialogueProfile` to the receipt, with identity and
+profile/host/binding pins. Export or verification failures retain attempt logs and produce no
+qualified receipt or final distribution. Omitting the option preserves the existing build path.
+These hashes provide artifact integrity, not receipt authentication or runtime Story admission;
+native client acceptance and cross-proxy behavior remain separate checks.
+
+### Optional Dialogue startup verification
+
+Mount the complete qualified private distribution read-only at an absolute path, for example
+`/private/lobby-distribution`, and configure both:
+
+- `GROUNDS_DIALOGUE_DISTRIBUTION=/private/lobby-distribution`
+- `GROUNDS_DIALOGUE_BINDING_SHA256=<sha256 of dialogue/binding.json>`
+
+Supply the expected digest through trusted deployment configuration. Run the distribution's
+exact executable JAR, set `GROUNDS_NPC_CONTENT` to its `server-content.zip`, and select the map
+whose raw `scene.json` matches `dialogue/scene.json`. Keep the seven pinned artifacts in their
+exported relative paths. The runtime checks the actual installed menu services, loaded content
+snapshot, catalogs, provider identities and final scene composition against the binding.
+
+Configured verification requires executable, catalog and provider classes and their binding
+resources to originate from the same qualified fat JAR. External catalog or binding-resource
+classpath arrangements remain supported for unconfigured startup only. Stage preview and native
+scene transformations cannot qualify. Ordinary Docker packaging does not add private artifacts;
+mount and configure this distribution explicitly.
+
+Configured verification currently requires Linux with readable `/proc/self/fd` and the standard
+JVM application classloader. Before opening any verification archives, it requires exactly one
+already-open executable archive handle, checks its inode and pinned bytes, and checks again before
+admission. Missing, ambiguous or replaced handles deny Dialogue admission. Launch using the exact
+mounted executable path; custom classloaders and archive launch aliases are not qualified.
+Keep the executable mounted read-only and never modify it in place during the JVM's lifetime:
+open-handle checks detect atomic pathname replacement, but cannot reconstruct already-loaded
+class bytes after an in-place rewrite. Unconfigured startup retains its existing platform behavior.
+NPC ZIP snapshots load in bounded memory and do not require writable temporary storage.
+
+With neither variable present, existing startup behavior is preserved. Either variable being
+present enables verification, including blank, incomplete or malformed configuration. Dialogue
+admission remains closed until verification succeeds. A verification denial rejects scene and
+direct owner starts before creating sessions or UI, logs one contextual startup outcome, and
+preserves spawn admission, commands, unrelated scene actions and normal cleanup. Existing world,
+scene decoding and runtime creation failures retain their fatal handling. The immutable decision
+applies for this startup only; replacing content or re-pinning a map requires a new Lobby runtime.
+Authored Guide Stories use complete map sidecars: `dialogues/*.json`, canonical
+`texts/<locale>.json`, `context/host-catalog.json` and `grounds/dialogue.json`. The operator must
+prepare the exact distribution profile and binding SHA first; author bindings only map the
+`guide` role to the single Scene NPC and name that anchored profile. They never select providers.
+The host captures the catalogue once, validates it with Dialogue JSON 1.8 and the actual menu
+services and runtime generation, then checks the unchanged inventory and final distribution
+before admission. Missing, partial, malformed or mismatched authored inputs fail Story-map
+installation before spawn commands or admission listeners register. A configured legacy built-in
+profile denial still disables only dialogues. A present Story catalogue requires a Scene and
+cannot qualify a Stage preview or native demo transformation.
+
+Authored sessions use captured graph texts, their declared supported locales and graph default.
+Canonical requested locale tags survive live preference changes; an unsupported tag resolves
+through that graph's default without borrowing another graph's translations. Refresh preserves
+conversation progress. Guide presentation, voice assets and volume remain the existing host
+contract behavior, with chat fallback when the pack is unavailable. This does not change Maps
+runtime availability or publish a distribution.
+
 The JAR contains the addon SHA-1 and content-ID bindings. Set
 `GROUNDS_NPC_CONTENT=/absolute/path/server-content.zip` (or `-Dgrounds.npc.content=...`)
 when starting the private host. The file is loaded once per server run and must match

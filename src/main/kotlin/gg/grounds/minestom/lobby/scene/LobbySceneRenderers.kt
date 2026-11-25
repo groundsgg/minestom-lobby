@@ -22,6 +22,8 @@ internal class LobbySceneRenderers(
     assets: AssetCatalog,
     models: Map<AssetKey, NpcModel> = GroundsNpcModelSource.load(assets),
 ) : AnimatedSceneRenderers {
+    internal val contentSnapshot = GroundsNpcModelSource.snapshot(models)
+
     init {
         GroundsNpcModelSource.validate(assets, models)
     }

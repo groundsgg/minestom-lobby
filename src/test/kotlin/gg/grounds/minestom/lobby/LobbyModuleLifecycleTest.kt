@@ -34,6 +34,21 @@ class LobbyModuleLifecycleTest {
     @TempDir lateinit var root: Path
 
     @Test
+    fun `partial authored sidecars prevent readiness before commands even without scene`() {
+        Files.createDirectories(root.resolve("texts"))
+        Files.writeString(root.resolve("texts/en.json"), "{}")
+        val context = SceneContext()
+        val module = LobbyModule(fatalStop = {}, lodEnvironment = emptyMap(), createWorld = ::world)
+        try {
+            assertThrows(IllegalArgumentException::class.java) { module.install(context) }
+            assertNull(MinecraftServer.getCommandManager().getCommand("spawn"))
+            assertEquals(0, context.nodes.size)
+        } finally {
+            module.stop()
+        }
+    }
+
+    @Test
     fun `runtime startup failure reaches the injected fatal stop callback`() {
         val fixture = scene()
         writeScene(fixture.with(elements = fixture.elements.filterIsInstance<Prop>()))
@@ -79,7 +94,12 @@ class LobbyModuleLifecycleTest {
     fun `bad selected scene fails installation before listeners or commands`() {
         Files.writeString(root.resolve("scene.json"), "invalid")
         val context = SceneContext()
-        val module = LobbyModule(fatalStop = {}, createWorld = ::world)
+        val module =
+            LobbyModule(
+                fatalStop = {},
+                lodEnvironment = mapOf("GROUNDS_DIALOGUE_DISTRIBUTION" to ""),
+                createWorld = ::world,
+            )
         try {
             assertThrows(IllegalStateException::class.java) { module.install(context) }
             assertNull(MinecraftServer.getCommandManager().getCommand("spawn"))
@@ -265,6 +285,181 @@ class LobbyModuleLifecycleTest {
             assertNull(MinecraftServer.getCommandManager().getCommand("spawn"))
         } finally {
             module.stop()
+        }
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(
+        strings = ["directory", "digest", "blank", "malformed"]
+    )
+    fun `configured verification denial preserves runtime handlers commands and cleanup`(
+        mode: String
+    ) {
+        val base = scene()
+        val npc = base.elements.filterIsInstance<Npc>().single()
+        val dialogueNpc =
+            npc.with(
+                bindings =
+                    npc.bindings +
+                        listOf(
+                            TriggerBinding(
+                                SceneTrigger.RIGHT_CLICK,
+                                listOf(HandCondition(SceneHand.MAIN)),
+                                0,
+                                0,
+                                listOf(
+                                    ApplicationAction(
+                                        LobbySceneCatalogs.START_DIALOGUE,
+                                        mapOf(
+                                            LobbySceneCatalogs.DIALOGUE_ID to
+                                                StringArgument(StageLobbyDialogue.DIALOGUE_ID),
+                                            LobbySceneCatalogs.SPEAKER to
+                                                StringArgument(StageLobbyDialogue.SPEAKER_ROLE),
+                                        ),
+                                    )
+                                ),
+                            )
+                        )
+            )
+        writeScene(
+            base.with(
+                catalogs =
+                    SceneCatalogReferences(
+                        base.catalogs.assets,
+                        CatalogReference(
+                            LobbySceneCatalogs.DIALOGUE.id,
+                            LobbySceneCatalogs.DIALOGUE.version,
+                        ),
+                    ),
+                elements = listOf(dialogueNpc) + base.elements.filterIsInstance<Prop>(),
+            )
+        )
+        val environment =
+            when (mode) {
+                "directory" -> mapOf("GROUNDS_DIALOGUE_DISTRIBUTION" to root.toString())
+                "digest" -> mapOf("GROUNDS_DIALOGUE_BINDING_SHA256" to "a".repeat(64))
+                "blank" ->
+                    mapOf(
+                        "GROUNDS_DIALOGUE_DISTRIBUTION" to "",
+                        "GROUNDS_DIALOGUE_BINDING_SHA256" to "",
+                    )
+                else ->
+                    mapOf(
+                        "GROUNDS_DIALOGUE_DISTRIBUTION" to root.toString(),
+                        "GROUNDS_DIALOGUE_BINDING_SHA256" to "invalid",
+                    )
+            }
+        val created = world()
+        var requested: SceneRuntimeRequest? = null
+        val runtime = ControlledRuntime().apply { closed.complete(null) }
+        var fatal = false
+        val module =
+            LobbyModule(
+                fatalStop = { fatal = true },
+                lodEnvironment = environment,
+                createWorld = { created },
+                createRuntime = {
+                    requested = it
+                    CompletableFuture.completedFuture(SceneRuntimeCreationResult.Success(runtime))
+                },
+            )
+        val player = TestPlayer()
+        try {
+            val context = SceneContext()
+            var menusOpened = 0
+            context.services.register<LobbyNavigatorService>(
+                object : LobbyNavigatorService {
+                    override fun open(player: Player): CompletableFuture<Boolean> {
+                        menusOpened++
+                        return CompletableFuture.completedFuture(true)
+                    }
+                }
+            )
+            module.install(context)
+            assertNotNull(MinecraftServer.getCommandManager().getCommand("spawn"))
+            assertTrue(context.nodes.isNotEmpty())
+            module.start()
+            val request = requested!!
+            player.setInstance(created.instance, Pos.ZERO).join()
+            val handler = request.actionRegistry.handlerFor(LobbySceneCatalogs.START_DIALOGUE)!!
+            val result =
+                handler
+                    .execute(
+                        SceneActionContext(
+                            request.identity,
+                            player,
+                            npc.id,
+                            SceneTrigger.RIGHT_CLICK,
+                            SceneHand.MAIN,
+                            0,
+                            mapOf(
+                                LobbySceneCatalogs.DIALOGUE_ID to
+                                    StringArgument(StageLobbyDialogue.DIALOGUE_ID),
+                                LobbySceneCatalogs.SPEAKER to
+                                    StringArgument(StageLobbyDialogue.SPEAKER_ROLE),
+                            ),
+                            SceneViewerVisualState(),
+                        )
+                    )
+                    .toCompletableFuture()
+                    .join()
+            assertInstanceOf(SceneActionResult.Rejected::class.java, result)
+            assertTrue(
+                (result as SceneActionResult.Rejected).toString().contains("admission"),
+                result.toString(),
+            )
+            assertFalse(fatal)
+            val menuResult =
+                request.actionRegistry
+                    .handlerFor(LobbySceneCatalogs.OPEN_NAVIGATOR)!!
+                    .execute(
+                        SceneActionContext(
+                            request.identity,
+                            player,
+                            npc.id,
+                            SceneTrigger.RIGHT_CLICK,
+                            SceneHand.MAIN,
+                            0,
+                            emptyMap(),
+                            SceneViewerVisualState(),
+                        )
+                    )
+                    .toCompletableFuture()
+                    .join()
+            assertEquals(SceneActionResult.Success, menuResult)
+            assertEquals(1, menusOpened)
+            val joining = AsyncPlayerConfigurationEvent(TestPlayer(), true)
+            Thread.startVirtualThread { context.nodes.single().call(joining) }.join()
+            assertSame(created.instance, joining.spawningInstance)
+        } finally {
+            module.stop()
+            player.remove()
+        }
+        assertNull(MinecraftServer.getCommandManager().getCommand("spawn"))
+        assertEquals(1, runtime.closeCalls)
+        MinecraftServer.getInstanceManager().unregisterInstance(created.instance)
+    }
+
+    @Test
+    fun `configured denial with absent scene keeps spawn admission and stop safe`() {
+        val created = world()
+        val module =
+            LobbyModule(
+                fatalStop = {},
+                lodEnvironment = mapOf("GROUNDS_DIALOGUE_BINDING_SHA256" to ""),
+                createWorld = { created },
+            )
+        try {
+            val context = SceneContext()
+            module.install(context)
+            module.start()
+            assertNotNull(MinecraftServer.getCommandManager().getCommand("spawn"))
+            val joining = AsyncPlayerConfigurationEvent(TestPlayer(), true)
+            Thread.startVirtualThread { context.nodes.single().call(joining) }.join()
+            assertSame(created.instance, joining.spawningInstance)
+        } finally {
+            module.stop()
+            MinecraftServer.getInstanceManager().unregisterInstance(created.instance)
         }
     }
 

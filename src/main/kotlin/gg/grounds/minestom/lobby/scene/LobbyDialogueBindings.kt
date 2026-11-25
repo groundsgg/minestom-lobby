@@ -5,7 +5,9 @@ import gg.grounds.scene.format.*
 import net.minestom.server.coordinate.Pos
 
 /** Validate every declared dialogue binding before accepting this scene. */
-internal fun PreparedLobbyScene.dialogueBindings(): List<LobbyDialogueBinding> =
+internal fun PreparedLobbyScene.dialogueBindings(
+    contract: LobbyDialogueHostContract? = null
+): List<LobbyDialogueBinding> =
     scene.elements
         .filterIsInstance<Npc>()
         .flatMap { npc ->
@@ -22,11 +24,14 @@ internal fun PreparedLobbyScene.dialogueBindings(): List<LobbyDialogueBinding> =
                         require(
                             action.arguments.keys ==
                                 setOf(LobbySceneCatalogs.DIALOGUE_ID, LobbySceneCatalogs.SPEAKER) &&
-                                dialogue in
+                                dialogue != null &&
+                                (dialogue in
                                     setOf(
                                         LobbyGuideContent.DIALOGUE_ID,
                                         StageLobbyDialogue.DIALOGUE_ID,
-                                    ) &&
+                                    ) ||
+                                    (contract == LobbyDialogueHostContract.GUIDE &&
+                                        dialogue.isNotBlank())) &&
                                 speaker == LobbyGuideContent.SPEAKER_ROLE &&
                                 binding.trigger == SceneTrigger.RIGHT_CLICK &&
                                 binding.conditions
@@ -53,13 +58,29 @@ internal fun PreparedLobbyScene.dialogueBindings(): List<LobbyDialogueBinding> =
                                 -npc.transform.rotation.yaw.toFloat(),
                                 0f,
                             ),
-                            dialogue!!,
+                            dialogue,
                             speaker,
                         )
                     }
             }
         }
         .also { bindings ->
+            if (contract != null) {
+                if (contract == LobbyDialogueHostContract.GUIDE) {
+                    require(bindings.size == 1) { "Guide host requires one primary NPC start" }
+                } else {
+                    require(
+                        bindings.isNotEmpty() &&
+                            bindings.all { it.dialogue == contract.builtInDialogueId }
+                    ) {
+                        "Stage metadata requires built-in Stage starts"
+                    }
+                }
+                bindings
+                    .map { it.dialogue }
+                    .distinct()
+                    .forEach { LobbyDialogueHostRegistration.create(contract, it) }
+            }
             require(bindings.map { it.elementId }.distinct().size == bindings.size) {
                 "Duplicate lobby dialogue binding"
             }
@@ -123,5 +144,19 @@ internal fun PreparedLobbyScene.withDialogueLabels(
                 },
             )
     }
-    return copy(scene = document, renderers = owner.captureGuideRenderers(registry))
+    var captured = owner.captureGuideRenderers(registry)
+    GroundsNpcModelSource.rendererSnapshot(renderers)
+        ?.takeIf { it.effectiveScene === scene }
+        ?.let { provenance ->
+            captured =
+                GroundsNpcModelSource.remember(
+                    captured,
+                    GroundsNpcModelSource.RendererSnapshot(
+                        provenance.content,
+                        provenance.sourcePin,
+                        document,
+                    ),
+                )
+        }
+    return copy(scene = document, renderers = captured)
 }
