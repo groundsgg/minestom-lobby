@@ -38,20 +38,26 @@ class LobbyDialogueRuntimeVerificationTest {
 
     private fun distribution(): Map<String, String> {
         java.nio.file.Files.createDirectories(directory.resolve("dialogue/context"))
+        val manifest = com.google.gson.JsonObject()
+        val generation = LobbyDialogueDistributionBinding.generation(manifest)
+        val (profile, host) = dialogueProfileFixture(generation)
         val pins =
             LobbyDialogueDistributionBinding.files.mapValues { (role, file) ->
                 val value =
-                    if (role in setOf("scene", "profile", "hostCatalog")) "{}" else "test-$role"
-                val path = java.nio.file.Files.writeString(directory.resolve(file), value)
+                    when (role) {
+                        "profile" -> profile
+                        "hostCatalog" -> host
+                        "scene" -> "{}".toByteArray()
+                        else -> "test-$role".toByteArray()
+                    }
+                val path = java.nio.file.Files.write(directory.resolve(file), value)
                 LobbyDialogueDistributionBinding.pin(path, role == "addon")
             }
-        val manifest = com.google.gson.JsonObject()
-        val generation = LobbyDialogueDistributionBinding.generation(manifest)
         val bytes =
             LobbyDialogueDistributionBinding.json(
                 mapOf(
                     "schemaVersion" to 1,
-                    "id" to "test:profile",
+                    "id" to "grounds:lobby-guide",
                     "version" to generation,
                     "generation" to generation,
                     "manifest" to manifest,

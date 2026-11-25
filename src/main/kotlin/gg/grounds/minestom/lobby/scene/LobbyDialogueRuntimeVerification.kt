@@ -18,85 +18,172 @@ import java.util.zip.ZipFile
  * One-shot verification of a deployment-anchored private distribution and the actual composition.
  */
 internal object LobbyDialogueRuntimeVerification {
+    sealed interface Preparation
+
     sealed interface Decision
 
-    data object Unconfigured : Decision
+    data object Unconfigured : Decision, Preparation
 
     data class Admitted(val buildGeneration: String) : Decision
 
-    data class Denied(val code: String) : Decision
+    data class Denied(val code: String) : Decision, Preparation
+
+    class Prepared
+    private constructor(
+        internal val root: Path,
+        receipt: ByteArray,
+        paths: Map<String, Path>,
+        pins: Map<String, Map<String, Any>>,
+        val generation: String,
+        val profile: LobbyDialogueTrustedProfile,
+    ) : Preparation {
+        private val receipt = receipt.clone()
+        internal val paths = java.util.Map.copyOf(paths)
+        internal val pins = java.util.Map.copyOf(pins.mapValues { java.util.Map.copyOf(it.value) })
+
+        internal fun receiptBytes() = receipt.clone()
+
+        /** Rechecks captured operator inputs only; never issues an admission decision. */
+        fun requireUnchanged() {
+            paths.forEach { (role, path) ->
+                requireSafe(path)
+                val current =
+                    jsonLimit(role)?.let { LobbyDialogueFileSnapshot.pin(bounded(path, it)) }
+                        ?: LobbyDialogueDistributionBinding.pin(path, role == "addon")
+                require(current == pins.getValue(role))
+            }
+            require(bounded(root.resolve("dialogue/binding.json"), 1048576).contentEquals(receipt))
+        }
+
+        companion object {
+            internal fun anchored(environment: Map<String, String>): Preparation =
+                capture(environment)
+
+            private fun capture(environment: Map<String, String>): Preparation {
+                if (DIRECTORY !in environment && DIGEST !in environment) return Unconfigured
+                var phase = "configuration_invalid"
+                return try {
+                    val root = Path.of(requireNotNull(environment[DIRECTORY]))
+                    val anchor = requireNotNull(environment[DIGEST])
+                    require(
+                        root.isAbsolute && root.toString().isNotBlank() && sha256.matches(anchor)
+                    )
+                    phase = "distribution_invalid"
+                    requireSafe(root)
+                    require(Files.isDirectory(root, NOFOLLOW_LINKS))
+                    val binding = root.resolve("dialogue/binding.json")
+                    val receiptBytes = bounded(binding, 1048576)
+                    require(LobbyDialogueDistributionBinding.hash(receiptBytes) == anchor)
+                    val receipt = strictJson(receiptBytes).asJsonObject
+                    require(
+                        receipt.keySet() ==
+                            setOf(
+                                "schemaVersion",
+                                "id",
+                                "version",
+                                "generation",
+                                "manifest",
+                                "files",
+                            )
+                    )
+                    require(integer(receipt["schemaVersion"]) == 1L)
+                    val generation = string(receipt["generation"])
+                    require(sha256.matches(generation) && string(receipt["version"]) == generation)
+                    val manifest = receipt["manifest"].asJsonObject
+                    require(LobbyDialogueDistributionBinding.generation(manifest) == generation)
+                    val fileRecords = receipt["files"].asJsonObject
+                    require(fileRecords.keySet() == LobbyDialogueDistributionBinding.files.keys)
+                    val paths =
+                        LobbyDialogueDistributionBinding.files.mapValues { (_, file) ->
+                            root.resolve(file)
+                        }
+                    val pins =
+                        paths.mapValues { (role, path) ->
+                            val record = fileRecords[role].asJsonObject
+                            require(
+                                record.keySet() ==
+                                    (setOf("file", "sha256", "size") +
+                                        if (role == "addon") setOf("sha1") else emptySet())
+                            )
+                            require(
+                                string(record["file"]) ==
+                                    LobbyDialogueDistributionBinding.files.getValue(role)
+                            )
+                            require(sha256.matches(string(record["sha256"])))
+                            require(integer(record["size"]) >= 0)
+                            if (role == "addon") require(sha1.matches(string(record["sha1"])))
+                            requireSafe(path)
+                            val pin =
+                                jsonLimit(role)?.let {
+                                    LobbyDialogueFileSnapshot.pin(bounded(path, it))
+                                } ?: LobbyDialogueDistributionBinding.pin(path, role == "addon")
+                            require(
+                                LobbyDialogueDistributionBinding.canonical(
+                                    JsonParser.parseString(
+                                        LobbyDialogueDistributionBinding.json(pin)
+                                            .toString(Charsets.UTF_8)
+                                    )
+                                ) ==
+                                    LobbyDialogueDistributionBinding.canonical(
+                                        record.deepCopy().also { it.remove("file") }
+                                    )
+                            )
+                            pin
+                        }
+                    val profileBytes = bounded(paths.getValue("profile"), 1048576)
+                    val hostBytes = bounded(paths.getValue("hostCatalog"), 1048576)
+                    require(LobbyDialogueFileSnapshot.pin(profileBytes) == pins.getValue("profile"))
+                    require(
+                        LobbyDialogueFileSnapshot.pin(hostBytes) == pins.getValue("hostCatalog")
+                    )
+                    val profile =
+                        LobbyDialogueTrustedProfile.parse(
+                            profileBytes,
+                            hostBytes,
+                            string(receipt["id"]),
+                            generation,
+                        )
+                    strictJson(bounded(paths.getValue("scene"), 16 * 1024 * 1024))
+                    Prepared(root, receiptBytes, paths, pins, generation, profile)
+                } catch (_: Exception) {
+                    Denied(phase)
+                }
+            }
+        }
+    }
 
     private const val DIRECTORY = "GROUNDS_DIALOGUE_DISTRIBUTION"
     private const val DIGEST = "GROUNDS_DIALOGUE_BINDING_SHA256"
     private val sha256 = Regex("[0-9a-f]{64}")
     private val sha1 = Regex("[0-9a-f]{40}")
 
+    fun prepare(environment: Map<String, String>): Preparation = Prepared.anchored(environment)
+
     fun verify(
         environment: Map<String, String>,
         selectedRawScene: Path?,
         composition: LobbySceneComposition?,
         transformedScene: Boolean,
+    ): Decision =
+        when (val prepared = prepare(environment)) {
+            Unconfigured -> Unconfigured
+            is Denied -> prepared
+            is Prepared -> verify(prepared, selectedRawScene, composition, transformedScene)
+        }
+
+    fun verify(
+        prepared: Prepared,
+        selectedRawScene: Path?,
+        composition: LobbySceneComposition?,
+        transformedScene: Boolean,
     ): Decision {
-        if (DIRECTORY !in environment && DIGEST !in environment) return Unconfigured
-        var phase = "configuration_invalid"
+        var phase = "runtime_provenance_invalid"
         return try {
-            val root = Path.of(requireNotNull(environment[DIRECTORY]))
-            val anchor = requireNotNull(environment[DIGEST])
-            require(root.isAbsolute && root.toString().isNotBlank() && sha256.matches(anchor))
-            phase = "distribution_invalid"
-            requireSafe(root)
-            require(Files.isDirectory(root, NOFOLLOW_LINKS))
-            val binding = root.resolve("dialogue/binding.json")
-            val receiptBytes = bounded(binding, 1048576)
-            require(LobbyDialogueDistributionBinding.hash(receiptBytes) == anchor)
-            val receipt = strictJson(receiptBytes).asJsonObject
-            require(
-                receipt.keySet() ==
-                    setOf("schemaVersion", "id", "version", "generation", "manifest", "files")
-            )
-            require(integer(receipt["schemaVersion"]) == 1L)
-            val generation = string(receipt["generation"])
-            require(sha256.matches(generation) && string(receipt["version"]) == generation)
-            val manifest = receipt["manifest"].asJsonObject
-            require(LobbyDialogueDistributionBinding.generation(manifest) == generation)
-            val fileRecords = receipt["files"].asJsonObject
-            require(fileRecords.keySet() == LobbyDialogueDistributionBinding.files.keys)
-            val paths =
-                LobbyDialogueDistributionBinding.files.mapValues { (_, file) -> root.resolve(file) }
-            val pins =
-                paths.mapValues { (role, path) ->
-                    val record = fileRecords[role].asJsonObject
-                    require(
-                        record.keySet() ==
-                            (setOf("file", "sha256", "size") +
-                                if (role == "addon") setOf("sha1") else emptySet())
-                    )
-                    require(
-                        string(record["file"]) ==
-                            LobbyDialogueDistributionBinding.files.getValue(role)
-                    )
-                    require(sha256.matches(string(record["sha256"])))
-                    require(integer(record["size"]) >= 0)
-                    if (role == "addon") require(sha1.matches(string(record["sha1"])))
-                    requireSafe(path)
-                    val pin =
-                        jsonLimit(role)?.let { LobbyDialogueFileSnapshot.pin(bounded(path, it)) }
-                            ?: LobbyDialogueDistributionBinding.pin(path, role == "addon")
-                    require(
-                        LobbyDialogueDistributionBinding.canonical(
-                            JsonParser.parseString(
-                                LobbyDialogueDistributionBinding.json(pin).toString(Charsets.UTF_8)
-                            )
-                        ) ==
-                            LobbyDialogueDistributionBinding.canonical(
-                                record.deepCopy().also { it.remove("file") }
-                            )
-                    )
-                    pin
-                }
-            strictJson(bounded(paths.getValue("profile"), 1048576))
-            strictJson(bounded(paths.getValue("hostCatalog"), 1048576))
-            strictJson(bounded(paths.getValue("scene"), 16 * 1024 * 1024))
+            val paths = prepared.paths
+            val pins = prepared.pins
+            val generation = prepared.generation
+            val receiptBytes = prepared.receiptBytes()
+            val binding = prepared.root.resolve("dialogue/binding.json")
             phase = "runtime_provenance_invalid"
             val executable = paths.getValue("executable")
             val actual = requireNotNull(composition)
@@ -145,25 +232,15 @@ internal object LobbyDialogueRuntimeVerification {
                     inputs,
                 )
             require(regenerated.generation == generation)
-            require(
-                regenerated.profile.profileBytes.contentEquals(
-                    bounded(paths.getValue("profile"), 1048576)
-                )
-            )
+            require(regenerated.profile.profileBytes.contentEquals(prepared.profile.profileBytes))
             require(
                 regenerated.profile.hostCatalogBytes.contentEquals(
-                    bounded(paths.getValue("hostCatalog"), 1048576)
+                    prepared.profile.hostCatalogBytes
                 )
             )
             require(regenerated.receipt(inputs).contentEquals(receiptBytes))
             phase = "inputs_changed"
-            paths.forEach { (role, path) ->
-                requireSafe(path)
-                val current =
-                    jsonLimit(role)?.let { LobbyDialogueFileSnapshot.pin(bounded(path, it)) }
-                        ?: LobbyDialogueDistributionBinding.pin(path, role == "addon")
-                require(current == pins.getValue(role))
-            }
+            prepared.requireUnchanged()
             require(LobbyDialogueFileSnapshot.pin(bounded(source, 16 * 1024 * 1024)) == selectedPin)
             LobbyDialogueExecutableIdentity.requireOpened(
                 executable,
