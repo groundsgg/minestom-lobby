@@ -66,8 +66,20 @@ internal fun PreparedLobbyScene.dialogueBindings(
         }
         .also { bindings ->
             if (contract != null) {
-                require(bindings.size == 1) { "Host metadata requires one primary NPC start" }
-                LobbyDialogueHostRegistration.create(contract, bindings.single().dialogue)
+                if (contract == LobbyDialogueHostContract.GUIDE) {
+                    require(bindings.size == 1) { "Guide host requires one primary NPC start" }
+                } else {
+                    require(
+                        bindings.isNotEmpty() &&
+                            bindings.all { it.dialogue == contract.builtInDialogueId }
+                    ) {
+                        "Stage metadata requires built-in Stage starts"
+                    }
+                }
+                bindings
+                    .map { it.dialogue }
+                    .distinct()
+                    .forEach { LobbyDialogueHostRegistration.create(contract, it) }
             }
             require(bindings.map { it.elementId }.distinct().size == bindings.size) {
                 "Duplicate lobby dialogue binding"

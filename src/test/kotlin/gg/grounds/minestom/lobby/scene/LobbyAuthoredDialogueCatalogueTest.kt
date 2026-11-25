@@ -133,6 +133,11 @@ class LobbyAuthoredDialogueCatalogueTest {
         val locale = entry.locale("en-AU", 7)
         assertEquals("en-AU", locale.tag())
         assertEquals("fr-CA", locale.fallbackTag())
+        for (emptyLanguage in listOf("", "und", "x-local")) {
+            assertEquals("fr-CA", entry.locale(emptyLanguage, 8).tag())
+            assertEquals(8L, entry.locale(emptyLanguage, 8).revision())
+        }
+
         val resolved =
             entry.resolver
                 .resolve(
@@ -553,7 +558,7 @@ class LobbyAuthoredDialogueCatalogueTest {
             val generation = "lobby-dialogue-" + java.util.UUID.randomUUID()
             var opened = 0
             var refresh: Runnable? = null
-            var language = "es-mx"
+            var language = java.util.Locale.ROOT.toLanguageTag()
             val registrations =
                 mapOf(
                     id to
@@ -611,6 +616,10 @@ class LobbyAuthoredDialogueCatalogueTest {
             try {
                 owner.start(context, id, "guide")
                 ticks(fixture)
+                assertTrue(messages(player).any { it.contains("Bonjour Québec") })
+                language = "es-mx"
+                refresh!!.run()
+                ticks(fixture)
                 assertTrue(messages(player).any { it.contains("Hola México") })
                 assertTrue(messages(player).any { it.contains("Continuar") })
                 assertEquals(1, opened)
@@ -627,6 +636,24 @@ class LobbyAuthoredDialogueCatalogueTest {
                 ticks(fixture)
                 assertTrue(messages(player).any { it.contains("Hola México") })
                 assertEquals(1, opened, "Refreshing a later node must not replay the entry action")
+                for (emptyLanguage in
+                    listOf(java.util.Locale.ROOT.toLanguageTag(), "und", "x-local")) {
+                    player.connection.packets.clear()
+                    language = emptyLanguage
+                    refresh!!.run()
+                    ticks(fixture)
+                    assertTrue(
+                        messages(player).any { it.contains("Bonjour Québec") },
+                        emptyLanguage,
+                    )
+                    assertTrue(messages(player).any { it.contains("Continuer") }, emptyLanguage)
+                    player.connection.packets.clear()
+                    language = "es-MX"
+                    refresh!!.run()
+                    ticks(fixture)
+                    assertTrue(messages(player).any { it.contains("Hola México") })
+                    assertEquals(1, opened, "Locale fallback must preserve the progressed node")
+                }
             } finally {
                 drain(owner, fixture)
             }
@@ -830,6 +857,151 @@ class LobbyAuthoredDialogueCatalogueTest {
         ticks(fixture)
         assertTrue(closed.isDone)
         closed.join()
+    }
+
+    @Test
+    fun `runtime preflight rejects missing interpolation arguments in every referenced translation`() {
+        val prepared = prepare()
+        for ((key, locale) in
+            listOf(
+                "hello" to "fr-CA",
+                "choice" to "fr-CA",
+                "later" to "fr-CA",
+                "speaker.guide" to "fr-CA",
+                "speaker.guide" to "en",
+            )) {
+            story(prepared)
+            write(
+                "dialogues/a.json",
+                DialogueJsonCodec()
+                    .encode(
+                        DialogueBuilder.dialogue(id)
+                            .locales("en", "en", "fr-CA")
+                            .node(
+                                "start",
+                                Message(
+                                    "guide",
+                                    "hello",
+                                    null,
+                                    listOf(Choice("next", "choice", "later", false, null)),
+                                    null,
+                                ),
+                            )
+                            .node("later", Message("guide", "later", null, emptyList(), "end"))
+                            .node("end", End("completed"))
+                            .build()
+                    ),
+            )
+            for (tag in listOf("en", "fr-CA")) {
+                val translations =
+                    mutableMapOf("hello" to "Hello", "choice" to "Continue", "later" to "Later")
+                if (tag == locale) translations[key] = "Welcome {player}"
+                write("texts/$tag.json", LobbyDialogueDistributionBinding.json(translations))
+            }
+            val candidate = load(prepared)
+            val failure =
+                assertThrows(IllegalArgumentException::class.java) {
+                    candidate.revalidate(scene(), mapOf(id to registration()), "runtime-preflight")
+                }
+            assertTrue(failure.message!!.contains(id), failure.message)
+            assertTrue(failure.message!!.contains(key), failure.message)
+            assertTrue(failure.message!!.contains(locale), failure.message)
+        }
+    }
+
+    @Test
+    fun `runtime preflight honors public resolver escaping and ignores unused and undeclared text`() {
+        val prepared = prepare()
+        story(prepared)
+        write(
+            "dialogues/a.json",
+            DialogueJsonCodec()
+                .encode(
+                    DialogueBuilder.dialogue(id)
+                        .node(
+                            "start",
+                            Message(
+                                "guide",
+                                "hello",
+                                null,
+                                listOf(Choice("next", "choice", "end", false, null)),
+                                null,
+                            ),
+                        )
+                        .node("end", End("completed"))
+                        .build()
+                ),
+        )
+        write(
+            "texts/en.json",
+            """{"hello":"Welcome {{player}} and }}","choice":"Continue {{next}}","speaker.guide":"Guide {{name}}","unused":"{missing}"}"""
+                .toByteArray(),
+        )
+        write(
+            "texts/es.json",
+            """{"hello":"{missing}","speaker.guide":"{missing}"}""".toByteArray(),
+        )
+        val entry =
+            load(prepared)
+                .revalidate(scene(), mapOf(id to registration()), "runtime-escaped")
+                .getValue(id)
+        fun text(key: String) =
+            entry.resolver
+                .resolve(
+                    gg.grounds.dialogue.core.text.TextResolver.TextRequest(
+                        key,
+                        emptyMap(),
+                        entry.locale("en", 0),
+                    )
+                )
+                .toCompletableFuture()
+                .join()
+                .plain
+        assertEquals("Welcome {player} and }", text("hello"))
+        assertEquals("Guide {name}", text("speaker.guide"))
+        assertEquals("Continue {next}", text("choice"))
+    }
+
+    @Test
+    fun `equal supported locale sets share scoped immutable catalogue while defaults remain per graph`() {
+        val prepared = prepare()
+        story(prepared)
+        for ((file, graph, default) in
+            listOf(Triple("a", id, "en"), Triple("b", "story:second", "fr-CA"))) {
+            write(
+                "dialogues/$file.json",
+                DialogueJsonCodec()
+                    .encode(
+                        DialogueBuilder.dialogue(graph)
+                            .locales(default, "en", "fr-CA")
+                            .node("start", Message("guide", "hello", null, emptyList(), "end"))
+                            .node("end", End("completed"))
+                            .build()
+                    ),
+            )
+        }
+        write("texts/fr-CA.json", """{"hello":"Bonjour"}""".toByteArray())
+        write("texts/es.json", """{"hello":"Fuera"}""".toByteArray())
+        val entries =
+            load(prepared).revalidate(scene(), mapOf(id to registration()), "runtime-shared")
+        val first = entries.getValue(id)
+        val second = entries.getValue("story:second")
+        assertSame(first.texts, second.texts)
+        assertEquals(setOf("en", "fr-CA"), first.texts.locales().keys)
+        fun fallback(entry: LobbyAuthoredDialogueCatalogue.Entry) =
+            entry.resolver
+                .resolve(
+                    gg.grounds.dialogue.core.text.TextResolver.TextRequest(
+                        "hello",
+                        emptyMap(),
+                        entry.locale("es-MX", 0),
+                    )
+                )
+                .toCompletableFuture()
+                .join()
+                .plain
+        assertEquals("Hello", fallback(first))
+        assertEquals("Bonjour", fallback(second))
     }
 
     private fun registration() =
