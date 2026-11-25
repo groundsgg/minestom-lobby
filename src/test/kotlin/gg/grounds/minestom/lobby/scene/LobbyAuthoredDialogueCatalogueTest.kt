@@ -3,6 +3,7 @@ package gg.grounds.minestom.lobby.scene
 import gg.grounds.dialogue.core.definition.DialogueBuilder
 import gg.grounds.dialogue.core.definition.DialogueDefinition.*
 import gg.grounds.dialogue.json.DialogueJsonCodec
+import gg.grounds.modules.register
 import java.nio.file.Files
 import java.nio.file.Path
 import org.junit.jupiter.api.Assertions.*
@@ -213,6 +214,744 @@ class LobbyAuthoredDialogueCatalogueTest {
             LobbyAuthoredDialogueCatalogue.Absent,
             LobbyAuthoredDialogueCatalogue.load(LobbyAuthoredDialogueInputs.read(root), null),
         )
+    }
+
+    @Test
+    fun `authored owner uses exact registration generation and captured text on mapped NPC`() {
+        net.minestom.server.MinecraftServer.init()
+        val prepared = prepare()
+        story(prepared)
+        val candidate = load(prepared)
+        RendererFixture().use { fixture ->
+            val selected = scene()
+            val owner =
+                LobbySceneComposition.createAuthored(
+                        selected,
+                        fixture.instance,
+                        gg.grounds.modules.core.DefaultServiceRegistry().apply {
+                            register<gg.grounds.lobby.LobbyNavigatorService>(
+                                object : gg.grounds.lobby.LobbyNavigatorService {
+                                    override fun open(player: net.minestom.server.entity.Player) =
+                                        java.util.concurrent.CompletableFuture.completedFuture(true)
+                                }
+                            )
+                            register<gg.grounds.lobby.LobbyQueueService>(
+                                object : gg.grounds.lobby.LobbyQueueService {
+                                    override fun toggleQueue(
+                                        player: net.minestom.server.entity.Player,
+                                        modeId: String,
+                                    ) =
+                                        java.util.concurrent.CompletableFuture.completedFuture(
+                                            false
+                                        )
+
+                                    override fun openDuels(
+                                        player: net.minestom.server.entity.Player
+                                    ) = java.util.concurrent.CompletableFuture.completedFuture(true)
+                                }
+                            )
+                        },
+                        candidate,
+                        LobbyDialogueAdmission(false),
+                    )
+                    .dialogues!!
+            val player = fixture.player(net.minestom.server.coordinate.Pos(0.0, 0.0, 2.0))
+            fun context(npc: String) =
+                gg.grounds.scene.minestom.SceneActionContext(
+                    selected.identity,
+                    player,
+                    gg.grounds.scene.format.LocalId(npc),
+                    gg.grounds.scene.format.SceneTrigger.RIGHT_CLICK,
+                    gg.grounds.scene.format.SceneHand.MAIN,
+                    0,
+                    emptyMap(),
+                    gg.grounds.scene.minestom.SceneViewerVisualState(),
+                )
+            try {
+                assertInstanceOf(
+                    gg.grounds.scene.minestom.SceneActionResult.Rejected::class.java,
+                    owner.start(context("foreign"), id, "guide").toCompletableFuture().join(),
+                )
+                val started = owner.start(context("navigator"), id, "guide").toCompletableFuture()
+                repeat(100) {
+                    fixture.instance.tick(0)
+                    net.minestom.server.MinecraftServer.getSchedulerManager().processTick()
+                }
+                assertEquals(gg.grounds.scene.minestom.SceneActionResult.Success, started.join())
+                val messages =
+                    player.connection.packets
+                        .filterIsInstance<
+                            net.minestom.server.network.packet.server.play.SystemChatPacket
+                        >()
+                        .map {
+                            net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
+                                .plainText()
+                                .serialize(it.message())
+                        }
+                assertTrue(messages.any { it.contains("Hello") }, messages.toString())
+                assertEquals(LobbyDialogueHostContract.GUIDE, owner.authoredContract)
+                assertNull(owner.metadataContract)
+            } finally {
+                val closed = owner.closeAsync().toCompletableFuture()
+                repeat(100) {
+                    fixture.instance.tick(0)
+                    net.minestom.server.MinecraftServer.getSchedulerManager().processTick()
+                }
+                assertTrue(closed.isDone)
+                closed.join()
+            }
+        }
+    }
+
+    @Test
+    fun `root action opens once and late reconnect completion cannot resume predecessor`() {
+        net.minestom.server.MinecraftServer.init()
+        val prepared = prepare()
+        story(prepared)
+        write(
+            "dialogues/a.json",
+            DialogueJsonCodec()
+                .encode(
+                    DialogueBuilder.dialogue(id)
+                        .node(
+                            "start",
+                            Action(
+                                LobbyGuideContent.NAVIGATOR_ACTION,
+                                emptyMap(),
+                                "ok",
+                                "bad",
+                                "bad",
+                                "bad",
+                            ),
+                        )
+                        .node("ok", Message("guide", "hello", null, emptyList(), "end"))
+                        .node("bad", Message("guide", "failed", null, emptyList(), "end"))
+                        .node("end", End("completed"))
+                        .build()
+                ),
+        )
+        write("texts/en.json", """{"hello":"ACCEPTED","failed":"UNAVAILABLE"}""".toByteArray())
+        val candidate = load(prepared)
+        RendererFixture().use { fixture ->
+            val opened = mutableListOf<net.minestom.server.entity.Player>()
+            val pending = mutableListOf<java.util.concurrent.CompletableFuture<Boolean>>()
+            val selected = scene()
+            val generation = "lobby-dialogue-" + java.util.UUID.randomUUID()
+            val registration =
+                LobbyDialogueHostRegistration.create(
+                    LobbyDialogueHostContract.GUIDE,
+                    id,
+                    object : gg.grounds.lobby.LobbyNavigatorService {
+                        override fun open(
+                            player: net.minestom.server.entity.Player
+                        ): java.util.concurrent.CompletionStage<Boolean> {
+                            opened += player
+                            return java.util.concurrent.CompletableFuture<Boolean>().also {
+                                pending += it
+                            }
+                        }
+                    },
+                    object : gg.grounds.lobby.LobbyQueueService {
+                        override fun toggleQueue(
+                            player: net.minestom.server.entity.Player,
+                            modeId: String,
+                        ) = java.util.concurrent.CompletableFuture.completedFuture(false)
+
+                        override fun openDuels(player: net.minestom.server.entity.Player) =
+                            java.util.concurrent.CompletableFuture.completedFuture(true)
+                    },
+                )
+            val registrations = mapOf(id to registration)
+            val owner =
+                LobbyDialogues(
+                    fixture.instance,
+                    selected.identity,
+                    selected.dialogueBindings(candidate.contract),
+                    authoredContract = candidate.contract,
+                    generation = generation,
+                    actualRegistrations = registrations,
+                    authoredEntries = candidate.revalidate(selected, registrations, generation),
+                )
+            fun context(player: net.minestom.server.entity.Player) =
+                gg.grounds.scene.minestom.SceneActionContext(
+                    selected.identity,
+                    player,
+                    gg.grounds.scene.format.LocalId("navigator"),
+                    gg.grounds.scene.format.SceneTrigger.RIGHT_CLICK,
+                    gg.grounds.scene.format.SceneHand.MAIN,
+                    0,
+                    emptyMap(),
+                    gg.grounds.scene.minestom.SceneViewerVisualState(),
+                )
+            val first = fixture.player(net.minestom.server.coordinate.Pos(0.0, 0.0, 2.0))
+            val other = fixture.player(net.minestom.server.coordinate.Pos(0.0, 0.0, 2.0))
+            try {
+                owner.start(context(first), id, "guide")
+                ticks(fixture)
+                assertEquals(listOf(first), opened)
+                assertInstanceOf(
+                    gg.grounds.scene.minestom.SceneActionResult.Rejected::class.java,
+                    owner.start(context(first), id, "guide").toCompletableFuture().join(),
+                )
+                owner.start(context(other), id, "guide")
+                ticks(fixture)
+                assertEquals(listOf(first, other), opened)
+                val successor =
+                    fixture.player(net.minestom.server.coordinate.Pos(0.0, 0.0, 2.0), first.uuid)
+                owner.start(context(successor), id, "guide")
+                ticks(fixture)
+                assertEquals(listOf(first, other, successor), opened)
+                first.connection.packets.clear()
+                pending[0].complete(true)
+                ticks(fixture)
+                assertFalse(
+                    messages(first).any { it.contains("ACCEPTED") || it.contains("UNAVAILABLE") }
+                )
+                pending[2].complete(true)
+                pending[1].complete(true)
+                ticks(fixture)
+                assertTrue(messages(successor).any { it.contains("ACCEPTED") })
+                assertTrue(messages(other).any { it.contains("ACCEPTED") })
+                val disconnected = fixture.player(net.minestom.server.coordinate.Pos(0.0, 0.0, 2.0))
+                owner.start(context(disconnected), id, "guide")
+                ticks(fixture)
+                net.minestom.server.event.EventDispatcher.call(
+                    net.minestom.server.event.player.PlayerDisconnectEvent(disconnected)
+                )
+                disconnected.connection.packets.clear()
+                pending[3].complete(true)
+                ticks(fixture)
+                assertFalse(
+                    messages(disconnected).any {
+                        it.contains("ACCEPTED") || it.contains("UNAVAILABLE")
+                    }
+                )
+                RendererFixture().use { target ->
+                    val moved = fixture.player(net.minestom.server.coordinate.Pos(0.0, 0.0, 2.0))
+                    owner.start(context(moved), id, "guide")
+                    ticks(fixture)
+                    moved
+                        .setInstance(target.instance, net.minestom.server.coordinate.Pos.ZERO)
+                        .join()
+                    net.minestom.server.event.EventDispatcher.call(
+                        net.minestom.server.event.player.PlayerTickEvent(moved)
+                    )
+                    moved.connection.packets.clear()
+                    pending[4].complete(true)
+                    ticks(fixture)
+                    ticks(target)
+                    assertFalse(
+                        messages(moved).any {
+                            it.contains("ACCEPTED") || it.contains("UNAVAILABLE")
+                        }
+                    )
+                }
+            } finally {
+                drain(owner, fixture)
+            }
+        }
+    }
+
+    @Test
+    fun `immediate End root releases owner so a second click can start`() {
+        net.minestom.server.MinecraftServer.init()
+        val prepared = prepare()
+        story(prepared)
+        write(
+            "dialogues/a.json",
+            DialogueJsonCodec()
+                .encode(DialogueBuilder.dialogue(id).node("start", End("completed")).build()),
+        )
+        val candidate = load(prepared)
+        RendererFixture().use { fixture ->
+            val selected = scene()
+            val generation = "lobby-dialogue-" + java.util.UUID.randomUUID()
+            val registrations = mapOf(id to registration())
+            val owner =
+                LobbyDialogues(
+                    fixture.instance,
+                    selected.identity,
+                    selected.dialogueBindings(candidate.contract),
+                    authoredContract = candidate.contract,
+                    generation = generation,
+                    actualRegistrations = registrations,
+                    authoredEntries = candidate.revalidate(selected, registrations, generation),
+                )
+            val player = fixture.player(net.minestom.server.coordinate.Pos(0.0, 0.0, 2.0))
+            val context =
+                gg.grounds.scene.minestom.SceneActionContext(
+                    selected.identity,
+                    player,
+                    gg.grounds.scene.format.LocalId("navigator"),
+                    gg.grounds.scene.format.SceneTrigger.RIGHT_CLICK,
+                    gg.grounds.scene.format.SceneHand.MAIN,
+                    0,
+                    emptyMap(),
+                    gg.grounds.scene.minestom.SceneViewerVisualState(),
+                )
+            try {
+                repeat(2) {
+                    val started = owner.start(context, id, "guide").toCompletableFuture()
+                    ticks(fixture)
+                    assertEquals(
+                        gg.grounds.scene.minestom.SceneActionResult.Success,
+                        started.join(),
+                    )
+                    assertEquals("CLOSED", owner.presentation(player)?.diagnostic)
+                }
+            } finally {
+                drain(owner, fixture)
+            }
+        }
+    }
+
+    @Test
+    fun `authored live locales preserve canonical tags scoped fallback and current node`() {
+        net.minestom.server.MinecraftServer.init()
+        val prepared = prepare()
+        story(prepared)
+        write(
+            "dialogues/a.json",
+            DialogueJsonCodec()
+                .encode(
+                    DialogueBuilder.dialogue(id)
+                        .locales("fr-CA", "fr-CA", "es-MX")
+                        .node(
+                            "start",
+                            Action(
+                                LobbyGuideContent.NAVIGATOR_ACTION,
+                                emptyMap(),
+                                "shown",
+                                "shown",
+                                "shown",
+                                "shown",
+                            ),
+                        )
+                        .node(
+                            "shown",
+                            Message(
+                                "guide",
+                                "hello",
+                                null,
+                                listOf(Choice("stay", "choice", "end", false, null)),
+                                null,
+                            ),
+                        )
+                        .node("end", End("completed"))
+                        .build()
+                ),
+        )
+        write(
+            "texts/fr-CA.json",
+            """{"hello":"Bonjour Québec","choice":"Continuer"}""".toByteArray(),
+        )
+        write("texts/es-MX.json", """{"hello":"Hola México","choice":"Continuar"}""".toByteArray())
+        write("texts/en.json", """{"hello":"LEAKED","choice":"LEAKED"}""".toByteArray())
+        val candidate = load(prepared)
+        RendererFixture().use { fixture ->
+            val selected = scene()
+            val generation = "lobby-dialogue-" + java.util.UUID.randomUUID()
+            var opened = 0
+            var refresh: Runnable? = null
+            var language = "es-mx"
+            val registrations =
+                mapOf(
+                    id to
+                        LobbyDialogueHostRegistration.create(
+                            candidate.contract,
+                            id,
+                            object : gg.grounds.lobby.LobbyNavigatorService {
+                                override fun open(
+                                    player: net.minestom.server.entity.Player
+                                ): java.util.concurrent.CompletionStage<Boolean> {
+                                    opened++
+                                    return java.util.concurrent.CompletableFuture.completedFuture(
+                                        true
+                                    )
+                                }
+                            },
+                            object : gg.grounds.lobby.LobbyQueueService {
+                                override fun toggleQueue(
+                                    player: net.minestom.server.entity.Player,
+                                    modeId: String,
+                                ) = java.util.concurrent.CompletableFuture.completedFuture(false)
+
+                                override fun openDuels(player: net.minestom.server.entity.Player) =
+                                    java.util.concurrent.CompletableFuture.completedFuture(true)
+                            },
+                        )
+                )
+            val owner =
+                LobbyDialogues(
+                    fixture.instance,
+                    selected.identity,
+                    selected.dialogueBindings(candidate.contract),
+                    locale = { language },
+                    observeLocale = { _, callback ->
+                        refresh = callback
+                        AutoCloseable { refresh = null }
+                    },
+                    authoredContract = candidate.contract,
+                    generation = generation,
+                    actualRegistrations = registrations,
+                    authoredEntries = candidate.revalidate(selected, registrations, generation),
+                )
+            val player = fixture.player(net.minestom.server.coordinate.Pos(0.0, 0.0, 2.0))
+            val context =
+                gg.grounds.scene.minestom.SceneActionContext(
+                    selected.identity,
+                    player,
+                    gg.grounds.scene.format.LocalId("navigator"),
+                    gg.grounds.scene.format.SceneTrigger.RIGHT_CLICK,
+                    gg.grounds.scene.format.SceneHand.MAIN,
+                    0,
+                    emptyMap(),
+                    gg.grounds.scene.minestom.SceneViewerVisualState(),
+                )
+            try {
+                owner.start(context, id, "guide")
+                ticks(fixture)
+                assertTrue(messages(player).any { it.contains("Hola México") })
+                assertTrue(messages(player).any { it.contains("Continuar") })
+                assertEquals(1, opened)
+                player.connection.packets.clear()
+                language = "en-AU"
+                refresh!!.run()
+                ticks(fixture)
+                assertTrue(messages(player).any { it.contains("Bonjour Québec") })
+                assertTrue(messages(player).any { it.contains("Continuer") })
+                assertFalse(messages(player).any { it.contains("LEAKED") })
+                player.connection.packets.clear()
+                language = "es-MX"
+                refresh!!.run()
+                ticks(fixture)
+                assertTrue(messages(player).any { it.contains("Hola México") })
+                assertEquals(1, opened, "Refreshing a later node must not replay the entry action")
+            } finally {
+                drain(owner, fixture)
+            }
+            assertNull(refresh)
+        }
+    }
+
+    @Test
+    fun `authored Guide refresh uses effective native speech locale without repeating root action`() {
+        net.minestom.server.MinecraftServer.init()
+        val prepared = prepare()
+        story(prepared)
+        write(
+            "dialogues/a.json",
+            DialogueJsonCodec().encode(
+                DialogueBuilder.dialogue(id)
+                    .locales("fr", "fr", "es-MX")
+                    .node("start", Action(LobbyGuideContent.NAVIGATOR_ACTION, emptyMap(), "shown", "shown", "shown", "shown"))
+                    .node("shown", Message("guide", "hello", null, listOf(Choice("again", "choice", "shown", false, null), Choice("leave", "choice", "end", false, null)), null))
+                    .node("end", End("completed"))
+                    .build()
+            ),
+        )
+        write("texts/fr.json", """{"hello":"Cette phrase donne du temps pour parler avant le prochain choix.","choice":"Continuer"}""".toByteArray())
+        write("texts/es-MX.json", """{"hello":"Esta frase permite escuchar la voz antes de la siguiente elección.","choice":"Continuar"}""".toByteArray())
+        write("texts/en.json", """{"hello":"LEAKED","choice":"LEAKED"}""".toByteArray())
+        val candidate = load(prepared)
+        RendererFixture().use { fixture ->
+            fixture.instance.viewDistance(1)
+            val selected = scene()
+            val generation = "lobby-dialogue-" + java.util.UUID.randomUUID()
+            val assets = StageDialogueAssets.load()
+            var opened = 0
+            var refresh: Runnable? = null
+            var language = "es-MX"
+            val registrations = mapOf(id to LobbyDialogueHostRegistration.create(
+                candidate.contract,
+                id,
+                object : gg.grounds.lobby.LobbyNavigatorService {
+                    override fun open(player: net.minestom.server.entity.Player): java.util.concurrent.CompletionStage<Boolean> {
+                        opened++
+                        return java.util.concurrent.CompletableFuture.completedFuture(true)
+                    }
+                },
+                object : gg.grounds.lobby.LobbyQueueService {
+                    override fun toggleQueue(player: net.minestom.server.entity.Player, modeId: String) = java.util.concurrent.CompletableFuture.completedFuture(false)
+                    override fun openDuels(player: net.minestom.server.entity.Player) = java.util.concurrent.CompletableFuture.completedFuture(true)
+                },
+            ))
+            val owner = LobbyDialogues(
+                fixture.instance,
+                selected.identity,
+                selected.dialogueBindings(candidate.contract),
+                assets = assets,
+                proxyPackEnabled = true,
+                reducedMotion = { true },
+                locale = { language },
+                observeLocale = { _, callback -> refresh = callback; AutoCloseable { refresh = null } },
+                authoredContract = candidate.contract,
+                generation = generation,
+                actualRegistrations = registrations,
+                authoredEntries = candidate.revalidate(selected, registrations, generation),
+            )
+            val player = fixture.player(net.minestom.server.coordinate.Pos(0.0, 0.0, 2.0))
+            fun voices() = player.connection.packets
+                .filterIsInstance<net.minestom.server.network.packet.server.play.SoundEffectPacket>()
+                .count { it.soundEvent().key().asString().startsWith("dialogue:guide/") }
+            fun visible() = fixture.instance.entities.filter {
+                it.entityType == net.minestom.server.entity.EntityType.TEXT_DISPLAY && player in it.viewers
+            }.map {
+                net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()
+                    .serialize((it.entityMeta as net.minestom.server.entity.metadata.display.TextDisplayMeta).text)
+            }
+            fun until(condition: () -> Boolean) {
+                val deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5)
+                while (!condition() && System.nanoTime() < deadline) {
+                    fixture.instance.tick(0)
+                    net.minestom.server.MinecraftServer.getSchedulerManager().processTick()
+                    Thread.yield()
+                }
+                assertTrue(condition(), "Expected authored native presentation (locale=$language, status=${owner.presentation(player)}, text=${visible()}, voices=${voices()})")
+            }
+            var sequence = 0
+            fun refreshedVisit(requested: String, prefix: String) {
+                val before = voices()
+                language = requested
+                refresh!!.run()
+                until { visible().any { it.contains(prefix) } }
+                assertFalse(visible().any { it.contains("LEAKED") })
+                assertEquals(before, voices(), "Refresh must not replay already revealed speech")
+                assertEquals(1, opened, "Refresh must not repeat the startup action")
+                Thread.sleep(375)
+                net.minestom.server.event.EventDispatcher.call(
+                    net.minestom.server.event.player.PlayerPacketEvent(
+                        player,
+                        net.minestom.server.network.packet.client.play.ClientPlayerActionPacket(
+                            net.minestom.server.network.packet.client.play.ClientPlayerActionPacket.Status.SWAP_ITEM_HAND,
+                            net.minestom.server.coordinate.Vec.ZERO,
+                            net.minestom.server.instance.block.BlockFace.TOP,
+                            ++sequence,
+                        ),
+                    )
+                )
+                until { voices() > before }
+                assertEquals(1, opened, "A fresh message visit must not return to the root action")
+            }
+            try {
+                owner.confirmPack(player, DialoguePackReadiness.State(1, true, assets.pin()))
+                val start = owner.start(
+                    gg.grounds.scene.minestom.SceneActionContext(
+                        selected.identity, player, gg.grounds.scene.format.LocalId("navigator"),
+                        gg.grounds.scene.format.SceneTrigger.RIGHT_CLICK, gg.grounds.scene.format.SceneHand.MAIN,
+                        0, emptyMap(), gg.grounds.scene.minestom.SceneViewerVisualState(),
+                    ), id, "guide",
+                ).toCompletableFuture()
+                until { start.isDone && voices() > 0 }
+                assertEquals(gg.grounds.scene.minestom.SceneActionResult.Success, start.join())
+                assertEquals("npc", owner.presentation(player)?.effectiveSurface)
+                assertEquals(1, opened)
+                refreshedVisit("fr-CA", "Cette phrase")
+                refreshedVisit("es-MX", "Esta frase")
+                refreshedVisit("it-IT", "Cette phrase")
+            } finally {
+                drain(owner, fixture)
+            }
+            assertNull(refresh)
+        }
+    }
+
+    @Test
+    fun `closing during preparation does not reinsert session or leak late locale subscription`() {
+        net.minestom.server.MinecraftServer.init()
+        val prepared = prepare()
+        story(prepared)
+        val candidate = load(prepared)
+        RendererFixture().use { fixture ->
+            val selected = scene()
+            val generation = "lobby-dialogue-" + java.util.UUID.randomUUID()
+            val registrations = mapOf(id to registration())
+            var subscriptionsClosed = 0
+            lateinit var owner: LobbyDialogues
+            owner =
+                LobbyDialogues(
+                    fixture.instance,
+                    selected.identity,
+                    selected.dialogueBindings(candidate.contract),
+                    observeLocale = { _, _ ->
+                        owner.closeAsync()
+                        AutoCloseable { subscriptionsClosed++ }
+                    },
+                    authoredContract = candidate.contract,
+                    generation = generation,
+                    actualRegistrations = registrations,
+                    authoredEntries = candidate.revalidate(selected, registrations, generation),
+                )
+            val player = fixture.player(net.minestom.server.coordinate.Pos(0.0, 0.0, 2.0))
+            val context =
+                gg.grounds.scene.minestom.SceneActionContext(
+                    selected.identity,
+                    player,
+                    gg.grounds.scene.format.LocalId("navigator"),
+                    gg.grounds.scene.format.SceneTrigger.RIGHT_CLICK,
+                    gg.grounds.scene.format.SceneHand.MAIN,
+                    0,
+                    emptyMap(),
+                    gg.grounds.scene.minestom.SceneViewerVisualState(),
+                )
+            try {
+                val started = owner.start(context, id, "guide").toCompletableFuture()
+                ticks(fixture)
+                assertTrue(started.isDone)
+                assertEquals(1, subscriptionsClosed)
+                assertNull(owner.presentation(player))
+                assertInstanceOf(
+                    gg.grounds.scene.minestom.SceneActionResult.Rejected::class.java,
+                    owner.start(context, id, "guide").toCompletableFuture().join(),
+                )
+            } finally {
+                drain(owner, fixture)
+            }
+        }
+    }
+
+    @Test
+    fun `owner abort cancels actual navigator queued delivery before UI operation`() {
+        net.minestom.server.MinecraftServer.init()
+        val prepared = prepare()
+        story(prepared)
+        write(
+            "dialogues/a.json",
+            DialogueJsonCodec()
+                .encode(
+                    DialogueBuilder.dialogue(id)
+                        .node(
+                            "start",
+                            Action(
+                                LobbyGuideContent.NAVIGATOR_ACTION,
+                                emptyMap(),
+                                "end",
+                                "end",
+                                "end",
+                                "end",
+                            ),
+                        )
+                        .node("end", End("completed"))
+                        .build()
+                ),
+        )
+        val candidate = load(prepared)
+        for (abort in listOf("owner", "disconnect", "instance")) RendererFixture().use { fixture ->
+            val elsewhere = RendererFixture()
+            var delivered = 0
+            val queued = mutableListOf<Runnable>()
+            val operation: (net.minestom.server.entity.Player) -> Unit = { delivered++ }
+            val dispatch: (net.minestom.server.entity.Player, Runnable) -> Unit = { _, action ->
+                queued += action
+            }
+            val constructor =
+                Class.forName("gg.grounds.lobby.DefaultLobbyNavigatorService")
+                    .getDeclaredConstructor(Function1::class.java, Function2::class.java)
+            constructor.isAccessible = true
+            val navigator =
+                constructor.newInstance(operation, dispatch)
+                    as gg.grounds.lobby.LobbyNavigatorService
+            val selected = scene()
+            val generation = "lobby-dialogue-" + java.util.UUID.randomUUID()
+            val registrations =
+                mapOf(
+                    id to
+                        LobbyDialogueHostRegistration.create(
+                            candidate.contract,
+                            id,
+                            navigator,
+                            object : gg.grounds.lobby.LobbyQueueService {
+                                override fun toggleQueue(
+                                    player: net.minestom.server.entity.Player,
+                                    modeId: String,
+                                ) = java.util.concurrent.CompletableFuture.completedFuture(false)
+
+                                override fun openDuels(player: net.minestom.server.entity.Player) =
+                                    java.util.concurrent.CompletableFuture.completedFuture(true)
+                            },
+                        )
+                )
+            val owner =
+                LobbyDialogues(
+                    fixture.instance,
+                    selected.identity,
+                    selected.dialogueBindings(candidate.contract),
+                    authoredContract = candidate.contract,
+                    generation = generation,
+                    actualRegistrations = registrations,
+                    authoredEntries = candidate.revalidate(selected, registrations, generation),
+                )
+            val player = fixture.player(net.minestom.server.coordinate.Pos(0.0, 0.0, 2.0))
+            val context =
+                gg.grounds.scene.minestom.SceneActionContext(
+                    selected.identity,
+                    player,
+                    gg.grounds.scene.format.LocalId("navigator"),
+                    gg.grounds.scene.format.SceneTrigger.RIGHT_CLICK,
+                    gg.grounds.scene.format.SceneHand.MAIN,
+                    0,
+                    emptyMap(),
+                    gg.grounds.scene.minestom.SceneViewerVisualState(),
+                )
+            try {
+                owner.start(context, id, "guide")
+                ticks(fixture)
+                assertEquals(1, queued.size)
+                val closed =
+                    when (abort) {
+                        "owner" -> owner.closeAsync().toCompletableFuture()
+                        "disconnect" -> {
+                            net.minestom.server.event.EventDispatcher.call(
+                                net.minestom.server.event.player.PlayerDisconnectEvent(player)
+                            )
+                            java.util.concurrent.CompletableFuture.completedFuture(null)
+                        }
+                        else -> {
+                            player
+                                .setInstance(
+                                    elsewhere.instance,
+                                    net.minestom.server.coordinate.Pos.ZERO,
+                                )
+                                .join()
+                            java.util.concurrent.CompletableFuture.completedFuture(null)
+                        }
+                    }
+                queued.single().run()
+                assertEquals(
+                    0,
+                    delivered,
+                    "Aborted queued service work must never open the navigator ($abort)",
+                )
+                ticks(fixture)
+                assertTrue(closed.isDone)
+            } finally {
+                drain(owner, fixture)
+                (navigator as AutoCloseable).close()
+                elsewhere.close()
+            }
+        }
+    }
+
+    private fun messages(player: TestPlayer) =
+        player.connection.packets
+            .filterIsInstance<net.minestom.server.network.packet.server.play.SystemChatPacket>()
+            .map {
+                net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()
+                    .serialize(it.message())
+            }
+
+    private fun ticks(fixture: RendererFixture) {
+        repeat(100) {
+            fixture.instance.tick(0)
+            net.minestom.server.MinecraftServer.getSchedulerManager().processTick()
+        }
+    }
+
+    private fun drain(owner: LobbyDialogues, fixture: RendererFixture) {
+        val closed = owner.closeAsync().toCompletableFuture()
+        ticks(fixture)
+        assertTrue(closed.isDone)
+        closed.join()
     }
 
     private fun registration() =

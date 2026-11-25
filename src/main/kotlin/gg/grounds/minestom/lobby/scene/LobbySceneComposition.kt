@@ -24,6 +24,55 @@ private constructor(val request: SceneRuntimeRequest, val dialogues: LobbyDialog
         ): LobbySceneComposition =
             prepare(prepared, instance, services, stagePreview, admission, null)
 
+        /** Creates the actual owner once, with proofs from these exact installed providers. */
+        fun createAuthored(
+            prepared: PreparedLobbyScene,
+            instance: Instance,
+            services: ServiceRegistry,
+            candidate: LobbyAuthoredDialogueCatalogue.Candidate,
+            admission: LobbyDialogueAdmission,
+        ): LobbySceneComposition {
+            val primary = candidate.requireScene(prepared)
+            val registrations =
+                mapOf(
+                    primary to
+                        LobbyDialogueHostRegistration.create(
+                            candidate.contract,
+                            primary,
+                            services.get<LobbyNavigatorService>(),
+                            services.get<LobbyQueueService>(),
+                        )
+                )
+            val generation = "lobby-dialogue-" + java.util.UUID.randomUUID()
+            val entries = candidate.revalidate(prepared, registrations, generation)
+            val bindings = prepared.dialogueBindings(candidate.contract)
+            val owner =
+                LobbyDialogues(
+                    instance,
+                    prepared.identity,
+                    bindings,
+                    admission = admission,
+                    authoredContract = candidate.contract,
+                    generation = generation,
+                    actualRegistrations = registrations,
+                    authoredEntries = entries,
+                )
+            try {
+                val labeled = prepared.withDialogueLabels(owner, bindings)
+                return LobbySceneComposition(
+                    labeled.runtimeRequest(instance, services, owner),
+                    owner,
+                )
+            } catch (failure: Throwable) {
+                try {
+                    owner.closeAsync().toCompletableFuture().join()
+                } catch (cleanup: Throwable) {
+                    failure.addSuppressed(cleanup)
+                }
+                throw failure
+            }
+        }
+
         /** Describes installed handlers with a permanently closed session path and no graph. */
         fun prepareMetadata(
             prepared: PreparedLobbyScene,
