@@ -14,6 +14,7 @@ internal class GuideSpeechPlanner(private val bank: GuideVoiceBank) {
         mood: GuideSpeechMood?,
         variationSeed: Int = 0,
         firstVoiceAllowed: ((GuideVoice) -> Boolean)? = null,
+        excludedNames: Set<String> = emptySet(),
     ): List<PlannedGuideVoice> {
         val budget = deadline - now - END_GUARD_NANOS
         if (budget <= 0 || budget > MAX_WINDOW_NANOS) return emptyList()
@@ -51,7 +52,8 @@ internal class GuideSpeechPlanner(private val bank: GuideVoiceBank) {
             var best = Result(0L, emptyList())
             val candidates =
                 orderedClips.filter { (index, clip) ->
-                    (clip.kind == kind || (kind == "speech" && clip.kind == "ending")) &&
+                    clip.name !in excludedNames &&
+                        (clip.kind == kind || (kind == "speech" && clip.kind == "ending")) &&
                         (clip.kind != "speech" || index !in history)
                 }
             for ((index, clip) in candidates) {

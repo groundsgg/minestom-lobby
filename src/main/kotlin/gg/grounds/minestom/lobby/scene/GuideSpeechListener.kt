@@ -98,15 +98,21 @@ internal class GuideSpeechListener(
                 return@synchronized
             phase = identity
             speech.beginSpeech(
-                timing.endNanos(),
-                timing.graphemeDelayNanos(),
+                GuideSpeechContext(
+                    view.text(),
+                    view.localeTag(),
+                    view.nodeId(),
+                    view.totalGraphemes(),
+                    view.revealedGraphemes(),
+                    timing,
+                ),
                 when (view.nodeId()) {
                     "start" -> GuideSpeechMood.GREETING
                     "farewell" -> GuideSpeechMood.FAREWELL
                     else -> null
                 },
             )
-            speech.reveal(view.text())
+            speech.reveal(view.text(), view.revealedGraphemes())
         }
 
     override fun onRevealed(event: MinestomDialogueSpeechEvent) =
@@ -117,7 +123,7 @@ internal class GuideSpeechListener(
                     event.view().state() ==
                         gg.grounds.dialogue.core.runtime.DialogueView.State.REVEALING
             )
-                speech.reveal(event.revealed())
+                speech.reveal(event.revealed(), event.view().revealedGraphemes())
         }
 
     fun invalidate(locale: String? = null) =
@@ -130,6 +136,7 @@ internal class GuideSpeechListener(
 
     override fun onStop(reason: MinestomDialogueSpeechListener.StopReason) =
         synchronized(lock) {
+            invalidatedPhase = phase ?: invalidatedPhase
             phase = null
             when (reason) {
                 MinestomDialogueSpeechListener.StopReason.PRESENTATION_FALLBACK -> speech.fallback()

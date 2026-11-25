@@ -69,7 +69,7 @@ class GuideSpeechListenerTest {
                         1,
                         locale,
                         role,
-                        "Naturally revealed text",
+                        "A".repeat(101),
                         emptyList(),
                         null,
                         101,
@@ -97,7 +97,7 @@ class GuideSpeechListenerTest {
                         begin.view().nodeVisitId(),
                         begin.view().renderRevision(),
                         35_000_000L,
-                        now,
+                        now - 35_000_000L,
                         now + 3_500_000_000L,
                     ),
                 )
@@ -120,7 +120,7 @@ class GuideSpeechListenerTest {
                         begin.view().nodeVisitId(),
                         begin.view().renderRevision(),
                         35_000_000L,
-                        now,
+                        now - 35_000_000L,
                         now + 3_500_000_000L,
                     ),
                 )
@@ -147,7 +147,7 @@ class GuideSpeechListenerTest {
                         german.view().nodeVisitId(),
                         german.view().renderRevision(),
                         35_000_000L,
-                        now,
+                        now - 35_000_000L,
                         now + 3_500_000_000L,
                     ),
                 )

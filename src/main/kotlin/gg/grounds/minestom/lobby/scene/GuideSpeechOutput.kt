@@ -50,6 +50,193 @@ internal class GuideSpeechOutput(
     private var variationSeed = 0
     private val planner = GuideSpeechPlanner(bank)
     private var unavailable = false
+    private var context: GuideSpeechContext? = null
+    private var windows: List<GuideSpeechWindow> = emptyList()
+    private var windowIndex = -1
+    private var holdUntil: Long? = null
+    private var lastRevealed = 0
+    private var phaseStalled = false
+    private var thoughtPlayed = false
+    private var requireFollowingPhrase = false
+    private var observedHesitation = false
+    private val reservedThought = setOf("end01")
+
+    fun beginSpeech(value: GuideSpeechContext, mood: GuideSpeechMood? = null) =
+        synchronized(lock) {
+            beginSpeech(value.timing.endNanos(), value.timing.graphemeDelayNanos(), mood)
+            if (closed || !valid()) return@synchronized
+            context = value
+            val count = gg.grounds.dialogue.core.text.Graphemes.split(value.text).size
+            windows =
+                if (
+                    count == value.total &&
+                        value.revealed in 1 until count &&
+                        value.timing.graphemeDelayNanos() > 0
+                ) {
+                    GuideSpeechProsody.windows(
+                        value.text,
+                        value.locale,
+                        value.timing.graphemeDelayNanos(),
+                        bank.clips
+                            .filter { it.kind == "speech" }
+                            .minOf { it.playbackNanos(1.035f) },
+                        mood == GuideSpeechMood.GREETING,
+                        if (mood == GuideSpeechMood.GREETING)
+                            bank.clips
+                                .filter { it.kind == "greeting" }
+                                .minOf { it.playbackNanos(1.035f) } +
+                                value.timing.graphemeDelayNanos()
+                        else 0L,
+                    )
+                } else emptyList()
+        }
+
+    /**
+     * Fresh successful presentation counts are authoritative; elapsed windows are never replayed.
+     */
+    fun reveal(text: String, revealed: Int) =
+        synchronized(lock) {
+            if (context == null) {
+                reveal(text)
+                return@synchronized
+            }
+            if (closed || !valid()) return@synchronized
+            val value = context ?: return@synchronized
+            if (revealed <= lastRevealed || revealed > value.total) return@synchronized
+            val now = clock()
+            val end = deadline ?: return@synchronized
+            if (end - now <= 0) return@synchronized
+            lastCallback?.let { previous ->
+                val elapsed = now - previous
+                if (elapsed > 250_000_000L) phaseStalled = true
+                if (elapsed in 1_000_000L..100_000_000L) frameNanos = elapsed
+            }
+            lastCallback = now
+            lastRevealed = revealed
+            val delay = value.timing.graphemeDelayNanos()
+            val selected =
+                windows.indexOfFirst { window ->
+                    revealed > window.startCount &&
+                        revealed <= window.endCount &&
+                        value.timing.enteredNanos() + window.endCount * delay - now > 0
+                }
+            if (selected >= 0 && selected >= windowIndex) {
+                val window = windows[selected]
+                val nominalStart = value.timing.enteredNanos() + window.startCount * delay
+                if (windowIndex != selected) {
+                    observedHesitation = windowIndex >= 0 && selected == windowIndex + 1
+                    windowIndex = selected
+                    completedPlan = false
+                    requireFollowingPhrase = false
+                    // Hold only the live boundary. Batched/skipped windows never queue older
+                    // pauses.
+                    holdUntil =
+                        if (window.startCount == 0) nominalStart
+                        else if (nominalStart - now > 0) nominalStart + window.pauseNanos
+                        else now + window.pauseNanos
+                }
+                val windowEnd = value.timing.enteredNanos() + window.endCount * delay
+                val availableEnd = if (end - now < windowEnd - now) end else windowEnd
+                val ready = holdUntil?.let { now - it >= 0 } ?: true
+                if (
+                    !phaseStalled &&
+                        !completedPlan &&
+                        ready &&
+                        (nextSound == null || now - nextSound!! >= 0)
+                ) {
+                    val initial =
+                        selected == 0 &&
+                            activeEnd == null &&
+                            now - value.timing.enteredNanos() - delay in 0..200_000_000L
+                    val cue =
+                        when {
+                            initial && phaseMood == GuideSpeechMood.GREETING && !greeted ->
+                                phaseMood
+                            initial && phaseMood == GuideSpeechMood.FAREWELL && !farewelled ->
+                                phaseMood
+                            else -> null
+                        }
+                    val prefixOnTime = now - nominalStart - window.pauseNanos <= 200_000_000L
+                    val allowThought =
+                        !thoughtPlayed &&
+                            phaseMood == null &&
+                            prefixOnTime &&
+                            ((initial && value.node == "games") ||
+                                (selected > 0 && window.hesitation && observedHesitation))
+                    val thought =
+                        bank.clips.firstOrNull { it.name == "end01" && it.kind == "ending" }
+                    var voice: GuideVoice? = null
+                    var isThought = false
+                    var plan = emptyList<PlannedGuideVoice>()
+                    if (allowThought && thought != null) {
+                        val duration = thought.playbackNanos(1f)
+                        val following =
+                            planner.plan(
+                                now + duration + 100_000_000L,
+                                availableEnd,
+                                frameNanos,
+                                recentTalk.toList(),
+                                null,
+                                variationSeed,
+                                { candidate -> candidate.key.contains("/speech/") },
+                                reservedThought,
+                            )
+                        if (following.firstOrNull()?.voice?.key?.contains("/speech/") == true) {
+                            voice = GuideVoice(thought.key, 1f, 1f, duration)
+                            isThought = true
+                        }
+                    }
+                    if (voice == null) {
+                        plan =
+                            planner.plan(
+                                now,
+                                availableEnd,
+                                frameNanos,
+                                recentTalk.toList(),
+                                cue,
+                                variationSeed,
+                                if (requireFollowingPhrase)
+                                    ({ candidate -> candidate.key.contains("/speech/") })
+                                else null,
+                                reservedThought,
+                            )
+                        voice = plan.firstOrNull()?.voice
+                    }
+                    if (voice == null) completedPlan = true
+                    else if (
+                        voice.durationNanos <=
+                            availableEnd - now - GuideSpeechPlanner.END_GUARD_NANOS
+                    ) {
+                        stopVoice()
+                        val played =
+                            try {
+                                play(voice.copy(volumeScale = voiceDraw(900..1000) / 1000f))
+                                true
+                            } catch (_: Exception) {
+                                false
+                            }
+                        if (played) {
+                            activeKey = voice.key
+                            activeEnd = now + voice.durationNanos
+                            nextSound = activeEnd!! + 40_000_000L
+                            if (isThought) thoughtPlayed = true
+                            requireFollowingPhrase = isThought
+                            if (cue == GuideSpeechMood.GREETING) greeted = true
+                            if (cue == GuideSpeechMood.FAREWELL) farewelled = true
+                            val index = bank.clips.indexOfFirst { it.key == voice.key }
+                            if (bank.clips[index].kind == "speech") {
+                                recentTalk.addLast(index)
+                                if (recentTalk.size > 2) recentTalk.removeFirst()
+                            }
+                            completedPlan = !isThought && plan.size == 1
+                        } else completedPlan = true
+                    }
+                }
+            }
+            // Deliberate silence releases additive movement without stopping a complete live clip.
+            speaking = activeEnd?.let { it - now > 0 } == true
+            animate()
+        }
 
     fun beginSpeech(endNanos: Long, graphemeDelayNanos: Long, mood: GuideSpeechMood? = null) =
         synchronized(lock) {
@@ -180,23 +367,27 @@ internal class GuideSpeechOutput(
                     completedPlan = plan.size == 1
                 }
             }
-            if (!speaking) {
-                optional { handle?.followSharedHeadLook() }
-                return@synchronized
-            }
-            if (reducedMotion()) {
-                epoch++
-                preparing?.let { optional { it.cancel() } }
-                preparing = null
-                optional { handle?.followSharedHeadLook() }
-                optional { handle?.closeAsync() }
-                handle = null
-                published = null
-                return@synchronized
-            }
-            if (handle == null && preparing == null && !unavailable) begin()
-            move()
+            animate()
         }
+
+    private fun animate() {
+        if (!speaking) {
+            optional { handle?.followSharedHeadLook() }
+            return
+        }
+        if (reducedMotion()) {
+            epoch++
+            preparing?.let { optional { it.cancel() } }
+            preparing = null
+            optional { handle?.followSharedHeadLook() }
+            optional { handle?.closeAsync() }
+            handle = null
+            published = null
+            return
+        }
+        if (handle == null && preparing == null && !unavailable) begin()
+        move()
+    }
 
     private fun begin() {
         val expected = epoch
@@ -276,6 +467,14 @@ internal class GuideSpeechOutput(
         synchronized(lock) {
             if (closed) return@synchronized
             speaking = false
+            context = null
+            windows = emptyList()
+            windowIndex = -1
+            holdUntil = null
+            lastRevealed = 0
+            phaseStalled = false
+            requireFollowingPhrase = false
+            observedHesitation = false
             nextSound = null
             activeEnd = null
             deadline = null
