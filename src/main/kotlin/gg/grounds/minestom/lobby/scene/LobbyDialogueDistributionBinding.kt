@@ -96,7 +96,10 @@ internal object LobbyDialogueDistributionBinding {
                 request.identity,
                 request.renderers,
             )
-        val bindings = prepared.dialogueBindings(composition.dialogues?.metadataContract)
+        val bindings =
+            prepared.dialogueBindings(
+                composition.dialogues?.let { it.authoredContract ?: it.metadataContract }
+            )
         val dialogue = bindings.map { it.dialogue }.distinct().singleOrNull()
         require(dialogue != null) { "Export requires exactly one supported dialogue" }
         require(composition.registrations.keys == setOf(dialogue)) {

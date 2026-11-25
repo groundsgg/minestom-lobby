@@ -295,7 +295,23 @@ direct owner starts before creating sessions or UI, logs one contextual startup 
 preserves spawn admission, commands, unrelated scene actions and normal cleanup. Existing world,
 scene decoding and runtime creation failures retain their fatal handling. The immutable decision
 applies for this startup only; replacing content or re-pinning a map requires a new Lobby runtime.
-This check does not enable authored Stories or change Maps runtime availability.
+Authored Guide Stories use complete map sidecars: `dialogues/*.json`, canonical
+`texts/<locale>.json`, `context/host-catalog.json` and `grounds/dialogue.json`. The operator must
+prepare the exact distribution profile and binding SHA first; author bindings only map the
+`guide` role to the single Scene NPC and name that anchored profile. They never select providers.
+The host captures the catalogue once, validates it with Dialogue JSON 1.8 and the actual menu
+services and runtime generation, then checks the unchanged inventory and final distribution
+before admission. Missing, partial, malformed or mismatched authored inputs fail Story-map
+installation before spawn commands or admission listeners register. A configured legacy built-in
+profile denial still disables only dialogues. A present Story catalogue requires a Scene and
+cannot qualify a Stage preview or native demo transformation.
+
+Authored sessions use captured graph texts, their declared supported locales and graph default.
+Canonical requested locale tags survive live preference changes; an unsupported tag resolves
+through that graph's default without borrowing another graph's translations. Refresh preserves
+conversation progress. Guide presentation, voice assets and volume remain the existing host
+contract behavior, with chat fallback when the pack is unavailable. This does not change Maps
+runtime availability or publish a distribution.
 
 The JAR contains the addon SHA-1 and content-ID bindings. Set
 `GROUNDS_NPC_CONTENT=/absolute/path/server-content.zip` (or `-Dgrounds.npc.content=...`)

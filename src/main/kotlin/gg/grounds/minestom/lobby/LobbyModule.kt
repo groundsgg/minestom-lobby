@@ -1,7 +1,7 @@
 package gg.grounds.minestom.lobby
 
 import gg.grounds.GameServerRetirement
-import gg.grounds.minestom.lobby.scene.LobbyDialogues
+import gg.grounds.minestom.lobby.scene.*
 import gg.grounds.minestom.lobby.scene.LobbySceneHost
 import gg.grounds.minestom.lobby.scene.LobbySceneLoader
 import gg.grounds.minestom.lobby.scene.stageDialoguePreviewEnabled
@@ -66,8 +66,25 @@ internal class LobbyModule(
         var stageDialogue: LobbyDialogues? = null
         val prepared =
             try {
+                val authoredInputs =
+                    LobbyAuthoredDialogueInputs.read(loaded.root.toAbsolutePath().normalize())
+                val operatorPreparation = LobbyDialogueRuntimeVerification.prepare(lodEnvironment)
+                val catalogue =
+                    LobbyAuthoredDialogueCatalogue.load(
+                        authoredInputs,
+                        operatorPreparation as? LobbyDialogueRuntimeVerification.Prepared,
+                    )
+                val candidate = (catalogue as? LobbyAuthoredDialogueCatalogue.Present)?.candidate
+                require(candidate == null || (!dialoguePreview && !nativeSolidEnabled)) {
+                    "Authored Story cannot use a transformed scene"
+                }
                 LobbySceneLoader()
                     .load(loaded)
+                    .also {
+                        require(candidate == null || it != null) {
+                            "Authored Story requires a scene"
+                        }
+                    }
                     ?.let { prepared ->
                         if (nativeSolidEnabled)
                             prepared.copy(
@@ -81,25 +98,51 @@ internal class LobbyModule(
                     .also { if (demoEnabled) requireStageNpcDemoMap(loaded.source, it?.scene) }
                     ?.let { prepared ->
                         val composed =
-                            gg.grounds.minestom.lobby.scene.LobbySceneComposition.create(
-                                prepared,
-                                instanceContainer,
-                                ctx.services,
-                                dialoguePreview,
-                                admission,
-                            )
+                            if (candidate != null)
+                                LobbySceneComposition.createAuthored(
+                                    prepared,
+                                    instanceContainer,
+                                    ctx.services,
+                                    candidate,
+                                    admission,
+                                )
+                            else
+                                gg.grounds.minestom.lobby.scene.LobbySceneComposition.create(
+                                    prepared,
+                                    instanceContainer,
+                                    ctx.services,
+                                    dialoguePreview,
+                                    admission,
+                                )
                         composition = composed
                         stageDialogue = composed.dialogues
                         composed.request
                     }
                     .also {
+                        candidate?.requireUnchanged()
                         val decision =
-                            gg.grounds.minestom.lobby.scene.LobbyDialogueRuntimeVerification.verify(
-                                lodEnvironment,
-                                loaded.root.resolve("scene.json"),
-                                composition,
-                                dialoguePreview || nativeSolidEnabled,
-                            )
+                            if (operatorPreparation is LobbyDialogueRuntimeVerification.Prepared)
+                                LobbyDialogueRuntimeVerification.verify(
+                                    operatorPreparation,
+                                    loaded.root.resolve("scene.json"),
+                                    composition,
+                                    dialoguePreview || nativeSolidEnabled,
+                                )
+                            else
+                                when (operatorPreparation) {
+                                    is LobbyDialogueRuntimeVerification.Denied ->
+                                        LobbyDialogueRuntimeVerification.Denied(
+                                            operatorPreparation.code
+                                        )
+                                    else -> LobbyDialogueRuntimeVerification.Unconfigured
+                                }
+                        require(
+                            candidate == null ||
+                                decision is LobbyDialogueRuntimeVerification.Admitted
+                        ) {
+                            "Authored Story runtime admission denied: $decision"
+                        }
+                        candidate?.requireUnchanged()
                         admission.complete(decision)
                         when (decision) {
                             is gg.grounds.minestom.lobby.scene.LobbyDialogueRuntimeVerification.Denied ->

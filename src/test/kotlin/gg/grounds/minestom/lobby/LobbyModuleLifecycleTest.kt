@@ -34,6 +34,21 @@ class LobbyModuleLifecycleTest {
     @TempDir lateinit var root: Path
 
     @Test
+    fun `partial authored sidecars prevent readiness before commands even without scene`() {
+        Files.createDirectories(root.resolve("texts"))
+        Files.writeString(root.resolve("texts/en.json"), "{}")
+        val context = SceneContext()
+        val module = LobbyModule(fatalStop = {}, lodEnvironment = emptyMap(), createWorld = ::world)
+        try {
+            assertThrows(IllegalArgumentException::class.java) { module.install(context) }
+            assertNull(MinecraftServer.getCommandManager().getCommand("spawn"))
+            assertEquals(0, context.nodes.size)
+        } finally {
+            module.stop()
+        }
+    }
+
+    @Test
     fun `runtime startup failure reaches the injected fatal stop callback`() {
         val fixture = scene()
         writeScene(fixture.with(elements = fixture.elements.filterIsInstance<Prop>()))
