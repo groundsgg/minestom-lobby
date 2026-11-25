@@ -52,7 +52,7 @@ internal class GuideSpeechListener(
                             net.kyori.adventure.sound.Sound.sound(
                                 net.kyori.adventure.key.Key.key(voice.key),
                                 net.kyori.adventure.sound.Sound.Source.VOICE,
-                                .4f * voice.volumeScale,
+                                .55f * voice.volumeScale,
                                 voice.pitch,
                             ),
                             binding.position.x(),
