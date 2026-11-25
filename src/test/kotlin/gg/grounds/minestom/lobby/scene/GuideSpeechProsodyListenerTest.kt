@@ -207,6 +207,52 @@ class GuideSpeechProsodyListenerTest {
     }
 
     @Test
+    fun `German welcome retains complete audio after a bounded shorter sentence pause`() {
+        val text = LobbyGuideContent.texts.locales().getValue("de").getValue("welcome")
+        val boundary = Graphemes.split("Hallo! Ich bin dein Guide.").size
+        for (frame in listOf(35_000_000L, 50_000_000L)) for (seed in listOf(0, 7, 42)) Harness(
+                seed = seed
+            )
+            .use { h ->
+                h.begin(text, "start", locale = "de", at = frame)
+                var elapsed = frame * 2
+                while (elapsed < h.end - h.entered) {
+                    h.present(elapsed, (elapsed / h.delay).toInt())
+                    elapsed += frame
+                }
+                val greeting = h.played.first()
+                assertTrue(greeting.second.contains("/greeting/"))
+                assertTrue(
+                    greeting.first + h.duration(greeting.second, greeting.first) <=
+                        h.entered + boundary * h.delay - 35_000_000L
+                )
+                val after = h.played.filter { it.first > h.entered + boundary * h.delay }
+                assertTrue(
+                    after.isNotEmpty(),
+                    "A legal whole closing must follow the German welcome pause: frame=$frame seed=$seed ${h.played}",
+                )
+                val observedBoundary = h.entered + ((boundary * h.delay / frame) + 1) * frame
+                assertTrue(after.first().first - observedBoundary in 120_000_000L..240_000_000L)
+                after.forEach { (onset, key) ->
+                    assertFalse(key.endsWith("/end01"))
+                    assertTrue(onset + h.duration(key, onset) <= h.end - 35_000_000L)
+                }
+            }
+    }
+
+    @Test
+    fun `impossible short sentence tail remains silent instead of borrowing time`() {
+        Harness().use { h ->
+            val first = "A complete long opening explanation here."
+            h.begin(first + " Ok.")
+            h.finish()
+            val boundary = Graphemes.split(first).size * h.delay
+            assertTrue(h.played.isNotEmpty())
+            assertTrue(h.played.all { it.first < boundary })
+        }
+    }
+
+    @Test
     fun `every real line preserves whole clips recent pair gaps and private output`() {
         for ((locale, texts) in LobbyGuideContent.texts.locales()) for ((key, text) in
             texts.filterKeys { !it.contains('.') }) for (seed in listOf(0, 7, 42)) for (frame in
@@ -224,6 +270,11 @@ class GuideSpeechProsodyListenerTest {
                     h.delay,
                     h.bank.clips.filter { it.kind == "speech" }.minOf { it.playbackNanos(1.035f) },
                     key == "welcome",
+                    if (key == "welcome")
+                        h.bank.clips
+                            .filter { it.kind == "greeting" }
+                            .minOf { it.playbackNanos(1.035f) } + h.delay
+                    else 0L,
                 )
             val history = mutableListOf<String>()
             h.played.forEach { (time, voice) ->

@@ -123,6 +123,8 @@ internal class GuideSpeechOutput(
             if (selected >= 0 && selected >= windowIndex) {
                 val window = windows[selected]
                 val nominalStart = value.timing.enteredNanos() + window.startCount * delay
+                val windowEnd = value.timing.enteredNanos() + window.endCount * delay
+                val availableEnd = if (end - now < windowEnd - now) end else windowEnd
                 if (windowIndex != selected) {
                     observedHesitation = windowIndex >= 0 && selected == windowIndex + 1
                     windowIndex = selected
@@ -130,13 +132,17 @@ internal class GuideSpeechOutput(
                     requireFollowingPhrase = false
                     // Hold only the live boundary. Batched/skipped windows never queue older
                     // pauses.
-                    holdUntil =
-                        if (window.startCount == 0) nominalStart
-                        else if (nominalStart - now > 0) nominalStart + window.pauseNanos
-                        else now + window.pauseNanos
+                    val observedStart = if (nominalStart - now > 0) nominalStart else now
+                    val pause =
+                        if (
+                            !phaseStalled &&
+                                selected == windows.lastIndex &&
+                                window.pauseNanos == 240_000_000L
+                        )
+                            shortTailPause(now, observedStart, availableEnd, window.pauseNanos)
+                        else window.pauseNanos
+                    holdUntil = if (window.startCount == 0) nominalStart else observedStart + pause
                 }
-                val windowEnd = value.timing.enteredNanos() + window.endCount * delay
-                val availableEnd = if (end - now < windowEnd - now) end else windowEnd
                 val ready = holdUntil?.let { now - it >= 0 } ?: true
                 if (
                     !phaseStalled &&
@@ -237,6 +243,30 @@ internal class GuideSpeechOutput(
             speaking = activeEnd?.let { it - now > 0 } == true
             animate()
         }
+
+    /** Keep the sentence pause unless only a shorter pause admits a complete final clip. */
+    private fun shortTailPause(now: Long, observedStart: Long, end: Long, original: Long): Long {
+        val frame = frameNanos.coerceIn(1_000_000L, 100_000_000L)
+        for (pause in original downTo 120_000_000L step 20_000_000L) {
+            val offset = maxOf(observedStart - now + pause, nextSound?.let { it - now } ?: 0L, 0L)
+            val onset = now + ((offset + frame - 1) / frame) * frame
+            if (
+                planner
+                    .plan(
+                        onset,
+                        end,
+                        frame,
+                        recentTalk.toList(),
+                        null,
+                        variationSeed,
+                        excludedNames = reservedThought,
+                    )
+                    .isNotEmpty()
+            )
+                return pause
+        }
+        return original
+    }
 
     fun beginSpeech(endNanos: Long, graphemeDelayNanos: Long, mood: GuideSpeechMood? = null) =
         synchronized(lock) {
