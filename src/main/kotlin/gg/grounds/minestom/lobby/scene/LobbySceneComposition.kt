@@ -20,6 +20,7 @@ private constructor(val request: SceneRuntimeRequest, val dialogues: LobbyDialog
             instance: Instance,
             services: ServiceRegistry,
             stagePreview: Boolean = false,
+            admission: LobbyDialogueAdmission = LobbyDialogueAdmission(false),
         ): LobbySceneComposition {
             val selected =
                 if (stagePreview) prepared.withStageDialoguePreview().prepared else prepared
@@ -33,6 +34,7 @@ private constructor(val request: SceneRuntimeRequest, val dialogues: LobbyDialog
                         bindings,
                         services.get<LobbyNavigatorService>(),
                         services.get<LobbyQueueService>(),
+                        admission = admission,
                     )
             try {
                 val labeled =

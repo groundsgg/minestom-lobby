@@ -57,6 +57,12 @@ internal class LobbyModule(
         val created = createWorld()
         world = created
         val (instanceContainer, spawn, loaded) = created
+        val admission =
+            gg.grounds.minestom.lobby.scene.LobbyDialogueAdmission(
+                "GROUNDS_DIALOGUE_DISTRIBUTION" in lodEnvironment ||
+                    "GROUNDS_DIALOGUE_BINDING_SHA256" in lodEnvironment
+            )
+        var composition: gg.grounds.minestom.lobby.scene.LobbySceneComposition? = null
         var stageDialogue: LobbyDialogues? = null
         val prepared =
             try {
@@ -74,18 +80,53 @@ internal class LobbyModule(
                     }
                     .also { if (demoEnabled) requireStageNpcDemoMap(loaded.source, it?.scene) }
                     ?.let { prepared ->
-                        val composition =
+                        val composed =
                             gg.grounds.minestom.lobby.scene.LobbySceneComposition.create(
                                 prepared,
                                 instanceContainer,
                                 ctx.services,
                                 dialoguePreview,
+                                admission,
                             )
-                        stageDialogue = composition.dialogues
+                        composition = composed
+                        stageDialogue = composed.dialogues
+                        composed.request
+                    }
+                    .also {
+                        val decision =
+                            gg.grounds.minestom.lobby.scene.LobbyDialogueRuntimeVerification.verify(
+                                lodEnvironment,
+                                loaded.root.resolve("scene.json"),
+                                composition,
+                                dialoguePreview || nativeSolidEnabled,
+                            )
+                        admission.complete(decision)
+                        when (decision) {
+                            is gg.grounds.minestom.lobby.scene.LobbyDialogueRuntimeVerification.Denied ->
+                                logger.warn(
+                                    "Dialogue startup denied (sceneId={}, mapVersion={}, reason={})",
+                                    it?.identity?.sceneId?.value ?: "absent",
+                                    it?.identity?.mapVersion ?: "absent",
+                                    decision.code,
+                                )
+                            is gg.grounds.minestom.lobby.scene.LobbyDialogueRuntimeVerification.Admitted ->
+                                logger.info(
+                                    "Dialogue startup admitted (sceneId={}, mapVersion={}, buildGeneration={})",
+                                    it?.identity?.sceneId?.value,
+                                    it?.identity?.mapVersion,
+                                    decision.buildGeneration,
+                                )
+                            gg.grounds.minestom.lobby.scene.LobbyDialogueRuntimeVerification
+                                .Unconfigured -> Unit
+                        }
                         if (
-                            composition.registrations.containsKey(
-                                gg.grounds.minestom.lobby.scene.LobbyGuideContent.DIALOGUE_ID
-                            )
+                            admission.allowed &&
+                                composition
+                                    ?.registrations
+                                    ?.containsKey(
+                                        gg.grounds.minestom.lobby.scene.LobbyGuideContent
+                                            .DIALOGUE_ID
+                                    ) == true
                         )
                             logger.info(
                                 "Prepared lobby guide successfully (sceneId={}, mapVersion={}, elementId={})",
@@ -93,7 +134,6 @@ internal class LobbyModule(
                                 composition.request.identity.mapVersion,
                                 "spawn-guide",
                             )
-                        composition.request
                     }
                     .also { request ->
                         val started = System.nanoTime()
@@ -151,7 +191,7 @@ internal class LobbyModule(
                 prepared.assets.version,
                 prepared.actions.version,
             )
-        if (preparedDialogue != null && prepared != null)
+        if (admission.allowed && preparedDialogue != null && prepared != null)
             logger.info(
                 "Prepared lobby dialogues successfully (sceneId={}, mapVersion={})",
                 prepared.identity.sceneId.value,

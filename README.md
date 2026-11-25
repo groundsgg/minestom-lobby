@@ -252,6 +252,35 @@ qualified receipt or final distribution. Omitting the option preserves the exist
 These hashes provide artifact integrity, not receipt authentication or runtime Story admission;
 native client acceptance and cross-proxy behavior remain separate checks.
 
+### Optional Dialogue startup verification
+
+Mount the complete qualified private distribution read-only at an absolute path, for example
+`/private/lobby-distribution`, and configure both:
+
+- `GROUNDS_DIALOGUE_DISTRIBUTION=/private/lobby-distribution`
+- `GROUNDS_DIALOGUE_BINDING_SHA256=<sha256 of dialogue/binding.json>`
+
+Supply the expected digest through trusted deployment configuration. Run the distribution's
+exact executable JAR, set `GROUNDS_NPC_CONTENT` to its `server-content.zip`, and select the map
+whose raw `scene.json` matches `dialogue/scene.json`. Keep the seven pinned artifacts in their
+exported relative paths. The runtime checks the actual installed menu services, loaded content
+snapshot, catalogs, provider identities and final scene composition against the binding.
+
+Configured verification requires executable, catalog and provider classes and their binding
+resources to originate from the same qualified fat JAR. External catalog or binding-resource
+classpath arrangements remain supported for unconfigured startup only. Stage preview and native
+scene transformations cannot qualify. Ordinary Docker packaging does not add private artifacts;
+mount and configure this distribution explicitly.
+
+With neither variable present, existing startup behavior is preserved. Either variable being
+present enables verification, including blank, incomplete or malformed configuration. Dialogue
+admission remains closed until verification succeeds. A verification denial rejects scene and
+direct owner starts before creating sessions or UI, logs one contextual startup outcome, and
+preserves spawn admission, commands, unrelated scene actions and normal cleanup. Existing world,
+scene decoding and runtime creation failures retain their fatal handling. The immutable decision
+applies for this startup only; replacing content or re-pinning a map requires a new Lobby runtime.
+This check does not enable authored Stories or change Maps runtime availability.
+
 The JAR contains the addon SHA-1 and content-ID bindings. Set
 `GROUNDS_NPC_CONTENT=/absolute/path/server-content.zip` (or `-Dgrounds.npc.content=...`)
 when starting the private host. The file is loaded once per server run and must match

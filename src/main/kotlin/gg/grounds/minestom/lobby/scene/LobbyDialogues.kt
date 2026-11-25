@@ -45,6 +45,7 @@ internal class LobbyDialogues(
     private val reducedMotion: (Player) -> Boolean = { false },
     private val observeLocale: (Player, Runnable) -> AutoCloseable =
         gg.grounds.minigame.minestom.SidebarLocale::observe,
+    private val admission: LobbyDialogueAdmission = LobbyDialogueAdmission(false),
 ) : LobbySceneDialogueStarter {
     private val lock = Any()
     @Volatile private var closed = false
@@ -178,6 +179,7 @@ internal class LobbyDialogues(
         speaker: String,
     ): CompletionStage<SceneActionResult> =
         synchronized(lock) {
+            if (!admission.allowed) return rejected("Lobby dialogue admission denied")
             val binding =
                 bindings.singleOrNull {
                     it.elementId == context.elementId &&
