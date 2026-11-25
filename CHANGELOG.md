@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.28.0](https://github.com/groundsgg/minestom-lobby/compare/v2.27.2...v2.28.0) (2026-11-25)
+
+
+### Features
+
+* **dialogue:** add fluent Guide speech with punctuation pauses ([#301](https://github.com/groundsgg/minestom-lobby/issues/301)) ([61489ea](https://github.com/groundsgg/minestom-lobby/commit/61489eac66c1b447ff955b5fb522968309beca5a))
+
 ## [2.27.2](https://github.com/groundsgg/minestom-lobby/compare/v2.27.1...v2.27.2) (2026-11-24)
 
 
