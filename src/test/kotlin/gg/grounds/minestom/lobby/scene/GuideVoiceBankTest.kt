@@ -64,7 +64,7 @@ class GuideVoiceBankTest {
     fun `published fluent runtime provides the exact accepted pin and voice bank`() {
         val assets = StageDialogueAssets.load()
         assertEquals(
-            "86534ee68514dc024bb8d674f7824ef755631452a5adc4e654ca4e2e1ba7c752",
+            "88d123caabc23343745a8f63647a9ff1caeb43e92642e8a93466a49b49328dcc",
             assets.pin(),
         )
         val entries = assets.entries()
