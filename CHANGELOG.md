@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.28.1](https://github.com/groundsgg/minestom-lobby/compare/v2.28.0...v2.28.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* **dialogue:** align Guide voice volume and restore typing ticks ([#303](https://github.com/groundsgg/minestom-lobby/issues/303)) ([3d5462c](https://github.com/groundsgg/minestom-lobby/commit/3d5462c453c9abcb8dbe2577506a5d9868575741))
+
 ## [2.28.0](https://github.com/groundsgg/minestom-lobby/compare/v2.27.2...v2.28.0) (2026-11-25)
 
 
