@@ -1,0 +1,60 @@
+name: Guide Animation Preview
+
+# This diagnostic candidate stays in draft until native client feedback confirms the result.
+on:
+  push:
+    tags:
+      - "stage-guide-animation-*"
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: guide-animation-preview-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      DOCKER_BUILD_RECORD_UPLOAD: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Use the Maven mirror
+        id: mirror
+        uses: groundsgg/.github/.github/actions/maven-mirror@main
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish Guide preview
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: ghcr.io/${{ github.repository }}:stage-guide-animation-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          sbom: true
+          provenance: true
+          build-args: |
+            GITHUB_USER=${{ github.actor }}
+          secrets: |
+            github_token=${{ secrets.PACKAGES_TOKEN || secrets.GITHUB_TOKEN }}
+          secret-files: ${{ steps.mirror.outputs.init-script && format('gradle_init={0}', steps.mirror.outputs.init-script) || '' }}
