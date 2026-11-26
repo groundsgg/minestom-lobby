@@ -310,7 +310,7 @@ internal class LobbyDialogues(
 
     private fun preferences(session: Session): PresentationPreferences =
         if (session.binding.dialogue != LobbyGuideContent.DIALOGUE_ID) NPC_PREFERENCES
-        else guidePreferences(reducedMotion(session.player), voiceBank != null)
+        else guidePreferences(reducedMotion(session.player))
 
     private fun speechListener(session: Session): MinestomDialogueSpeechListener =
         GuideSpeechListener(
@@ -434,12 +434,12 @@ internal class LobbyDialogues(
 
         internal const val GUIDE_SPEECH = "dialogue:guide/speech"
 
-        internal fun guidePreferences(reducedMotion: Boolean, voiceAvailable: Boolean = true) =
+        internal fun guidePreferences(reducedMotion: Boolean) =
             PresentationPreferences(
                 NPC_PREFERENCES.surfaceKey(),
                 NPC_PREFERENCES.graphemeDelay(),
                 reducedMotion,
-                NPC_PREFERENCES.effects() + ("typingSound" to (!voiceAvailable).toString()),
+                NPC_PREFERENCES.effects(),
             )
 
         private val NPC_PREFERENCES =

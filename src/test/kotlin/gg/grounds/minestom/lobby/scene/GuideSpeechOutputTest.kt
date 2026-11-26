@@ -125,7 +125,7 @@ class GuideSpeechOutputTest {
         for (reduced in listOf(false, true)) {
             val preferences = LobbyDialogues.guidePreferences(reduced)
             assertEquals(reduced, preferences.reducedMotion())
-            assertEquals("false", preferences.effects()["typingSound"])
+            assertEquals("true", preferences.effects()["typingSound"])
             assertEquals("true", preferences.effects()["choiceSounds"])
             assertEquals("true", preferences.effects()["npcBackdrop"])
             assertEquals("true", preferences.effects()["vignette"])
