@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.28.2](https://github.com/groundsgg/minestom-lobby/compare/v2.28.1...v2.28.2) (2026-11-26)
+
+
+### Bug Fixes
+
+* **scene:** sample Spawn Guide animation every tick ([#305](https://github.com/groundsgg/minestom-lobby/issues/305)) ([b1c729e](https://github.com/groundsgg/minestom-lobby/commit/b1c729e221ba195d7c616280a10d0fa10ff93293))
+
 ## [2.28.1](https://github.com/groundsgg/minestom-lobby/compare/v2.28.0...v2.28.1) (2026-11-26)
 
 
