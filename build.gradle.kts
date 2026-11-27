@@ -55,6 +55,33 @@ tasks.register<JavaExec>("migrateQueueNpcScene") {
     }
 }
 
+// Each standard SDK project is one reproducible resource; Gradle tracks added/deleted files.
+val dialogueContentResources = layout.buildDirectory.dir("generated/resources/dialogue-content")
+val bundledDialogueProjects =
+    listOf("LobbyGuide" to "lobby-guide", "StageMechanic" to "stage-mechanic")
+val packageDialogueContent =
+    bundledDialogueProjects.map { (taskName, projectName) ->
+        tasks.register<Zip>("package${taskName}Dialogue") {
+            from(layout.projectDirectory.dir("dialogue-content/$projectName")) {
+                include("dialogues/**/*.json", "texts/**/*.json", "context/host-catalog.json")
+            }
+            archiveFileName.set("$projectName.zip")
+            destinationDirectory.set(
+                dialogueContentResources.map {
+                    it.dir("gg/grounds/minestom/lobby/dialogue-content")
+                }
+            )
+            isPreserveFileTimestamps = false
+            isReproducibleFileOrder = true
+            duplicatesStrategy = DuplicatesStrategy.FAIL
+            includeEmptyDirs = false
+        }
+    }
+
+sourceSets.main { resources.srcDir(dialogueContentResources) }
+
+tasks.processResources { dependsOn(packageDialogueContent) }
+
 val sceneVersion = providers.gradleProperty("sceneVersion").orElse("1.0.1")
 val npcVersion = providers.gradleProperty("npcVersion").orElse("2.0.0")
 val dialogueVersion = providers.gradleProperty("dialogueVersion").orElse("1.8.0")
@@ -213,6 +240,7 @@ dependencies {
     implementation("gg.grounds:scene-npc-minestom:${sceneVersion.get()}")
     implementation("gg.grounds:scene-interaction:${sceneVersion.get()}")
     implementation("gg.grounds:dialogue-minestom:${dialogueVersion.get()}")
+    implementation("gg.grounds:dialogue-json:${dialogueVersion.get()}")
     val dialogueAssetsJar = providers.gradleProperty("dialogueAssetsJar").orNull
     if (dialogueAssetsJar != null) implementation(files(dialogueAssetsJar))
     else implementation("gg.grounds:resourcepacks-dialogue-runtime:0.0.0-edge.73.gcd709cad243b")
@@ -318,6 +346,7 @@ val dialogueArtifacts =
 repositories.exclusiveContent {
     forRepositories(dialogueArtifacts)
     filter {
+        includeModule("gg.grounds", "dialogue-json")
         includeModule("gg.grounds", "dialogue-core")
         includeModule("gg.grounds", "dialogue-presentation")
         includeModule("gg.grounds", "dialogue-minestom")

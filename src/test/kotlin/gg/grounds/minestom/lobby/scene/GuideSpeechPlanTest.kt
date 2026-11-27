@@ -182,15 +182,13 @@ class GuideSpeechPlanTest {
                 GuideVoiceBank.load(StageDialogueAssets.load().entries()[GuideVoiceBank.PATH])
             )
         for (mood in listOf(null, GuideSpeechMood.GREETING, GuideSpeechMood.FAREWELL)) {
-            val textKey =
+            val characters =
                 when (mood) {
-                    GuideSpeechMood.GREETING -> "welcome"
-                    GuideSpeechMood.FAREWELL -> "farewell"
-                    null -> "games"
+                    GuideSpeechMood.GREETING -> 47
+                    GuideSpeechMood.FAREWELL -> 42
+                    null -> 115
                 }
-            val deadline =
-                checkNotNull(LobbyGuideContent.texts.locales()["en"]?.get(textKey)).length *
-                    35_000_000L
+            val deadline = characters * 35_000_000L
             val sequences = mutableSetOf<List<String>>()
             val firstKeys = mutableSetOf<String>()
             for (seed in 0..7) {

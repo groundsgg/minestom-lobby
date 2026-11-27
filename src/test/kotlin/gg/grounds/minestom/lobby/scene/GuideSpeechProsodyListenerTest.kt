@@ -187,7 +187,7 @@ class GuideSpeechProsodyListenerTest {
     }
 
     @Test
-    fun `real English and German welcomes retain a complete greeting`() {
+    fun `all current welcomes retain a complete greeting`() {
         for ((locale, texts) in LobbyGuideContent.texts.locales()) Harness().use { h ->
             h.begin(texts.getValue("welcome"), "start", locale = locale)
             h.finish()
@@ -208,7 +208,8 @@ class GuideSpeechProsodyListenerTest {
 
     @Test
     fun `German welcome retains complete audio after a bounded shorter sentence pause`() {
-        val text = LobbyGuideContent.texts.locales().getValue("de").getValue("welcome")
+        // Stable German timing sample, independent of authored locale presence or wording.
+        val text = "Hallo! Ich bin dein Guide. Was möchtest du tun?"
         val boundary = Graphemes.split("Hallo! Ich bin dein Guide.").size
         for (frame in listOf(35_000_000L, 50_000_000L)) for (seed in listOf(0, 7, 42)) Harness(
                 seed = seed

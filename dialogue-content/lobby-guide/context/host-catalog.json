@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "generation": "migration",
+  "speakers": ["guide"],
+  "conditions": {},
+  "actions": {
+    "grounds:lobby/open_duel_menu": {
+      "arguments": {},
+      "durable": false
+    },
+    "grounds:lobby/open_navigator": {
+      "arguments": {},
+      "durable": false
+    }
+  },
+  "gestures": [],
+  "capabilities": [],
+  "durableOutcomes": false
+}

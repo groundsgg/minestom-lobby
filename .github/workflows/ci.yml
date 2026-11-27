@@ -7,6 +7,32 @@ on:
     branches: [main]
 
 jobs:
+  dialogue-content:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+      - name: Verify and unpack the pinned public Dialogue CLI
+        env:
+          DIALOGUE_CLI_VERSION: 1.8.0
+        run: |
+          asset="dialogue-cli-${DIALOGUE_CLI_VERSION}.zip"
+          release="https://github.com/groundsgg/library-dialogue/releases/download/v${DIALOGUE_CLI_VERSION}"
+          cd "$RUNNER_TEMP"
+          curl --fail --location --retry 3 --output "$asset" "$release/$asset"
+          curl --fail --location --retry 3 --output "$asset.sha256" "$release/$asset.sha256"
+          sha256sum --check "$asset.sha256"
+          unzip -q "$asset"
+          echo "DIALOGUE_CLI=$RUNNER_TEMP/dialogue-cli-${DIALOGUE_CLI_VERSION}/bin/dialogue" >> "$GITHUB_ENV"
+      - name: Validate every bundled standard project
+        run: |
+          for root in dialogue-content/*/; do
+            "$DIALOGUE_CLI" validate --root "$root" --format json
+          done
+
   private-npc-tool-tests:
     runs-on: ubuntu-24.04
     steps:

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "generation": "migration",
+  "speakers": ["guide"],
+  "conditions": {},
+  "actions": {},
+  "gestures": [],
+  "capabilities": [],
+  "durableOutcomes": false
+}

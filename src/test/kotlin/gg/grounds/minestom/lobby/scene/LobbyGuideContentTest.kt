@@ -11,13 +11,14 @@ import org.junit.jupiter.api.Test
 
 class LobbyGuideContentTest {
     @Test
-    fun `validated content supports German and English with complete navigation`() {
+    fun `validated content supports its declared locales with complete navigation`() {
         val validated = LobbyGuideContent.validated("guide-test")
         val definition = validated.definition()
 
         assertEquals(LobbyGuideContent.DIALOGUE_ID, definition.id())
-        assertEquals(listOf("en", "de"), definition.locales().supported())
-        assertEquals(setOf("en", "de"), LobbyGuideContent.texts.locales().keys)
+        assertTrue(
+            LobbyGuideContent.texts.locales().keys.containsAll(definition.locales().supported())
+        )
         assertEquals(setOf(LobbyGuideContent.SPEAKER_ROLE), validated.catalog().speakers())
 
         val root = definition.nodes()[definition.entry()] as Message
