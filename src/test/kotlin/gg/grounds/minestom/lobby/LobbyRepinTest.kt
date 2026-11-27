@@ -1,6 +1,7 @@
 package gg.grounds.minestom.lobby
 
 import java.time.Duration
+import java.util.concurrent.CancellationException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Delayed
 import java.util.concurrent.FutureTask
@@ -239,6 +240,121 @@ class LobbyRepinTest {
         assertEquals(0L, finished.count)
         assertTrue(scheduler.isShutdown)
         assertTrue(scheduler.tasks.isEmpty())
+    }
+
+    @Test
+    fun `cancelled CDN read while open retries and permits a newer pin`() {
+        assertReadFailureRetries(CancellationException("read cancelled"))
+    }
+
+    @Test
+    fun `interrupted CDN read while open retries without losing interruption`() {
+        assertReadFailureRetries(InterruptedException("read interrupted"))
+    }
+
+    @Test
+    fun `cancelled and interrupted CDN reads still retire after patience expires`() {
+        for (failure in
+            listOf(
+                CancellationException("read cancelled"),
+                InterruptedException("read interrupted"),
+            )) {
+            val scheduler = ManualScheduler()
+            var retired = 0
+            val repin =
+                LobbyRepin(
+                    loaded,
+                    pinnedOnCdn = { throw failure },
+                    retire = { retired++ },
+                    scheduler = scheduler,
+                    patience = Duration.ofNanos(-1),
+                )
+            try {
+                repin.onPinFile(pinFile(NEW))
+                scheduler.runNext()
+
+                assertEquals(1, retired)
+                assertTrue(scheduler.tasks.isEmpty())
+                assertEquals(failure is InterruptedException, Thread.currentThread().isInterrupted)
+            } finally {
+                repin.close()
+                Thread.interrupted()
+            }
+        }
+    }
+
+    @Test
+    fun `cancelled and interrupted CDN reads after close cannot retire or rearm`() {
+        for (failure in
+            listOf(
+                CancellationException("read cancelled"),
+                InterruptedException("read interrupted"),
+            )) {
+            val scheduler = ManualScheduler()
+            var retired = 0
+            lateinit var repin: LobbyRepin
+            repin =
+                LobbyRepin(
+                    loaded,
+                    pinnedOnCdn = {
+                        repin.close()
+                        throw failure
+                    },
+                    retire = { retired++ },
+                    scheduler = scheduler,
+                    patience = Duration.ofNanos(-1),
+                )
+            try {
+                repin.onPinFile(pinFile(NEW))
+                scheduler.runNext()
+                repin.onPinFile(pinFile("c".repeat(64)))
+
+                assertEquals(0, retired)
+                assertTrue(scheduler.tasks.isEmpty())
+                assertTrue(scheduler.isShutdown)
+                assertEquals(failure is InterruptedException, Thread.currentThread().isInterrupted)
+            } finally {
+                repin.close()
+                Thread.interrupted()
+            }
+        }
+    }
+
+    private fun assertReadFailureRetries(failure: Exception) {
+        val scheduler = ManualScheduler()
+        val newest = "c".repeat(64)
+        var retired = 0
+        var reads = 0
+        val repin =
+            LobbyRepin(
+                loaded,
+                pinnedOnCdn = { if (reads++ == 0) throw failure else newest },
+                retire = { retired++ },
+                scheduler = scheduler,
+            )
+        try {
+            repin.onPinFile(pinFile(NEW))
+            scheduler.runNext()
+
+            assertEquals(failure is InterruptedException, Thread.currentThread().isInterrupted)
+            assertEquals(
+                1,
+                scheduler.tasks.size,
+                "An open watcher must continue polling after a failed read",
+            )
+            assertEquals(0, retired)
+            // An executor clears interruption before dispatching another task.
+            Thread.interrupted()
+            repin.onPinFile(pinFile(newest))
+            scheduler.runNext()
+
+            assertEquals(2, reads)
+            assertEquals(1, retired)
+            assertTrue(scheduler.tasks.isEmpty())
+        } finally {
+            repin.close()
+            Thread.interrupted()
+        }
     }
 
     private fun repin(

@@ -2,7 +2,6 @@ package gg.grounds.minestom.lobby
 
 import com.google.gson.JsonParser
 import java.time.Duration
-import java.util.concurrent.CancellationException
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
@@ -85,14 +84,13 @@ internal class LobbyRepin(
                         return
                     }
             }
+        // Failed reads still reach the lifecycle/deadline decision; interruption is retained.
         val served =
             try {
                 pinnedOnCdn()
             } catch (_: InterruptedException) {
                 Thread.currentThread().interrupt()
-                return
-            } catch (_: CancellationException) {
-                return
+                null
             } catch (_: Exception) {
                 null
             }
