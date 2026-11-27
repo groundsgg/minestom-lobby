@@ -1,5 +1,7 @@
-package gg.grounds.minestom.lobby
+package gg.grounds.minestom.lobby.feature.lod
 
+import gg.grounds.minestom.lobby.LoadedLobbyMap
+import gg.grounds.minestom.lobby.LobbyMapSource
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.UUID

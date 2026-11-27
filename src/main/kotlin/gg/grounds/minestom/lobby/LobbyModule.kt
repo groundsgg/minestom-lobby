@@ -1,6 +1,8 @@
 package gg.grounds.minestom.lobby
 
 import gg.grounds.GameServerRetirement
+import gg.grounds.minestom.lobby.feature.lod.LobbyLodPilot
+import gg.grounds.minestom.lobby.feature.lod.LobbyLodServing
 import gg.grounds.minestom.lobby.scene.LobbyDialogues
 import gg.grounds.minestom.lobby.scene.LobbySceneHost
 import gg.grounds.minestom.lobby.scene.LobbySceneLoader

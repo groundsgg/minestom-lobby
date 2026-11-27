@@ -1,4 +1,4 @@
-package gg.grounds.minestom.lobby
+package gg.grounds.minestom.lobby.feature.lod
 
 import gg.grounds.permissions.*
 import java.time.Clock
