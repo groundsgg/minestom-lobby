@@ -1152,6 +1152,14 @@ class StageLobbyDialogueTest {
             tickUntil(fixture.instance) { player in custom.viewers && other in fallback.viewers }
             assertFalse(player in fallback.viewers)
             assertFalse(other in custom.viewers)
+            for (label in listOf(fallback, custom)) {
+                assertEquals(
+                    net.minestom.server.entity.metadata.display.AbstractDisplayMeta
+                        .BillboardConstraints
+                        .VERTICAL,
+                    (label.entityMeta as TextDisplayMeta).billboardRenderConstraints,
+                )
+            }
 
             val lease = checkNotNull(nameplate.hideFor(player))
             assertFalse(player in custom.viewers)
@@ -1320,7 +1328,7 @@ class StageLobbyDialogueTest {
                 assertEquals(
                     net.minestom.server.entity.metadata.display.AbstractDisplayMeta
                         .BillboardConstraints
-                        .CENTER
+                        .VERTICAL
                         .ordinal
                         .toByte(),
                     changes.last().entries()[billboard]?.value(),

@@ -81,10 +81,10 @@ internal data class StageDialogueLabel(
             NpcNameplate(
                 if (customStyle) requireNotNull(custom) else text,
                 { meta ->
+                    meta.setBillboardRenderConstraints(
+                        AbstractDisplayMeta.BillboardConstraints.VERTICAL
+                    )
                     if (customStyle) {
-                        meta.setBillboardRenderConstraints(
-                            AbstractDisplayMeta.BillboardConstraints.CENTER
-                        )
                         meta.setBrightness(15, 15)
                         meta.setBackgroundColor(0)
                         meta.setUseDefaultBackground(false)
