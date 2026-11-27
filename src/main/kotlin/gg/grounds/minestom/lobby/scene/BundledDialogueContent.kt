@@ -82,6 +82,7 @@ private constructor(private val project: String, private val snapshot: Validated
                             ) {
                                 "$project: UNSUPPORTED_ENTRY at $path"
                             }
+                            require(zip.read() == -1) { "$project: DIRECTORY_PAYLOAD at $path" }
                             continue
                         }
                         val maximum =

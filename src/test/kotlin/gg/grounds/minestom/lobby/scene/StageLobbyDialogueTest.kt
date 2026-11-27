@@ -1,6 +1,21 @@
 package gg.grounds.minestom.lobby.scene
 
+import gg.grounds.dialogue.core.definition.DialogueBuilder
+import gg.grounds.dialogue.core.definition.DialogueDefinition.Choice
+import gg.grounds.dialogue.core.definition.DialogueDefinition.End
+import gg.grounds.dialogue.core.definition.DialogueDefinition.Interaction
+import gg.grounds.dialogue.core.definition.DialogueDefinition.LookAway
+import gg.grounds.dialogue.core.definition.DialogueDefinition.Message
+import gg.grounds.dialogue.core.text.LocaleContext
+import gg.grounds.dialogue.core.text.TextCatalog
+import gg.grounds.dialogue.core.text.TextResolver
+import gg.grounds.dialogue.core.validation.DialogueValidator
+import gg.grounds.dialogue.core.validation.HostCatalog
+import gg.grounds.dialogue.core.validation.ValidatedDialogue
+import gg.grounds.dialogue.core.validation.ValidationLimits
+import gg.grounds.dialogue.minestom.asset.AssetBundle
 import gg.grounds.lobby.scene.LobbySceneCatalogs
+import gg.grounds.minigame.minestom.SidebarLocale
 import gg.grounds.scene.format.AssetKind
 import gg.grounds.scene.format.LocalId
 import gg.grounds.scene.format.SceneHand
@@ -41,8 +56,307 @@ import org.junit.jupiter.api.Test
 
 class StageLobbyDialogueTest {
     @Test
+    fun `begin and observer refresh preserve regional requests and graph default fallback`() {
+        dialogueFixture().use { fixture ->
+            val regional = fixture.player(Pos(0.0, 0.0, 2.0))
+            val unsupported = fixture.player(Pos(1.0, 0.0, 2.0))
+            val undetermined = fixture.player(Pos(0.0, 0.0, 1.0))
+            undetermined.locale = java.util.Locale.ROOT
+            regional.locale = java.util.Locale.ENGLISH
+            SidebarLocale.set(regional, "fr-ca")
+            SidebarLocale.set(unsupported, "it-IT")
+            assertEquals("fr-CA", SidebarLocale.localeOf(regional).toLanguageTag())
+            val identity =
+                SceneRuntimeIdentity(SceneId("test:regional-language"), "lobby/mainlobby", 19)
+            val owner =
+                LobbyDialogues(
+                    fixture.instance,
+                    identity,
+                    listOf(
+                        LobbyDialogueBinding(
+                            LocalId("guide"),
+                            Pos.ZERO,
+                            StageDialogueContent.DIALOGUE_ID,
+                            "guide",
+                        )
+                    ),
+                    assets =
+                        gg.grounds.dialogue.minestom.asset.AssetBundle.loadDefault(
+                            gg.grounds.dialogue.minestom.asset.MinecraftPackProfile.grounds263()
+                        ),
+                    proxyPackEnabled = false,
+                    content = ::regionalFixture,
+                )
+            fun context(player: TestPlayer) =
+                SceneActionContext(
+                    identity,
+                    player,
+                    LocalId("guide"),
+                    SceneTrigger.RIGHT_CLICK,
+                    SceneHand.MAIN,
+                    System.nanoTime(),
+                    emptyMap(),
+                    SceneViewerVisualState(),
+                )
+            fun latest(player: TestPlayer) =
+                player.connection.packets
+                    .filterIsInstance<SystemChatPacket>()
+                    .lastOrNull()
+                    ?.let { PlainTextComponentSerializer.plainText().serialize(it.message()) }
+                    .orEmpty()
+            fun expect(player: TestPlayer, expected: String) {
+                val end = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+                while (!latest(player).contains(expected) && System.nanoTime() < end) {
+                    fixture.instance.tick(0)
+                    MinecraftServer.getSchedulerManager().processTick()
+                    Thread.yield()
+                }
+                assertTrue(latest(player).contains(expected), latest(player))
+            }
+            try {
+                assertEquals(
+                    SceneActionResult.Success,
+                    await(
+                        owner.start(context(regional), StageDialogueContent.DIALOGUE_ID, "guide"),
+                        fixture.instance,
+                    ),
+                )
+                expect(regional, "Québec fixture")
+                assertEquals(
+                    SceneActionResult.Success,
+                    await(
+                        owner.start(
+                            context(unsupported),
+                            StageDialogueContent.DIALOGUE_ID,
+                            "guide",
+                        ),
+                        fixture.instance,
+                    ),
+                )
+                expect(unsupported, "Français par défaut")
+                assertEquals(
+                    SceneActionResult.Success,
+                    await(
+                        owner.start(
+                            context(undetermined),
+                            StageDialogueContent.DIALOGUE_ID,
+                            "guide",
+                        ),
+                        fixture.instance,
+                    ),
+                )
+                expect(undetermined, "Français par défaut")
+                SidebarLocale.set(regional, "fr")
+                expect(regional, "Français par défaut")
+                SidebarLocale.set(regional, "en-US")
+                expect(regional, "English fixture")
+                SidebarLocale.set(regional, "it-IT")
+                expect(regional, "Français par défaut")
+                SidebarLocale.set(regional, "fr-CA")
+                expect(regional, "Québec fixture")
+                regional.locale = java.util.Locale.ROOT
+                SidebarLocale.set(regional, null)
+                expect(regional, "Français par défaut")
+            } finally {
+                await(owner.closeAsync(), fixture.instance)
+            }
+        }
+    }
+
+    private fun regionalFixture(id: String, generation: String) =
+        localeFixture(
+            id,
+            generation,
+            mapOf(
+                "en" to "English fixture",
+                "fr" to "Français par défaut",
+                "fr-CA" to "Québec fixture",
+            ),
+        )
+
+    private fun localeFixture(
+        id: String,
+        generation: String,
+        messages: Map<String, String>,
+        repeat: Boolean = false,
+    ) =
+        DialogueValidator()
+            .validate(
+                DialogueBuilder.dialogue(id)
+                    .locales("fr", *messages.keys.toTypedArray())
+                    .node(
+                        "start",
+                        Message(
+                            "guide",
+                            "line",
+                            null,
+                            listOf(
+                                Choice(
+                                    "continue",
+                                    "choice",
+                                    if (repeat) "start" else "end",
+                                    false,
+                                    null,
+                                )
+                            ) +
+                                if (repeat) listOf(Choice("finish", "finish", "end", false, null))
+                                else emptyList(),
+                            null,
+                        ),
+                    )
+                    .node("end", End("completed"))
+                    .build(),
+                TextCatalog(
+                    messages.mapValues { (_, line) ->
+                        mapOf(
+                            "line" to line,
+                            "choice" to "Continue fixture",
+                            "finish" to "End fixture",
+                        )
+                    }
+                ),
+                HostCatalog(
+                    generation,
+                    setOf("guide"),
+                    emptyMap(),
+                    if (id == LobbyGuideContent.DIALOGUE_ID)
+                        mapOf(
+                            LobbyGuideContent.NAVIGATOR_ACTION to
+                                HostCatalog.ProviderSpec(emptyMap(), false),
+                            LobbyGuideContent.DUELS_ACTION to
+                                HostCatalog.ProviderSpec(emptyMap(), false),
+                        )
+                    else emptyMap(),
+                    emptySet(),
+                    emptySet(),
+                    false,
+                ),
+                ValidationLimits.defaults(),
+            )
+            .let { requireNotNull(it.validated()) { it.problems().toString() } }
+
+    @Test
+    fun `regional and unsupported Guide refresh preserve native speech`() {
+        dialogueFixture().use { fixture ->
+            val player = fixture.player(Pos(0.0, 0.0, 2.0))
+            SidebarLocale.set(player, "en")
+            val identity =
+                SceneRuntimeIdentity(SceneId("test:guide-regional-speech"), "lobby/mainlobby", 19)
+            val assets = StageDialogueAssets.load()
+            val owner =
+                LobbyDialogues(
+                    fixture.instance,
+                    identity,
+                    listOf(
+                        LobbyDialogueBinding(
+                            LocalId("spawn-guide"),
+                            Pos.ZERO,
+                            LobbyGuideContent.DIALOGUE_ID,
+                            "guide",
+                        )
+                    ),
+                    assets = assets,
+                    proxyPackEnabled = true,
+                    reducedMotion = { true },
+                    content = { id, generation ->
+                        localeFixture(
+                            id,
+                            generation,
+                            mapOf(
+                                "en" to
+                                    "This voice fixture has enough time to play clips before the next choice.",
+                                "fr" to
+                                    "Cette phrase donne du temps pour parler avant le prochain choix.",
+                            ),
+                            repeat = true,
+                        )
+                    },
+                )
+            fun voices() =
+                player.connection.packets
+                    .filterIsInstance<
+                        net.minestom.server.network.packet.server.play.SoundEffectPacket
+                    >()
+                    .count { it.soundEvent().key().asString().startsWith("dialogue:guide/") }
+            var sequence = 0
+            fun expectFreshVoice(requested: String) {
+                val before = voices()
+                SidebarLocale.set(player, requested)
+                val prefix =
+                    if (requested.startsWith("en")) "This voice fixture" else "Cette phrase"
+                fun refreshed() =
+                    npcTextDisplays(player, fixture.instance).any {
+                        PlainTextComponentSerializer.plainText()
+                            .serialize((it.entityMeta as TextDisplayMeta).text)
+                            .contains(prefix)
+                    }
+                tickUntil(fixture.instance) { refreshed() }
+                assertTrue(
+                    refreshed(),
+                    "Refreshed text uses requested locale $requested (status=${owner.presentation(player)}, text=${npcTextDisplays(player, fixture.instance).map { PlainTextComponentSerializer.plainText().serialize((it.entityMeta as TextDisplayMeta).text) }}, chat=${player.messages().lastOrNull()?.let { PlainTextComponentSerializer.plainText().serialize(it) }})",
+                )
+                assertEquals(
+                    before,
+                    voices(),
+                    "Locale refresh reveals existing text without replaying speech",
+                )
+                // Honor the native input profile's 350 ms quiet period before confirming.
+                Thread.sleep(375)
+                EventDispatcher.call(
+                    net.minestom.server.event.player.PlayerPacketEvent(
+                        player,
+                        net.minestom.server.network.packet.client.play.ClientPlayerActionPacket(
+                            net.minestom.server.network.packet.client.play.ClientPlayerActionPacket
+                                .Status
+                                .SWAP_ITEM_HAND,
+                            net.minestom.server.coordinate.Vec.ZERO,
+                            net.minestom.server.instance.block.BlockFace.TOP,
+                            ++sequence,
+                        ),
+                    )
+                )
+                tickUntil(fixture.instance) { voices() > before }
+                assertTrue(
+                    voices() > before,
+                    "Next Guide visit speaks for requested locale $requested",
+                )
+            }
+            try {
+                owner.confirmPack(player, DialoguePackReadiness.State(1, true, assets.pin()))
+                assertEquals(
+                    SceneActionResult.Success,
+                    await(
+                        owner.start(
+                            SceneActionContext(
+                                identity,
+                                player,
+                                LocalId("spawn-guide"),
+                                SceneTrigger.RIGHT_CLICK,
+                                SceneHand.MAIN,
+                                System.nanoTime(),
+                                emptyMap(),
+                                SceneViewerVisualState(),
+                            ),
+                            LobbyGuideContent.DIALOGUE_ID,
+                            "guide",
+                        ),
+                        fixture.instance,
+                    ),
+                )
+                tickUntil(fixture.instance) { voices() > 0 }
+                assertTrue(voices() > 0, "Initial native Guide speech starts")
+                expectFreshVoice("fr-CA")
+                expectFreshVoice("en-US")
+                expectFreshVoice("it-IT")
+            } finally {
+                await(owner.closeAsync(), fixture.instance)
+            }
+        }
+    }
+
+    @Test
     fun `NPC speech choices and hint follow saved and live language on the same ticket`() {
-        RendererFixture().use { fixture ->
+        dialogueFixture().use { fixture ->
             val player = fixture.player(Pos(0.0, 0.0, 2.0))
             val bystander = fixture.player(Pos(1.0, 0.0, 2.0))
             player.locale = java.util.Locale.ENGLISH
@@ -51,14 +365,7 @@ class StageLobbyDialogueTest {
             val identity = SceneRuntimeIdentity(SceneId("test:npc-language"), "lobby/mainlobby", 19)
             val assets = StageDialogueAssets.load()
             val starter =
-                StageLobbyDialogue(
-                    fixture.instance,
-                    identity,
-                    LocalId("guide"),
-                    Pos.ZERO,
-                    assets,
-                    true,
-                ) {
+                stageFixture(fixture.instance, identity, LocalId("guide"), Pos.ZERO, assets, true) {
                     gg.grounds.minigame.minestom.SidebarLocale.localeOf(it).toLanguageTag()
                 }
             val context =
@@ -121,14 +428,14 @@ class StageLobbyDialogueTest {
                     ),
                 )
                 assertLanguage(
-                    "Hallo! Das ist der Stage-Dialogtest.",
+                    "Hallo! Das ist eine",
                     "Was kann ich hier testen?",
                     "Auswählen",
                     "What can I test here?",
                 )
                 gg.grounds.minigame.minestom.SidebarLocale.set(player, "en")
                 assertLanguage(
-                    "Hello! This is the Stage dialogue test.",
+                    "Hello! This is a synthetic",
                     "What can I test here?",
                     "Select",
                     "Was kann ich hier testen?",
@@ -137,7 +444,7 @@ class StageLobbyDialogueTest {
                 gg.grounds.minigame.minestom.SidebarLocale.set(player, "en")
                 gg.grounds.minigame.minestom.SidebarLocale.set(player, "de")
                 assertLanguage(
-                    "Hallo! Das ist der Stage-Dialogtest.",
+                    "Hallo! Das ist eine",
                     "Was kann ich hier testen?",
                     "Auswählen",
                     "What can I test here?",
@@ -151,7 +458,7 @@ class StageLobbyDialogueTest {
 
     @Test
     fun `unavailable duel menu stays localized and never joins a queue`() {
-        RendererFixture().use { fixture ->
+        dialogueFixture().use { fixture ->
             val identity = SceneRuntimeIdentity(SceneId("test:duel-failure"), "lobby/mainlobby", 19)
             var opened = 0
             val owner =
@@ -214,19 +521,17 @@ class StageLobbyDialogueTest {
                         fixture.instance,
                     ),
                 )
-                choose("Ein Spiel finden")
-                tickUntil(fixture.instance) { received(player, "Mit dem Kompass") }
-                choose("Duellmenü öffnen")
-                tickUntil(fixture.instance) {
-                    received(player, "Dieses Menü ist gerade nicht verfügbar")
-                }
-                assertTrue(received(player, "Dieses Menü ist gerade nicht verfügbar"))
+                choose(guideText("de", "games.choice"))
+                tickUntil(fixture.instance) { received(player, guideText("de", "games")) }
+                choose(guideText("de", "duels.choice"))
+                tickUntil(fixture.instance) { received(player, guideText("de", "unavailable")) }
+                assertTrue(received(player, guideText("de", "unavailable")))
                 assertEquals(1, opened)
                 gg.grounds.minigame.minestom.SidebarLocale.set(player, "en")
-                tickUntil(fixture.instance) { received(player, "That menu isn’t available") }
-                assertTrue(received(player, "That menu isn’t available"))
+                tickUntil(fixture.instance) { received(player, guideText("en", "unavailable")) }
+                assertTrue(received(player, guideText("en", "unavailable")))
                 assertEquals(1, opened)
-                assertNotNull(commandFor(player, "Back"))
+                assertNotNull(commandFor(player, guideText("en", "back.choice")))
             } finally {
                 await(owner.closeAsync(), fixture.instance)
             }
@@ -337,7 +642,7 @@ class StageLobbyDialogueTest {
 
     @Test
     fun `guide opens only owned players menus and shares admission with preview`() {
-        RendererFixture().use { fixture ->
+        dialogueFixture().use { fixture ->
             val identity = SceneRuntimeIdentity(SceneId("test:guide"), "lobby/mainlobby", 19)
             val guide = LocalId("spawn-guide")
             val preview = LocalId("demo-bounce")
@@ -411,7 +716,7 @@ class StageLobbyDialogueTest {
                         fixture.instance,
                     ),
                 )
-                assertTrue(received(player, "Hallo! Ich bin dein Guide"))
+                assertTrue(received(player, guideText("de", "welcome")))
                 assertInstanceOf(
                     SceneActionResult.Rejected::class.java,
                     await(
@@ -434,16 +739,16 @@ class StageLobbyDialogueTest {
                         fixture.instance,
                     ),
                 )
-                choose("Lobby oder Region wählen")
-                tickUntil(fixture.instance) { received(player, "Im Navigator") }
-                assertTrue(received(player, "Im Navigator"))
-                choose("Navigator öffnen")
+                choose(guideText("de", "travel.choice"))
+                tickUntil(fixture.instance) { received(player, guideText("de", "travel")) }
+                assertTrue(received(player, guideText("de", "travel")))
+                choose(guideText("de", "navigator.choice"))
                 tickUntil(fixture.instance) { opened.isNotEmpty() }
                 assertEquals(listOf(player), opened)
                 gg.grounds.minigame.minestom.SidebarLocale.set(player, "en")
                 fixture.instance.tick(0)
                 assertEquals(listOf(player), opened)
-                assertFalse(received(other, "Im Navigator"))
+                assertFalse(received(other, guideText("de", "travel")))
             } finally {
                 await(owner.closeAsync(), fixture.instance)
             }
@@ -452,7 +757,7 @@ class StageLobbyDialogueTest {
 
     @Test
     fun `ticket locale observers close after completion host close and rejected starts`() {
-        RendererFixture().use { fixture ->
+        dialogueFixture().use { fixture ->
             val identity = SceneRuntimeIdentity(SceneId("test:observer"), "lobby/mainlobby", 19)
             var observers = 0
             val owner =
@@ -516,12 +821,12 @@ class StageLobbyDialogueTest {
 
     @Test
     fun `committed language wins and active dialogue follows latest language`() {
-        RendererFixture().use { fixture ->
+        dialogueFixture().use { fixture ->
             val player = fixture.player(Pos(0.0, 0.0, 2.0))
             gg.grounds.minigame.minestom.SidebarLocale.set(player, "de")
             val identity = SceneRuntimeIdentity(SceneId("test:language"), "lobby/mainlobby", 19)
             val starter =
-                StageLobbyDialogue(fixture.instance, identity, LocalId("guide"), Pos.ZERO) {
+                stageFixture(fixture.instance, identity, LocalId("guide"), Pos.ZERO) {
                     gg.grounds.minigame.minestom.SidebarLocale.localeOf(it).toLanguageTag()
                 }
             try {
@@ -586,11 +891,10 @@ class StageLobbyDialogueTest {
 
     @Test
     fun `actual library starts independent chat sessions only at configured station`() {
-        RendererFixture().use { fixture ->
+        dialogueFixture().use { fixture ->
             val station = LocalId("demo-bounce")
             val identity = SceneRuntimeIdentity(SceneId("test:stage"), "lobby/mainlobby", 19)
-            val starter =
-                StageLobbyDialogue(fixture.instance, identity, station, Pos.ZERO) { "de-DE" }
+            val starter = stageFixture(fixture.instance, identity, station, Pos.ZERO) { "de-DE" }
             try {
                 val handler =
                     LobbySceneActions(
@@ -644,7 +948,7 @@ class StageLobbyDialogueTest {
                 assertTrue(received(first, "Auswählen"))
                 val choice = commandFor(first, label)
                 MinecraftServer.getCommandManager().execute(first, choice.removePrefix("/"))
-                val response = "Diese anklickbaren Chat-Antworten"
+                val response = "Synthetische Erklärung"
                 tickUntil(fixture.instance) { received(first, response) }
                 assertTrue(received(first, response))
                 assertFalse(received(second, response))
@@ -656,11 +960,11 @@ class StageLobbyDialogueTest {
 
     @Test
     fun `Stage USE hint uses the private control glyph and keeps the translated action verb`() {
-        RendererFixture().use { fixture ->
+        dialogueFixture().use { fixture ->
             val identity = SceneRuntimeIdentity(SceneId("test:input-icon"), "lobby/mainlobby", 19)
             val assets = StageDialogueAssets.load()
             val starter =
-                StageLobbyDialogue(
+                stageFixture(
                     fixture.instance,
                     identity,
                     LocalId("demo-bounce"),
@@ -745,12 +1049,12 @@ class StageLobbyDialogueTest {
 
     @Test
     fun `native Stage vignette stays steady while typing and uses a matching exit key`() {
-        RendererFixture().use { fixture ->
+        dialogueFixture().use { fixture ->
             val identity =
                 SceneRuntimeIdentity(SceneId("test:native-vignette"), "lobby/mainlobby", 19)
             val assets = StageDialogueAssets.load()
             val starter =
-                StageLobbyDialogue(
+                stageFixture(
                     fixture.instance,
                     identity,
                     LocalId("demo-bounce"),
@@ -868,14 +1172,12 @@ class StageLobbyDialogueTest {
 
     @Test
     fun `confirmed proxy pin selects NPC and revocation returns to chat`() {
-        RendererFixture().use { fixture ->
+        dialogueFixture().use { fixture ->
             val station = LocalId("demo-bounce")
             val identity = SceneRuntimeIdentity(SceneId("test:npc"), "lobby/mainlobby", 19)
             val assets = StageDialogueAssets.load()
             val starter =
-                StageLobbyDialogue(fixture.instance, identity, station, Pos.ZERO, assets, true) {
-                    "en"
-                }
+                stageFixture(fixture.instance, identity, station, Pos.ZERO, assets, true) { "en" }
             val player = fixture.player(Pos(0.0, 0.0, 2.0))
             val other = fixture.player(Pos(1.0, 0.0, 2.0))
             val lifetime = TestLabelLifetime()
@@ -1000,12 +1302,12 @@ class StageLobbyDialogueTest {
 
     @Test
     fun `closing the Stage dialogue host clears the active vignette effect`() {
-        RendererFixture().use { fixture ->
+        dialogueFixture().use { fixture ->
             val identity =
                 SceneRuntimeIdentity(SceneId("test:close-effects"), "lobby/mainlobby", 19)
             val assets = StageDialogueAssets.load()
             val starter =
-                StageLobbyDialogue(
+                stageFixture(
                     fixture.instance,
                     identity,
                     LocalId("demo-bounce"),
@@ -1053,7 +1355,7 @@ class StageLobbyDialogueTest {
 
     @Test
     fun `label setup failure does not start the delegated renderer`() {
-        RendererFixture().use { fixture ->
+        dialogueFixture().use { fixture ->
             val station = LocalId("demo-bounce")
             var delegateStarted = false
             val delegate = SceneAssetRendererRegistry { _, _ ->
@@ -1084,7 +1386,7 @@ class StageLobbyDialogueTest {
 
     @Test
     fun `station label does not spawn for an invalidated scene renderer`() {
-        RendererFixture().use { fixture ->
+        dialogueFixture().use { fixture ->
             val lifetime = TestLabelLifetime().also { it.invalidate() }
             val label =
                 StageDialogueLabel(LocalId("demo-bounce"), Component.text("Title"), Pos.ZERO)
@@ -1096,7 +1398,7 @@ class StageLobbyDialogueTest {
 
     @Test
     fun `cancelled station label spawn reports failure and drains cleanup`() {
-        RendererFixture().use { fixture ->
+        dialogueFixture().use { fixture ->
             fixture.instance.eventNode().addListener(AddEntityToInstanceEvent::class.java) {
                 if (it.entity.entityType == EntityType.TEXT_DISPLAY) it.isCancelled = true
             }
@@ -1159,14 +1461,12 @@ class StageLobbyDialogueTest {
     }
 
     private fun assertNpcReveal(packReadyBeforeStart: Boolean) {
-        RendererFixture().use { fixture ->
+        dialogueFixture().use { fixture ->
             val station = LocalId("demo-bounce")
             val identity = SceneRuntimeIdentity(SceneId("test:reveal"), "lobby/mainlobby", 19)
             val assets = StageDialogueAssets.load()
             val starter =
-                StageLobbyDialogue(fixture.instance, identity, station, Pos.ZERO, assets, true) {
-                    "en"
-                }
+                stageFixture(fixture.instance, identity, station, Pos.ZERO, assets, true) { "en" }
             val player = fixture.player(Pos(0.0, 0.0, 2.0))
             val ready = DialoguePackReadiness.State(1, true, assets.pin())
             val context =
@@ -1216,7 +1516,7 @@ class StageLobbyDialogueTest {
 
     @Test
     fun `proxy receiver applies only latest revision to current player connection`() {
-        RendererFixture().use { fixture ->
+        dialogueFixture().use { fixture ->
             val player = fixture.player()
             val applied = mutableListOf<DialoguePackReadiness.State>()
             val receiver = DialoguePackReadiness { _, state -> applied += state }
@@ -1235,6 +1535,105 @@ class StageLobbyDialogueTest {
             MinecraftServer.getSchedulerManager().processTick()
             assertEquals(listOf(DialoguePackReadiness.State(2, false, "a".repeat(64))), applied)
         }
+    }
+
+    // Stable synthetic content for renderer/language mechanics; authored content is checked
+    // separately.
+    private fun dialogueFixture() = RendererFixture().also { it.instance.viewDistance(1) }
+
+    private fun stageFixture(
+        instance: Instance,
+        identity: SceneRuntimeIdentity,
+        element: LocalId,
+        position: Pos,
+        assets: AssetBundle = StageDialogueAssets.load(),
+        proxyPackEnabled: Boolean = StageDialogueAssets.isPackaged(),
+        locale: (net.minestom.server.entity.Player) -> String,
+    ) =
+        StageLobbyDialogue(
+            instance,
+            identity,
+            element,
+            position,
+            assets,
+            proxyPackEnabled,
+            content = ::stageContent,
+            locale = locale,
+        )
+
+    private fun stageContent(id: String, generation: String): ValidatedDialogue {
+        val definition =
+            DialogueBuilder.dialogue(id)
+                .locales("en", "en", "de")
+                .interaction(Interaction(LookAway(false, 110.0, 600, 95.0), 6.0))
+                .node(
+                    "start",
+                    Message(
+                        "guide",
+                        "fixture.opening",
+                        null,
+                        listOf(
+                            Choice("explain", "fixture.choice", "explain", false, null),
+                            Choice("finish", "fixture.finish", "end", false, null),
+                        ),
+                        null,
+                    ),
+                )
+                .node("explain", Message("guide", "fixture.explanation", null, emptyList(), "end"))
+                .node("end", End("completed"))
+                .build()
+        val texts =
+            TextCatalog(
+                mapOf(
+                    "en" to
+                        mapOf(
+                            "fixture.opening" to
+                                "Hello! This is a synthetic presentation fixture. What would you like to know?",
+                            "fixture.choice" to "What can I test here?",
+                            "fixture.finish" to "Finish fixture",
+                            "fixture.explanation" to
+                                "A synthetic explanation checks renderer behavior without changing game progress.",
+                        ),
+                    "de" to
+                        mapOf(
+                            "fixture.opening" to
+                                "Hallo! Das ist eine synthetische Testunterhaltung. Was möchtest du wissen?",
+                            "fixture.choice" to "Was kann ich hier testen?",
+                            "fixture.finish" to "Test beenden",
+                            "fixture.explanation" to
+                                "Synthetische Erklärung für diesen Darstellungstest.",
+                        ),
+                )
+            )
+        val result =
+            DialogueValidator()
+                .validate(
+                    definition,
+                    texts,
+                    HostCatalog(
+                        generation,
+                        setOf("guide"),
+                        emptyMap(),
+                        emptyMap(),
+                        emptySet(),
+                        emptySet(),
+                        false,
+                    ),
+                    ValidationLimits.defaults(),
+                )
+        return requireNotNull(result.validated()) { result.problems().toString() }
+    }
+
+    private fun guideText(locale: String, key: String): String {
+        val content = LobbyGuideContent.validated("test-expected-text")
+        val defaultTag = content.definition().locales().defaultTag()
+        return TextResolver.catalogue(content.texts(), defaultTag)
+            .resolve(
+                TextResolver.TextRequest(key, emptyMap(), LocaleContext(locale, 0, defaultTag))
+            )
+            .toCompletableFuture()
+            .join()
+            .plain
     }
 
     private fun tickUntil(instance: Instance, predicate: () -> Boolean) {

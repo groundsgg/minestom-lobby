@@ -68,18 +68,21 @@ class BundledDialogueContentTest {
     fun `invalid SDK content cannot activate either project`() {
         for (project in projects) {
             rejects(project, "TEXT_MISSING") { files ->
-                val de =
-                    JsonParser.parseString(files.getValue("texts/de.json").decodeToString())
+                val translation =
+                    JsonParser.parseString(
+                            files.getValue(textPath(files, project)).decodeToString()
+                        )
                         .asJsonObject
-                de.remove("welcome")
-                files["texts/de.json"] = de.toString().toByteArray()
+                translation.remove(messageKey(files, project))
+                files[textPath(files, project)] = translation.toString().toByteArray()
             }
-            rejects(project, "TEXT_MISSING") { it.remove("texts/de.json") }
-            rejects(project, "JSON_DUPLICATE_KEY") {
-                it["texts/en.json"] = "{\"welcome\":\"one\",\"welcome\":\"two\"}".toByteArray()
+            rejects(project, "TEXT_MISSING") { files -> files.remove(textPath(files, project)) }
+            rejects(project, "JSON_DUPLICATE_KEY") { files ->
+                files[textPath(files, project)] =
+                    "{\"duplicate\":\"one\",\"duplicate\":\"two\"}".toByteArray()
             }
             rejects(project, "DIALOGUE_DUPLICATE") { files ->
-                files["dialogues/duplicate.json"] = files.getValue(graphPath(project))
+                files["dialogues/duplicate.json"] = files.getValue(graphPath(files))
             }
             rejects(project, "REFERENCE_UNKNOWN") { files ->
                 val graph = graph(files, project)
@@ -89,22 +92,24 @@ class BundledDialogueContentTest {
                     .getAsJsonArray("choices")[0]
                     .asJsonObject
                     .addProperty("to", "missing")
-                files[graphPath(project)] = graph.toString().toByteArray()
+                files[graphPath(files)] = graph.toString().toByteArray()
             }
             rejects(project, "TEXT_ARGUMENT_MISSING") { files ->
-                files["texts/de.json"] =
-                    files.getValue("texts/de.json").decodeToString().let {
+                files[textPath(files, project)] =
+                    files.getValue(textPath(files, project)).decodeToString().let {
                         val json = JsonParser.parseString(it).asJsonObject
-                        json.addProperty("welcome", "Hello {player}")
+                        json.addProperty(messageKey(files, project), "Hello {player}")
                         json.toString().toByteArray()
                     }
             }
             rejects(project, "TEXT_ARGUMENT_MISSING") { files ->
                 val json =
-                    JsonParser.parseString(files.getValue("texts/en.json").decodeToString())
+                    JsonParser.parseString(
+                            files.getValue(textPath(files, project)).decodeToString()
+                        )
                         .asJsonObject
                 json.addProperty("speaker.guide", "{player}")
-                files["texts/en.json"] = json.toString().toByteArray()
+                files[textPath(files, project)] = json.toString().toByteArray()
             }
         }
     }
@@ -149,7 +154,7 @@ class BundledDialogueContentTest {
                                     "{\"type\":\"action\",\"action\":\"forged\",\"onSuccess\":\"end\",\"onRejected\":\"end\",\"onUnavailable\":\"end\",\"onUncertain\":\"end\"}"
                                 ),
                             )
-                        files[graphPath(project)] = graph.toString().toByteArray()
+                        files[graphPath(files)] = graph.toString().toByteArray()
                     }
                     files["context/host-catalog.json"] = json.toString().toByteArray()
                 }
@@ -195,7 +200,7 @@ class BundledDialogueContentTest {
                 choices[1]
                     .asJsonObject
                     .addProperty("id", choices[0].asJsonObject.get("id").asString)
-                files[graphPath(project)] = json.toString().toByteArray()
+                files[graphPath(files)] = json.toString().toByteArray()
             }
             rejects(project, "PROVIDER_UNKNOWN") { files ->
                 val json = graph(files, project)
@@ -207,16 +212,23 @@ class BundledDialogueContentTest {
                             "{\"type\":\"action\",\"action\":\"invented\",\"onSuccess\":\"end\",\"onRejected\":\"end\",\"onUnavailable\":\"end\",\"onUncertain\":\"end\"}"
                         ),
                     )
-                files[graphPath(project)] = json.toString().toByteArray()
+                files[graphPath(files)] = json.toString().toByteArray()
             }
             rejects(project, "PROJECT_MEMBERSHIP") { files ->
                 val json = graph(files, project)
                 json.addProperty("id", "unexpected:dialogue")
-                files[graphPath(project)] = json.toString().toByteArray()
+                files[graphPath(files)] = json.toString().toByteArray()
             }
             rejects(project, "CATALOGUE_LIMIT") { files ->
                 files.keys.filter { it.startsWith("dialogues/") }.forEach { files.remove(it) }
             }
+        }
+    }
+
+    @Test
+    fun `nonempty unknown-size directory payload is rejected before implicit draining`() {
+        rejects("lobby-guide", "DIRECTORY_PAYLOAD") { files ->
+            files["dialogues/"] = byteArrayOf(1)
         }
     }
 
@@ -243,15 +255,24 @@ class BundledDialogueContentTest {
             rejects(project, path) { it[path] = "{}".toByteArray() }
         }
         rejects(project, "LOCALE_INVALID") { it["texts/de_DE.json"] = "{}".toByteArray() }
-        rejects(project, "CONTENT_LIMIT") { it[graphPath(project)] = ByteArray(1_048_577) }
+        rejects(project, "CONTENT_LIMIT") { files ->
+            files[graphPath(files)] = ByteArray(1_048_577)
+        }
         rejects(project, "context/host-catalog.json") { it.remove("context/host-catalog.json") }
+        val duplicatePath = entries(project).keys.first { it.startsWith("texts/") }
+        val duplicate = entries(project).toMutableMap()
+        val renamedPath =
+            "texts/" +
+                "x".repeat(duplicatePath.removePrefix("texts/").removeSuffix(".json").length) +
+                ".json"
+        duplicate[renamedPath] = "{}".toByteArray()
         val duplicated =
-            archive(entries(project) + ("texts/xx.json" to "{}".toByteArray())).let { bytes ->
+            archive(duplicate).let { bytes ->
                 // ZIP writer disallows duplicates; equal-length rename in local and central
                 // records.
                 bytes
                     .toString(Charsets.ISO_8859_1)
-                    .replace("texts/xx.json", "texts/en.json")
+                    .replace(renamedPath, duplicatePath)
                     .toByteArray(Charsets.ISO_8859_1)
             }
         val failure =
@@ -276,11 +297,11 @@ class BundledDialogueContentTest {
             val additionalTag = Locale.getISOLanguages().first { it !in existing }
             val expected = existing + additionalTag
             supported.add(additionalTag)
-            files[graphPath(project)] = graph.toString().toByteArray()
+            files[graphPath(files)] = graph.toString().toByteArray()
             val translated =
-                JsonParser.parseString(files.getValue("texts/en.json").decodeToString())
+                JsonParser.parseString(files.getValue(textPath(files, project)).decodeToString())
                     .asJsonObject
-            translated.addProperty("welcome", "Literal {{player}}")
+            translated.addProperty(messageKey(files, project), "Literal {{player}}")
             files["texts/$additionalTag.json"] = translated.toString().toByteArray()
             val content = read(project, files)
             assertTrue(content.texts.locales().keys.containsAll(expected))
@@ -329,11 +350,24 @@ class BundledDialogueContentTest {
             false,
         )
 
-    private fun graphPath(project: String) =
-        "dialogues/${if (project == "lobby-guide") "guide" else "mechanic"}.json"
+    private fun graphPath(files: Map<String, ByteArray>) =
+        files.keys.first { it.startsWith("dialogues/") }
+
+    private fun textPath(files: Map<String, ByteArray>, project: String) =
+        "texts/${graph(files, project).getAsJsonObject("locales").get("default").asString}.json"
+
+    private fun messageKey(files: Map<String, ByteArray>, project: String) =
+        graph(files, project)
+            .getAsJsonObject("nodes")
+            .entrySet()
+            .first { it.value.asJsonObject.get("type").asString == "message" }
+            .value
+            .asJsonObject
+            .get("text")
+            .asString
 
     private fun graph(files: Map<String, ByteArray>, project: String) =
-        JsonParser.parseString(files.getValue(graphPath(project)).decodeToString()).asJsonObject
+        JsonParser.parseString(files.getValue(graphPath(files)).decodeToString()).asJsonObject
 
     private fun entries(project: String): MutableMap<String, ByteArray> {
         val resource =

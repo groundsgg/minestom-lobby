@@ -128,7 +128,7 @@ internal class GuideSpeechListener(
 
     fun invalidate(locale: String? = null) =
         synchronized(lock) {
-            invalidatedPhase = phase
+            invalidatedPhase = phase ?: invalidatedPhase
             expectedLocale = locale
             phase = null
             speech.stop(false)

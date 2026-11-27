@@ -1,5 +1,6 @@
 package gg.grounds.minestom.lobby.scene
 
+import gg.grounds.dialogue.core.validation.ValidatedDialogue
 import gg.grounds.dialogue.minestom.asset.AssetBundle
 import gg.grounds.dialogue.presentation.DialogueTheme
 import gg.grounds.scene.format.LocalId
@@ -18,6 +19,7 @@ internal class StageLobbyDialogue(
     assets: AssetBundle = StageDialogueAssets.load(),
     proxyPackEnabled: Boolean = StageDialogueAssets.isPackaged(),
     theme: DialogueTheme = LobbyDialogues.defaultTheme(),
+    content: (String, String) -> ValidatedDialogue = LobbyDialogues::builtInContent,
     locale: (Player) -> String,
 ) : LobbySceneDialogueStarter {
     private val owner =
@@ -31,6 +33,7 @@ internal class StageLobbyDialogue(
             proxyPackEnabled = proxyPackEnabled,
             theme = theme,
             locale = locale,
+            content = content,
         )
 
     override fun start(context: SceneActionContext, dialogue: String, speaker: String) =

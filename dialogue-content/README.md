@@ -13,7 +13,7 @@ Keep these projects separate: their short text keys overlap and their catalogues
 
 ## Editing and validation
 
-Keep IDs and text keys stable when changing wording. Preserve the order of choices. Every message and choice key must have a translation in every locale declared by its graph. To add a language, create its flat text JSON and add its canonical tag to `locales.supported` in the graph. Set `locales.default` deliberately. SDK runtime fallback is separate from the required translation checks.
+Keep IDs and text keys stable when changing wording. Preserve the order of choices. Every message and choice key must have a translation in every locale declared by its graph. To add a language, create its flat text JSON and add its canonical tag to `locales.supported` in the graph. To remove a language, remove its file and supported tag, and retain a translated default in the supported set. Set `locales.default` deliberately. SDK runtime fallback is separate from the required translation checks.
 
 Text is plain text, with no MiniMessage markup or system prefix. The host currently supplies no interpolation arguments: `{player}` fails packaged validation. Use `{{player}}` to display the literal `{player}`. Optional `speaker.guide` display labels are also checked when present in the resolver's fallback chain.
 
@@ -42,7 +42,7 @@ Pin fixtures in `src/test/resources/dialogue-migration/<project>.sha256` record 
 
 ## Runtime ownership
 
-The Guide retains the `grounds:lobby-guide` identity, `guide` speaker role, persistent `spawn-guide` NPC restriction, and actual Navigator/Duel menu actions. Stage retains `stage:mechanic`, role `guide`, and no action providers. Handler code, scene/NPC bindings, voice/prosody/sounds, pack pins and player language preferences remain host responsibilities. A map cannot replace a built-in ID through these resources. Requested locales still come from the existing player preference observer.
+The Guide retains the `grounds:lobby-guide` identity, `guide` speaker role, persistent `spawn-guide` NPC restriction, and actual Navigator/Duel menu actions. Stage retains `stage:mechanic`, role `guide`, and no action providers. Handler code, scene/NPC bindings, voice/prosody/sounds, pack pins and player language preferences remain host responsibilities. A map cannot replace a built-in ID through these resources. Requested locales still come from the existing player preference observer. The full canonical preference tag (including regions such as `fr-CA`) reaches the SDK on start and refresh; the validated graph's default controls text fallback for unsupported requests.
 
 Packaging reads only graph JSON, text JSON and host context. Invalid ZIP paths, duplicates, unsupported nested locales, oversized inputs, SDK errors, stale host declarations and unavailable text arguments reject the entire project with project/path diagnostics. Resources are captured once without extraction or classpath directory enumeration.
 

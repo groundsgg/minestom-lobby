@@ -109,7 +109,8 @@ class GuideSpeechListenerTest {
             assertEquals(-5.0, first.origin().x())
             assertEquals(143.6, first.origin().y())
             assertEquals(115.0, first.origin().z())
-            listener.invalidate()
+            listener.invalidate("en")
+            listener.invalidate("en")
             listener.onBegin(
                 MinestomDialogueSpeechBeginEvent(
                     begin.view(),
@@ -136,6 +137,7 @@ class GuideSpeechListenerTest {
             assertEquals(first.soundEvent().key().asString(), stop.sound())
             assertEquals(Sound.Source.VOICE, stop.source())
             now += 5_000_000_000
+            listener.invalidate("de")
             val german = event(locale = "de")
             listener.onBegin(
                 MinestomDialogueSpeechBeginEvent(

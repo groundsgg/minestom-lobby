@@ -5,6 +5,7 @@ import gg.grounds.dialogue.core.runtime.PresentationPreferences
 import gg.grounds.dialogue.core.runtime.RuntimeOptions
 import gg.grounds.dialogue.core.text.LocaleContext
 import gg.grounds.dialogue.core.text.TextResolver
+import gg.grounds.dialogue.core.validation.ValidatedDialogue
 import gg.grounds.dialogue.minestom.*
 import gg.grounds.dialogue.minestom.asset.AssetBundle
 import gg.grounds.dialogue.minestom.asset.MinecraftPackProfile
@@ -45,18 +46,23 @@ internal class LobbyDialogues(
     private val reducedMotion: (Player) -> Boolean = { false },
     private val observeLocale: (Player, Runnable) -> AutoCloseable =
         gg.grounds.minigame.minestom.SidebarLocale::observe,
+    content: (String, String) -> ValidatedDialogue = ::builtInContent,
 ) : LobbySceneDialogueStarter {
     private val lock = Any()
     @Volatile private var closed = false
 
-    private class Session(val player: Player, val binding: LobbyDialogueBinding) {
+    private class Session(
+        val player: Player,
+        val binding: LobbyDialogueBinding,
+        val defaultLocale: String,
+    ) {
         lateinit var ticket: MinestomDialogueStart
         var handle: gg.grounds.dialogue.core.runtime.DialogueHandle? = null
         var subscription: AutoCloseable? = null
         val active = java.util.concurrent.atomic.AtomicBoolean(true)
         val connection = player.playerConnection
         var speech: GuideSpeechListener? = null
-        var language = "en"
+        var language = defaultLocale
         var revision = 0L
         val actions =
             mutableMapOf<
@@ -81,16 +87,7 @@ internal class LobbyDialogues(
 
     private val generation = "lobby-dialogue-" + UUID.randomUUID()
     private val contents =
-        bindings
-            .map { it.dialogue }
-            .distinct()
-            .associateWith {
-                when (it) {
-                    StageLobbyDialogue.DIALOGUE_ID -> StageDialogueContent.validated(generation)
-                    LobbyGuideContent.DIALOGUE_ID -> LobbyGuideContent.validated(generation)
-                    else -> error("Unsupported lobby dialogue $it")
-                }
-            }
+        bindings.map { it.dialogue }.distinct().associateWith { content(it, generation) }
     private val events =
         net.minestom.server.event.EventNode.all("lobby-dialogues-" + UUID.randomUUID())
     private val host =
@@ -192,11 +189,11 @@ internal class LobbyDialogues(
             if (previous != null && previous.ticket.status().diagnostic != "CLOSED")
                 return rejected("A dialogue is already active")
             previous?.let(::release)
-            val session = Session(context.player, binding)
-            session.language = normalize(locale(context.player))
-            val texts =
-                if (dialogue == LobbyGuideContent.DIALOGUE_ID) LobbyGuideContent.texts
-                else StageDialogueContent.texts
+            val validated = contents.getValue(dialogue)
+            val session =
+                Session(context.player, binding, validated.definition().locales().defaultTag())
+            session.language = canonicalLocale(locale(context.player), session.defaultLocale)
+            val texts = validated.texts()
             val services =
                 DialogueServices(
                     generation,
@@ -210,7 +207,7 @@ internal class LobbyDialogues(
                         )
                     else emptyMap(),
                     null,
-                    TextResolver.catalogue(texts, "en"),
+                    TextResolver.catalogue(texts, session.defaultLocale),
                     emptySet(),
                 )
             val speechListener =
@@ -223,10 +220,10 @@ internal class LobbyDialogues(
                         UUID.randomUUID().toString(),
                         context.player,
                         0,
-                        contents.getValue(dialogue),
+                        validated,
                         services,
                         emptyMap(),
-                        LocaleContext(session.language, 0, "en"),
+                        LocaleContext(session.language, 0, session.defaultLocale),
                         preferences(session),
                         mapOf(
                             speaker to
@@ -290,13 +287,32 @@ internal class LobbyDialogues(
                 session.subscription = null
                 return@synchronized
             }
-            val language = normalize(locale(session.player))
+            val language = canonicalLocale(locale(session.player), session.defaultLocale)
             if (language != session.language) {
                 session.language = language
-                session.speech?.invalidate(language)
-                session.ticket.refreshLocale(LocaleContext(language, ++session.revision, "en"))
+                session.speech?.invalidate(effectiveSpeechLocale(session, language))
+                session.ticket.refreshLocale(
+                    LocaleContext(language, ++session.revision, session.defaultLocale)
+                )
             }
         }
+
+    private fun canonicalLocale(tag: String, defaultTag: String): String =
+        Locale.forLanguageTag(tag.replace('_', '-'))
+            .takeIf { it.language.isNotEmpty() }
+            ?.toLanguageTag() ?: defaultTag
+
+    // Native speech views use the SDK's graph-selected locale, not the requested preference tag.
+    private fun effectiveSpeechLocale(session: Session, requested: String): String {
+        val supported =
+            contents.getValue(session.binding.dialogue).definition().locales().supported()
+        val language = Locale.forLanguageTag(requested).language
+        return when {
+            requested in supported -> requested
+            language in supported -> language
+            else -> session.defaultLocale
+        }
+    }
 
     private fun release(session: Session) =
         synchronized(lock) {
@@ -415,10 +431,14 @@ internal class LobbyDialogues(
     private fun rejected(reason: String): CompletionStage<SceneActionResult> =
         CompletableFuture.completedFuture(SceneActionResult.Rejected(reason))
 
-    private fun normalize(tag: String) =
-        if (Locale.forLanguageTag(tag.replace('_', '-')).language == "de") "de" else "en"
-
     companion object {
+        internal fun builtInContent(id: String, generation: String): ValidatedDialogue =
+            when (id) {
+                StageLobbyDialogue.DIALOGUE_ID -> StageDialogueContent.validated(generation)
+                LobbyGuideContent.DIALOGUE_ID -> LobbyGuideContent.validated(generation)
+                else -> error("Unsupported lobby dialogue $id")
+            }
+
         fun defaultTheme() =
             DialogueTheme(
                 "grounds-npc-v1",
