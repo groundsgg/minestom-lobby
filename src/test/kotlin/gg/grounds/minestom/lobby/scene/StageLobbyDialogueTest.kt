@@ -1252,6 +1252,13 @@ class StageLobbyDialogueTest {
                 }
                 assertEquals("npc", owner.presentation(viewer)?.effectiveSurface)
                 assertTrue(viewer in display.viewers && other in display.viewers)
+                val backdrops = backdropDisplays(fixture.instance).toSet()
+                val panels =
+                    npcTextDisplays(viewer, fixture.instance)
+                        .filter { it !== display && it !== fallback && it !in backdrops }
+                        .map { it.entityId }
+                        .toSet()
+                assertTrue(panels.isNotEmpty())
                 await(viewer.teleport(Pos(0.0, 0.0, 8.0)), fixture.instance)
                 tickUntil(fixture.instance) {
                     EventDispatcher.call(PlayerTickEvent(viewer))
@@ -1284,12 +1291,22 @@ class StageLobbyDialogueTest {
                         .map { it.y() }
                 assertTrue(heights.first() > 0.2)
                 assertEquals(-0.016, heights.last(), 1e-6)
+                val restorationIndex = packets.indexOfLast { it === changes.last() }
+                val removed =
+                    packets
+                        .take(restorationIndex)
+                        .filterIsInstance<
+                            net.minestom.server.network.packet.server.play.DestroyEntitiesPacket
+                        >()
+                        .flatMap { it.entityIds() }
+                assertTrue(removed.containsAll(panels))
+
                 val interpolation =
                     net.minestom.server.entity.MetadataDef.Display
                         .TRANSFORMATION_INTERPOLATION_DURATION
                         .index()
                 assertEquals(5, changes.first().entries()[interpolation]?.value())
-                assertEquals(0, changes.last().entries()[interpolation]?.value())
+                assertEquals(5, changes.last().entries()[interpolation]?.value())
                 val billboard =
                     net.minestom.server.entity.MetadataDef.Display.BILLBOARD_CONSTRAINTS.index()
                 assertEquals(

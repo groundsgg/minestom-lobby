@@ -30,7 +30,9 @@ internal data class StageDialogueLabel(
         duration: Duration,
     ): gg.grounds.dialogue.minestom.SceneNameplateMotion.Lease? {
         val label = attached.get().getOrNull(1) ?: return null
-        val pose = label.poseFor(player, position, durationTicks(duration)) ?: return null
+        val ticks = durationTicks(duration)
+        val pose =
+            label.poseFor(player, position, ticks, returnInterpolationTicks = ticks) ?: return null
         return object : gg.grounds.dialogue.minestom.SceneNameplateMotion.Lease {
             override fun update(position: Pos, duration: Duration) =
                 pose.update(position, durationTicks(duration))
