@@ -262,7 +262,7 @@ internal class LobbyDialogues(
                                 )
                         ),
                         null,
-                        InputProfile.defaults(),
+                        DIALOGUE_INPUT,
                         0,
                         speechListener,
                         { binding.replacementLabel?.hideFor(context.player) },
@@ -473,6 +473,17 @@ internal class LobbyDialogues(
                 reducedMotion,
                 NPC_PREFERENCES.effects(),
             )
+
+        private val DIALOGUE_INPUT =
+            InputProfile.defaults().let { defaults ->
+                InputProfile(
+                    defaults.open(),
+                    setOf(InputProfile.Trigger.ATTACK, InputProfile.Trigger.SWAP_HANDS),
+                    InputProfile.Trigger.ATTACK,
+                    defaults.scroll(),
+                    defaults.quietPeriod(),
+                )
+            }
 
         private val NPC_PREFERENCES =
             PresentationPreferences(

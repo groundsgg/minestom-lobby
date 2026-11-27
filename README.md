@@ -279,6 +279,10 @@ before the dialogue panel appears. Set
 `GROUNDS_DIALOGUE_REPLACE_NPC_LABELS=false` to keep scene nameplates visible
 during dialogues.
 
+Right-click an NPC to open a dialogue. Highlight an answer and left-click
+(the Minecraft attack action) to confirm it. The swap-hands action is also
+available as a confirmation shortcut.
+
 Dialogue panels and their nameplates follow the NPC's body yaw. Set
 `GROUNDS_DIALOGUE_NPC_FACE_VIEWER=true` to let them turn toward the viewer's
 position.

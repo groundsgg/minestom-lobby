@@ -1,5 +1,6 @@
 package gg.grounds.minestom.lobby.scene
 
+import gg.grounds.dialogue.presentation.ControlGlyphs
 import gg.grounds.lobby.scene.LobbySceneCatalogs
 import gg.grounds.scene.format.AssetKind
 import gg.grounds.scene.format.LocalId
@@ -91,6 +92,14 @@ class StageLobbyDialogueTest {
                 assertTrue(texts.any { it.contains(speech) }, texts.toString())
                 assertTrue(texts.any { it.contains(answer) }, texts.toString())
                 assertTrue(texts.any { it.contains(hint) }, texts.toString())
+                assertTrue(
+                    texts.any { it.contains(hint) && it.contains(ControlGlyphs.ATTACK) },
+                    texts.toString(),
+                )
+                assertFalse(
+                    texts.any { it.contains(hint) && it.contains(ControlGlyphs.USE) },
+                    texts.toString(),
+                )
                 assertFalse(texts.any { it.contains(staleAnswer) }, texts.toString())
                 assertTrue(
                     npcTextDisplays(player, fixture.instance).none { bystander in it.viewers }
@@ -667,7 +676,7 @@ class StageLobbyDialogueTest {
     }
 
     @Test
-    fun `Stage USE hint uses the private control glyph and keeps the translated action verb`() {
+    fun `Stage attack hint uses the private control glyph and keeps the translated action verb`() {
         RendererFixture().use { fixture ->
             val identity = SceneRuntimeIdentity(SceneId("test:input-icon"), "lobby/mainlobby", 19)
             val assets = StageDialogueAssets.load()
@@ -730,24 +739,24 @@ class StageLobbyDialogueTest {
                 assertTrue(hintDisplays.isNotEmpty(), "Expected the translated reveal hint display")
                 assertTrue(
                     hintDisplays.all { player in it.viewers },
-                    "The USE hint should be visible to the dialogue player",
+                    "The attack hint should be visible to the dialogue player",
                 )
                 assertTrue(
                     hintDisplays.none { bystander in it.viewers },
-                    "The USE hint should remain private to the dialogue player",
+                    "The attack hint should remain private to the dialogue player",
                 )
                 assertTrue(
-                    hintTexts.any { it.contains("\uE791") },
-                    "Expected the USE control glyph U+E791 in the hint, got $hintTexts",
+                    hintTexts.any { it.contains(ControlGlyphs.ATTACK) },
+                    "Expected the attack control glyph U+E790 in the hint, got $hintTexts",
                 )
                 assertTrue(hintTexts.any { it.contains("Text anzeigen") }, hintTexts.toString())
                 assertFalse(
-                    hintTexts.any { it.contains("Benutzen") },
+                    hintTexts.any { it.contains("Angreifen") },
                     "The input action label should be replaced by its control glyph: $hintTexts",
                 )
                 assertFalse(
-                    hintTexts.any { Regex("\\bUse\\b").containsMatchIn(it) },
-                    "The input action label should not retain a separate Use word: $hintTexts",
+                    hintTexts.any { Regex("\\bAttack\\b").containsMatchIn(it) },
+                    "The input action label should not retain a separate Attack word: $hintTexts",
                 )
             } finally {
                 await(starter.closeAsync(), fixture.instance)
