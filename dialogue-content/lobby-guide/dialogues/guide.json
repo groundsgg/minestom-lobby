@@ -1,0 +1,169 @@
+{
+  "capabilities": { "optional": [], "required": [] },
+  "contentVersion": "1.0.0",
+  "entry": "start",
+  "id": "grounds:lobby-guide",
+  "interaction": {
+    "lookAway": {
+      "enabled": false,
+      "exitAngleDegrees": 110,
+      "exitDelayMs": 600,
+      "resetAngleDegrees": 95
+    },
+    "maxDistanceBlocks": 6
+  },
+  "locales": { "default": "en", "supported": ["en", "de"] },
+  "nodes": {
+    "duels_action": {
+      "action": "grounds:lobby/open_duel_menu",
+      "arguments": {},
+      "onRejected": "menu_unavailable",
+      "onSuccess": "end",
+      "onUnavailable": "menu_unavailable",
+      "onUncertain": "menu_unavailable",
+      "type": "action"
+    },
+    "end": { "reason": "completed", "type": "end" },
+    "farewell": {
+      "next": "end",
+      "speaker": "guide",
+      "text": "farewell",
+      "type": "message"
+    },
+    "games": {
+      "choices": [
+        {
+          "default": false,
+          "id": "duels",
+          "text": "duels.choice",
+          "to": "duels_action"
+        },
+        {
+          "default": false,
+          "id": "back",
+          "text": "back.choice",
+          "to": "start"
+        },
+        {
+          "default": false,
+          "id": "goodbye",
+          "text": "goodbye.choice",
+          "to": "farewell"
+        }
+      ],
+      "speaker": "guide",
+      "text": "games",
+      "type": "message"
+    },
+    "menu_unavailable": {
+      "choices": [
+        {
+          "default": false,
+          "id": "back",
+          "text": "back.choice",
+          "to": "start"
+        },
+        {
+          "default": false,
+          "id": "goodbye",
+          "text": "goodbye.choice",
+          "to": "farewell"
+        }
+      ],
+      "speaker": "guide",
+      "text": "unavailable",
+      "type": "message"
+    },
+    "navigator_action": {
+      "action": "grounds:lobby/open_navigator",
+      "arguments": {},
+      "onRejected": "menu_unavailable",
+      "onSuccess": "end",
+      "onUnavailable": "menu_unavailable",
+      "onUncertain": "menu_unavailable",
+      "type": "action"
+    },
+    "orientation": {
+      "choices": [
+        {
+          "default": false,
+          "id": "back",
+          "text": "back.choice",
+          "to": "start"
+        },
+        {
+          "default": false,
+          "id": "goodbye",
+          "text": "goodbye.choice",
+          "to": "farewell"
+        }
+      ],
+      "speaker": "guide",
+      "text": "orientation",
+      "type": "message"
+    },
+    "start": {
+      "choices": [
+        {
+          "default": false,
+          "id": "games",
+          "text": "games.choice",
+          "to": "games"
+        },
+        {
+          "default": false,
+          "id": "travel",
+          "text": "travel.choice",
+          "to": "travel"
+        },
+        {
+          "default": false,
+          "id": "orientation",
+          "text": "orientation.choice",
+          "to": "orientation"
+        },
+        {
+          "default": false,
+          "id": "goodbye",
+          "text": "goodbye.choice",
+          "to": "farewell"
+        }
+      ],
+      "speaker": "guide",
+      "text": "welcome",
+      "type": "message"
+    },
+    "travel": {
+      "choices": [
+        {
+          "default": false,
+          "id": "navigator",
+          "text": "navigator.choice",
+          "to": "navigator_action"
+        },
+        {
+          "default": false,
+          "id": "back",
+          "text": "back.choice",
+          "to": "start"
+        },
+        {
+          "default": false,
+          "id": "goodbye",
+          "text": "goodbye.choice",
+          "to": "farewell"
+        }
+      ],
+      "speaker": "guide",
+      "text": "travel",
+      "type": "message"
+    }
+  },
+  "presentation": {
+    "focus": "none",
+    "hideHud": [],
+    "nearFraming": "none",
+    "vignette": "none"
+  },
+  "schemaVersion": 1
+}

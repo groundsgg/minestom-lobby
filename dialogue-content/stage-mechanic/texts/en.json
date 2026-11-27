@@ -1,0 +1,7 @@
+{
+  "leave.choice": "Goodbye!",
+  "welcome": "Hello! This is the Stage dialogue test. What would you like to know?",
+  "about": "These clickable chat choices run through the dialogue library. This test does not change your game progress.",
+  "about.choice": "What can I test here?",
+  "bye": "Thanks for testing. You can talk to me again after this conversation ends."
+}

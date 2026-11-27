@@ -16,8 +16,10 @@ class LobbyGuideContentTest {
         val definition = validated.definition()
 
         assertEquals(LobbyGuideContent.DIALOGUE_ID, definition.id())
-        assertEquals(listOf("en", "de"), definition.locales().supported())
-        assertEquals(setOf("en", "de"), LobbyGuideContent.texts.locales().keys)
+        assertTrue(definition.locales().supported().containsAll(listOf("en", "de")))
+        assertTrue(
+            LobbyGuideContent.texts.locales().keys.containsAll(definition.locales().supported())
+        )
         assertEquals(setOf(LobbyGuideContent.SPEAKER_ROLE), validated.catalog().speakers())
 
         val root = definition.nodes()[definition.entry()] as Message

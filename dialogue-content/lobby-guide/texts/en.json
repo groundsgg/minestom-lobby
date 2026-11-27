@@ -1,0 +1,15 @@
+{
+  "games.choice": "Find a game",
+  "back.choice": "Back",
+  "unavailable": "That menu isn’t available right now. Please try again later.",
+  "goodbye.choice": "Goodbye",
+  "orientation": "Use /spawn to return to the lobby spawn.",
+  "games": "Use the compass in your first hotbar slot to browse available games. You can choose a mode there.",
+  "navigator.choice": "Open the navigator",
+  "orientation.choice": "How do I get around?",
+  "travel": "The navigator lets you choose another lobby or region.",
+  "duels.choice": "Open the duel menu",
+  "travel.choice": "Choose a lobby or region",
+  "welcome": "Hi! I’m your guide. What would you like to do?",
+  "farewell": "See you around! Have fun on Grounds."
+}
