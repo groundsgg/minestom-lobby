@@ -81,7 +81,11 @@ internal class LobbyModule(
                         val preview =
                             if (dialoguePreview) prepared.withStageDialoguePreview() else null
                         val selected = preview?.prepared ?: prepared
-                        val bindings = selected.dialogueBindings()
+                        val bindings =
+                            selected.dialogueBindings(
+                                replaceNpcLabels =
+                                    lodEnvironment["GROUNDS_DIALOGUE_REPLACE_NPC_LABELS"] != "false"
+                            )
                         val starter =
                             if (bindings.isEmpty()) null
                             else

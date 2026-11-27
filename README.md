@@ -271,6 +271,11 @@ Ordinary Stage LOD serving, permission checks and its server-only configuration 
 ### Shared NPC engine integration
 
 NPC rendering delegates to `groundsgg/library-npc` through `scene-npc-minestom`.
+
+During an NPC dialogue, the speaker label rises from the scene nameplate's
+height for the player in the conversation. Set
+`GROUNDS_DIALOGUE_REPLACE_NPC_LABELS=false` to keep scene nameplates visible
+during dialogues.
 The host validates the external bundle, exact Grounds catalogue bounds/animations/sounds,
 and `grounds:npc_parts/` mesh references. The executable contains no purchased model JSON
 and the verifier rejects embedded legacy engine copies.

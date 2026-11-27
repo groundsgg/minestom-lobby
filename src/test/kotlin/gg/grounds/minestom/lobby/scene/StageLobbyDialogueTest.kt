@@ -324,6 +324,9 @@ class StageLobbyDialogueTest {
             listOf(LocalId("spawn-guide")),
             prepared(LobbyGuideContent.DIALOGUE_ID).dialogueBindings().map { it.elementId },
         )
+        val guide = prepared(LobbyGuideContent.DIALOGUE_ID)
+        assertEquals(2.1, guide.dialogueBindings().single().replacementLabel?.position?.y())
+        assertNull(guide.dialogueBindings(replaceNpcLabels = false).single().replacementLabel)
         assertThrows(IllegalArgumentException::class.java) {
             prepared("unknown:dialogue").dialogueBindings()
         }
@@ -1079,6 +1082,31 @@ class StageLobbyDialogueTest {
                 renderer.createScoped(context, TestLabelLifetime())
             }
             assertFalse(delegateStarted)
+        }
+    }
+
+    @Test
+    fun `dialogue nameplate lease hides only the speaker audience immediately`() {
+        RendererFixture().use { fixture ->
+            val player = fixture.player(Pos(0.0, 0.0, 2.0))
+            val other = fixture.player(Pos(1.0, 0.0, 2.0))
+            val nameplate =
+                StageDialogueLabel(LocalId("demo-bounce"), Component.text("Title"), Pos.ZERO)
+            val lifetime = TestLabelLifetime()
+            val label = nameplate.attach(fixture.instance, lifetime, ::emptySet)
+            tickUntil(fixture.instance) { player in label.viewers && other in label.viewers }
+
+            val lease = checkNotNull(nameplate.hideFor(player))
+            assertFalse(player in label.viewers)
+            assertTrue(other in label.viewers)
+            fixture.instance.tick(0)
+            assertFalse(player in label.viewers)
+            lease.close()
+            assertTrue(player in label.viewers)
+
+            lifetime.invalidate()
+            await(checkNotNull(lifetime.cleanup), fixture.instance)
+            assertNull(nameplate.hideFor(player))
         }
     }
 

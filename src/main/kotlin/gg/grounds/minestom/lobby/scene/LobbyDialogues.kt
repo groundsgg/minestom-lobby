@@ -247,6 +247,7 @@ internal class LobbyDialogues(
                         InputProfile.defaults(),
                         0,
                         speechListener,
+                        { binding.replacementLabel?.hideFor(context.player) },
                     )
                 )
             session.ticket = ticket
@@ -308,9 +309,20 @@ internal class LobbyDialogues(
             session.actions.clear()
         }
 
-    private fun preferences(session: Session): PresentationPreferences =
-        if (session.binding.dialogue != LobbyGuideContent.DIALOGUE_ID) NPC_PREFERENCES
-        else guidePreferences(reducedMotion(session.player))
+    private fun preferences(session: Session): PresentationPreferences {
+        val motionReduced = reducedMotion(session.player)
+        val base =
+            if (session.binding.dialogue != LobbyGuideContent.DIALOGUE_ID) NPC_PREFERENCES
+            else guidePreferences(motionReduced)
+        val position = session.binding.replacementLabel?.position ?: return base
+        val startHeight = position.y() - session.binding.position.y()
+        return PresentationPreferences(
+            base.surfaceKey(),
+            base.graphemeDelay(),
+            motionReduced,
+            base.effects() + ("npcSpeakerLabelStartHeight" to startHeight.toString()),
+        )
+    }
 
     private fun speechListener(session: Session): MinestomDialogueSpeechListener =
         GuideSpeechListener(
@@ -464,4 +476,5 @@ internal data class LobbyDialogueBinding(
     val position: Pos,
     val dialogue: String,
     val speaker: String,
+    val replacementLabel: StageDialogueLabel? = null,
 )

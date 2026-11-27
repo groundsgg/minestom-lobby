@@ -3,9 +3,12 @@ package gg.grounds.minestom.lobby.scene
 import gg.grounds.lobby.scene.LobbySceneCatalogs
 import gg.grounds.scene.format.*
 import net.minestom.server.coordinate.Pos
+import net.minestom.server.coordinate.Vec
 
 /** Validate every declared dialogue binding before accepting this scene. */
-internal fun PreparedLobbyScene.dialogueBindings(): List<LobbyDialogueBinding> =
+internal fun PreparedLobbyScene.dialogueBindings(
+    replaceNpcLabels: Boolean = true
+): List<LobbyDialogueBinding> =
     scene.elements
         .filterIsInstance<Npc>()
         .flatMap { npc ->
@@ -43,8 +46,7 @@ internal fun PreparedLobbyScene.dialogueBindings(): List<LobbyDialogueBinding> =
                             "Lobby guide must use the spawn-guide element"
                         }
                         val origin = npc.transform.position
-                        LobbyDialogueBinding(
-                            npc.id,
+                        val position =
                             Pos(
                                 origin.x,
                                 origin.y,
@@ -52,9 +54,21 @@ internal fun PreparedLobbyScene.dialogueBindings(): List<LobbyDialogueBinding> =
                                 // Scene +yaw faces east; Minestom anchors use the opposite sign.
                                 -npc.transform.rotation.yaw.toFloat(),
                                 0f,
-                            ),
+                            )
+                        LobbyDialogueBinding(
+                            npc.id,
+                            position,
                             dialogue!!,
                             speaker,
+                            npc.label
+                                ?.takeIf { replaceNpcLabels }
+                                ?.let { text ->
+                                    StageDialogueLabel(
+                                        npc.id,
+                                        text,
+                                        position.add(npc.worldLabelOffset()),
+                                    )
+                                },
                         )
                     }
             }
@@ -73,27 +87,9 @@ internal fun PreparedLobbyScene.withDialogueLabels(
     var registry = renderers
     var document = scene
     for (binding in bindings) {
+        val label = binding.replacementLabel ?: continue
         val npc = scene.elements.filterIsInstance<Npc>().single { it.id == binding.elementId }
-        val text = npc.label ?: continue
-        val offset = npc.labelOffset
-        val transform = npc.transform
-        val scaled =
-            net.minestom.server.coordinate
-                .Vec(
-                    offset.x * transform.scale.x,
-                    offset.y * transform.scale.y,
-                    offset.z * transform.scale.z,
-                )
-                .rotateAroundZ(Math.toRadians(transform.rotation.roll))
-                .rotateAroundX(Math.toRadians(transform.rotation.pitch))
-                .rotateAroundY(Math.toRadians(transform.rotation.yaw))
-        registry =
-            StageDialogueLabel(npc.id, text, binding.position.add(scaled)).renderers(
-                registry,
-                npc.body,
-            ) {
-                owner.npcDialogueViewers(npc.id)
-            }
+        registry = label.renderers(registry, npc.body, ::emptySet)
         document =
             SceneDocument(
                 document.schemaVersion,
@@ -125,3 +121,13 @@ internal fun PreparedLobbyScene.withDialogueLabels(
     }
     return copy(scene = document, renderers = owner.captureGuideRenderers(registry))
 }
+
+private fun Npc.worldLabelOffset(): Vec =
+    Vec(
+            labelOffset.x * transform.scale.x,
+            labelOffset.y * transform.scale.y,
+            labelOffset.z * transform.scale.z,
+        )
+        .rotateAroundZ(Math.toRadians(transform.rotation.roll))
+        .rotateAroundX(Math.toRadians(transform.rotation.pitch))
+        .rotateAroundY(Math.toRadians(transform.rotation.yaw))
