@@ -2,22 +2,26 @@ package gg.grounds.minestom.lobby
 
 import com.google.gson.JsonParser
 import java.time.Duration
+import java.util.concurrent.CancellationException
 import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
 import org.slf4j.LoggerFactory
 
 /**
- * Restarts this lobby onto a newly pinned lobby map.
+ * Restarts this lobby onto a newly pinned published map once the CDN serves it, or after
+ * [patience]. Proxies move its players to current lobbies and send it no new ones; the Fleet
+ * replaces it when empty. Waiting for the CDN avoids a replacement loading the same cached map
+ * again.
  *
- * service-maps announces every pin file change (see [onPinFile]). When the lobby map's digest is no
- * longer the one this lobby loaded, the lobby [retire]s: proxies move its players to current
- * lobbies and send it no new ones, and once empty it shuts down and the Fleet starts a fresh one.
+ * Owns [scheduler] and its pending poll. NATS announcements, polls and [close] serialize state on
+ * [state]; foreign CDN reads and retirement callbacks always run outside that monitor. A read that
+ * finishes after close cannot dispatch retirement or rearm polling. A changed target is polled
+ * again before retirement is committed.
  *
- * Not before the CDN serves the new pin file, though. The replacement reads the pin from the CDN
- * when it boots, and the CDN may keep the previous file for its `max-age`; a replacement started
- * before then would load the old map again, and no second announcement would ever correct it. So
- * this waits until [pinnedOnCdn] shows the new digest, and gives up waiting after [patience].
+ * Close is nonblocking with respect to foreign callbacks: it cancels pending work and interrupts
+ * the executor, but cannot retract retirement already committed under [state]. Such a callback may
+ * finish (or begin executing) after close returns.
  */
 internal class LobbyRepin(
     private val loaded: LobbyMapSource.Published,
@@ -26,14 +30,17 @@ internal class LobbyRepin(
     private val scheduler: ScheduledExecutorService,
     private val pollEvery: Duration = Duration.ofSeconds(10),
     private val patience: Duration = Duration.ofMinutes(10),
-) {
+) : AutoCloseable {
     private val logger = LoggerFactory.getLogger(LobbyRepin::class.java)
+    private val state = Any()
+    // All lifecycle fields are guarded by state, including the scheduling/retirement decision.
+    private var closed = false
+    private var retiring = false
+    private var wanted: String? = null
+    private var waiting = false
+    private var pending: ScheduledFuture<*>? = null
 
-    /** The digest to restart onto, or null while the pin still names the loaded map. */
-    @Volatile private var wanted: String? = null
-    private val waiting = AtomicBoolean(false)
-
-    /** One announcement: the full pin file, as published to the CDN. */
+    /** One network-wide announcement: the full pin file, as published to the CDN. */
     fun onPinFile(body: String) {
         val digest =
             runCatching {
@@ -44,41 +51,88 @@ internal class LobbyRepin(
                         ?.get("bundleSha256")
                         ?.asString
                 }
-                .getOrNull()
-        // Unpinned or unreadable is no instruction: this lobby keeps what it has.
-        if (digest == null) return
-        wanted = digest.takeIf { it != loaded.sha256 }
-        if (wanted == null || !waiting.compareAndSet(false, true)) return
+                .getOrNull() ?: return
+        synchronized(state) {
+            if (closed || retiring) return
+            // Unpinned or unreadable is no instruction; pinning back cancels retirement.
+            wanted = digest.takeIf { it != loaded.sha256 }
+            if (wanted == null || waiting) return
+            waiting = true
+            awaitCdn(System.nanoTime() + patience.toNanos())
+        }
         logger.info(
-            "Lobby map re-pinned; retiring once the CDN serves it (map={}, loaded={}, pinned={})",
+            "Scheduled lobby map retirement check successfully (map={}, loaded={}, pinned={})",
             loaded.address,
             loaded.sha256,
             digest,
         )
-        awaitCdn(System.nanoTime() + patience.toNanos())
     }
 
+    /** Called only under [state], so close cannot race a new scheduled future into existence. */
     private fun awaitCdn(deadline: Long) {
-        scheduler.schedule(
-            {
-                val target = wanted
-                when {
-                    // Pinned back to what this lobby already has while it waited.
-                    target == null -> waiting.set(false)
-                    runCatching(pinnedOnCdn).getOrNull() == target -> retire()
-                    System.nanoTime() > deadline -> {
-                        logger.warn(
-                            "The CDN still serves the previous pin; retiring anyway (map={}, pinned={})",
-                            loaded.address,
-                            target,
-                        )
-                        retire()
+        pending =
+            scheduler.schedule({ poll(deadline) }, pollEvery.toMillis(), TimeUnit.MILLISECONDS)
+    }
+
+    private fun poll(deadline: Long) {
+        val target =
+            synchronized(state) {
+                if (closed || retiring) return
+                wanted
+                    ?: run {
+                        waiting = false
+                        pending = null
+                        return
                     }
-                    else -> awaitCdn(deadline)
+            }
+        val served =
+            try {
+                pinnedOnCdn()
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+                return
+            } catch (_: CancellationException) {
+                return
+            } catch (_: Exception) {
+                null
+            }
+        val expired =
+            synchronized(state) {
+                if (closed || retiring) return
+                if (wanted == null) {
+                    waiting = false
+                    pending = null
+                    return
                 }
-            },
-            pollEvery.toMillis(),
-            TimeUnit.MILLISECONDS,
-        )
+                if (wanted != target) {
+                    awaitCdn(deadline)
+                    return
+                }
+                val timedOut = System.nanoTime() > deadline
+                if (served != target && !timedOut) {
+                    awaitCdn(deadline)
+                    return
+                }
+                retiring = true
+                pending = null
+                timedOut && served != target
+            }
+        if (expired)
+            logger.warn("Lobby map CDN wait expired (map={}, pinned={})", loaded.address, target)
+        retire()
+    }
+
+    override fun close() {
+        val task =
+            synchronized(state) {
+                if (closed) return
+                closed = true
+                pending.also { pending = null }
+            }
+        try {
+            task?.cancel(true)
+        } finally {
+            scheduler.shutdownNow()
+        }
     }
 }

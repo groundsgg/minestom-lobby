@@ -17,11 +17,9 @@ import gg.grounds.scene.minestom.SceneRuntimeCreationResult
 import gg.grounds.scene.minestom.SceneRuntimeFactory
 import gg.grounds.scene.minestom.SceneRuntimeRequest
 import io.micrometer.core.instrument.MeterRegistry
-import io.nats.client.Connection
 import io.nats.client.Nats
 import io.nats.client.Options
 import java.util.concurrent.CompletionStage
-import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import net.minestom.server.MinecraftServer
 import net.minestom.server.event.Event
@@ -44,7 +42,7 @@ internal class LobbyModule(
     private var sceneHost: LobbySceneHost? = null
     private var world: LobbyMap? = null
     private var lodPilot: AutoCloseable? = null
-    private var pinEvents: Connection? = null
+    private var pinWatcher: LobbyPinWatcher? = null
     private var demoAccess: StageNpcDemoAccess? = null
     private var demoCommand: StageNpcDemoCommand? = null
     private var nativeSolidPocs = emptyList<gg.grounds.minestom.lobby.scene.NativeSolidPoc>()
@@ -269,35 +267,45 @@ internal class LobbyModule(
         val source = loaded.source as? LobbyMapSource.Published ?: return
         val natsUrl = System.getenv("NATS_URL")
         if (natsUrl.isNullOrBlank()) {
-            logger.info("NATS_URL is unset; this lobby keeps its map until restarted")
+            logger.info(
+                "Lobby map pin watcher disabled (map={}, reason=nats_unset)",
+                source.address,
+            )
             return
         }
         val distribution = MapDistribution()
-        val repin =
-            LobbyRepin(
-                source,
+        pinWatcher =
+            LobbyPinWatcher.start(
+                source = source,
+                subject = "maps.pins.${distribution.environment}",
                 pinnedOnCdn = { distribution.pinnedDigest(source.address) },
                 // Looked up when needed: the Agones module may install after this one.
                 retire = {
                     ctx.services.get<GameServerRetirement>()?.retire()
-                        ?: logger.warn("Lobby map re-pinned, but nothing here can retire it")
+                        ?: logger.warn(
+                            "Lobby map retirement unavailable (map={}, reason=service_missing)",
+                            source.address,
+                        )
                 },
-                scheduler =
-                    Executors.newSingleThreadScheduledExecutor { task ->
-                        Thread(task, "grounds-lobby-repin").apply { isDaemon = true }
-                    },
+                connect = {
+                    Nats.connectReconnectOnConnect(
+                        Options.Builder().server(natsUrl).connectionName("lobby-pins").build()
+                    )
+                },
             )
-        val connection =
-            Nats.connectReconnectOnConnect(
-                Options.Builder().server(natsUrl).connectionName("lobby-pins").build()
-            )
-        connection
-            .createDispatcher { repin.onPinFile(it.data.decodeToString()) }
-            .subscribe("maps.pins.${distribution.environment}")
-        pinEvents = connection
     }
 
     override fun stop() {
+        val watcher = pinWatcher
+        pinWatcher = null
+        runCatching { watcher?.close() }
+            .onFailure { failure ->
+                logger.warn(
+                    "Lobby map pin watcher cleanup failed (module={}, reason={})",
+                    id,
+                    failure.javaClass.simpleName,
+                )
+            }
         runCatching { lodPilot?.close() }.onFailure { logger.warn("LOD pilot shutdown failed") }
         lodPilot = null
         nativeSolidPocs.forEach { it.close() }
@@ -306,8 +314,6 @@ internal class LobbyModule(
         demoCommand = null
         demoAccess?.close()
         demoAccess = null
-        pinEvents?.close()
-        pinEvents = null
         // Close the admission gate first, even if an event already captured our listener node.
         val cleanup = sceneHost?.closeAsync()?.toCompletableFuture()
         eventNode?.let(MinecraftServer.getGlobalEventHandler()::removeChild)
