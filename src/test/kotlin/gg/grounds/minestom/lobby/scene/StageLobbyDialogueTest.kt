@@ -1176,7 +1176,8 @@ class StageLobbyDialogueTest {
             val viewer = fixture.player(Pos(0.0, 0.0, 2.0))
             val other = fixture.player(Pos(1.0, 0.0, 2.0))
             val station = LocalId("spawn-guide")
-            val label = StageDialogueLabel(station, Component.text("Guide"), Pos(0.0, 2.2, 0.0))
+            val label =
+                StageDialogueLabel(station, Component.text("Guide"), Pos(0.0, 2.2, 0.0, 30f, 0f))
             val identity =
                 SceneRuntimeIdentity(SceneId("test:guide-nameplate"), "lobby/mainlobby", 19)
             val assets = StageDialogueAssets.load()
@@ -1272,17 +1273,38 @@ class StageLobbyDialogueTest {
                                 as? net.minestom.server.coordinate.Point
                         }
                         .map { it.y() }
-                assertEquals(2, heights.size)
+                assertTrue(heights.first() > 0.2)
+                assertEquals(-0.016, heights.last(), 1e-6)
                 val interpolation =
                     net.minestom.server.entity.MetadataDef.Display
                         .TRANSFORMATION_INTERPOLATION_DURATION
                         .index()
+                assertEquals(5, changes.first().entries()[interpolation]?.value())
+                assertEquals(0, changes.last().entries()[interpolation]?.value())
+                val billboard =
+                    net.minestom.server.entity.MetadataDef.Display.BILLBOARD_CONSTRAINTS.index()
                 assertEquals(
-                    listOf(5, 0),
-                    changes.mapNotNull { it.entries()[interpolation]?.value() },
+                    net.minestom.server.entity.metadata.display.AbstractDisplayMeta
+                        .BillboardConstraints
+                        .FIXED
+                        .ordinal
+                        .toByte(),
+                    changes.first().entries()[billboard]?.value(),
                 )
-                assertTrue(heights.first() > 0.2)
-                assertEquals(-0.016, heights.last(), 1e-6)
+                assertEquals(
+                    net.minestom.server.entity.metadata.display.AbstractDisplayMeta
+                        .BillboardConstraints
+                        .CENTER
+                        .ordinal
+                        .toByte(),
+                    changes.last().entries()[billboard]?.value(),
+                )
+                val rotation = net.minestom.server.entity.MetadataDef.Display.ROTATION_LEFT.index()
+                val local = changes.first().entries()[rotation]?.value() as FloatArray
+                assertEquals(kotlin.math.sin(Math.toRadians(15.0)), local[1].toDouble(), 1e-6)
+                val idle = changes.last().entries()[rotation]?.value() as FloatArray
+                assertArrayEquals(floatArrayOf(0f, 0f, 0f, 1f), idle)
+
                 assertFalse(
                     other.connection.packets
                         .filterIsInstance<

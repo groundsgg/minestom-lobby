@@ -24,11 +24,23 @@ internal data class StageDialogueLabel(
 ) {
     private val attached = AtomicReference(emptyList<NpcNameplate>())
 
-    fun riseFor(player: Player, rise: Double, duration: Duration): AutoCloseable? {
+    fun riseFor(
+        player: Player,
+        position: Pos,
+        duration: Duration,
+    ): gg.grounds.dialogue.minestom.SceneNameplateMotion.Lease? {
         val label = attached.get().getOrNull(1) ?: return null
-        val ticks = kotlin.math.ceil(duration.toMillis() / 50.0).toInt()
-        return label.translateFor(player, Vec(0.0, rise, 0.0), ticks)
+        val pose = label.poseFor(player, position, durationTicks(duration)) ?: return null
+        return object : gg.grounds.dialogue.minestom.SceneNameplateMotion.Lease {
+            override fun update(position: Pos, duration: Duration) =
+                pose.update(position, durationTicks(duration))
+
+            override fun close() = pose.close()
+        }
     }
+
+    private fun durationTicks(duration: Duration): Int =
+        kotlin.math.ceil(duration.toNanos() / 50_000_000.0).toInt()
 
     fun hideFor(player: Player): AutoCloseable? {
         val leases = mutableListOf<AutoCloseable>()
