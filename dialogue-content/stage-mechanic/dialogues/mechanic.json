@@ -1,0 +1,52 @@
+{
+  "capabilities": { "optional": [], "required": [] },
+  "contentVersion": "1.0.0",
+  "entry": "start",
+  "id": "stage:mechanic",
+  "interaction": {
+    "lookAway": {
+      "enabled": false,
+      "exitAngleDegrees": 110,
+      "exitDelayMs": 600,
+      "resetAngleDegrees": 95
+    },
+    "maxDistanceBlocks": 6
+  },
+  "locales": { "default": "en", "supported": ["en", "de"] },
+  "nodes": {
+    "about": {
+      "next": "bye",
+      "speaker": "guide",
+      "text": "about",
+      "type": "message"
+    },
+    "bye": {
+      "next": "end",
+      "speaker": "guide",
+      "text": "bye",
+      "type": "message"
+    },
+    "end": { "reason": "completed", "type": "end" },
+    "start": {
+      "choices": [
+        {
+          "default": false,
+          "id": "about",
+          "text": "about.choice",
+          "to": "about"
+        },
+        { "default": false, "id": "leave", "text": "leave.choice", "to": "bye" }
+      ],
+      "speaker": "guide",
+      "text": "welcome",
+      "type": "message"
+    }
+  },
+  "presentation": {
+    "focus": "none",
+    "hideHud": [],
+    "nearFraming": "none",
+    "vignette": "none"
+  },
+  "schemaVersion": 1
+}

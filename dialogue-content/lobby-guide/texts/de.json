@@ -1,0 +1,15 @@
+{
+  "games.choice": "Ein Spiel finden",
+  "back.choice": "Zurück",
+  "unavailable": "Dieses Menü ist gerade nicht verfügbar. Bitte versuche es später noch einmal.",
+  "goodbye.choice": "Auf Wiedersehen",
+  "orientation": "Mit /spawn kehrst du zum Lobby-Spawn zurück.",
+  "games": "Mit dem Kompass im ersten Hotbar-Slot kannst du die verfügbaren Spiele ansehen und einen Modus auswählen.",
+  "navigator.choice": "Navigator öffnen",
+  "orientation.choice": "Wie finde ich mich zurecht?",
+  "travel": "Im Navigator kannst du eine andere Lobby oder Region wählen.",
+  "duels.choice": "Duellmenü öffnen",
+  "travel.choice": "Lobby oder Region wählen",
+  "welcome": "Hallo! Ich bin dein Guide. Was möchtest du tun?",
+  "farewell": "Bis bald! Viel Spaß auf Grounds."
+}
