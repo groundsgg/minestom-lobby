@@ -239,7 +239,6 @@ dependencies {
     implementation("gg.grounds:grounds-minestom-runtime-runtime-world:0.15.1")
     implementation("gg.grounds:scene-npc-minestom:${sceneVersion.get()}")
     implementation("gg.grounds:scene-interaction:${sceneVersion.get()}")
-    implementation("gg.grounds:dialogue-json:${dialogueVersion.get()}")
     implementation("gg.grounds:dialogue-minestom:${dialogueVersion.get()}")
     implementation("gg.grounds:dialogue-json:${dialogueVersion.get()}")
     val dialogueAssetsJar = providers.gradleProperty("dialogueAssetsJar").orNull

@@ -28,7 +28,8 @@ internal object StageDialogueContent {
 
     fun validated(
         generation: String,
-        registration: LobbyDialogueHostRegistration = LobbyDialogueHostRegistration.create(DIALOGUE_ID),
+        registration: LobbyDialogueHostRegistration =
+            LobbyDialogueHostRegistration.create(DIALOGUE_ID),
     ): gg.grounds.dialogue.core.validation.ValidatedDialogue {
         require(registration.dialogueId == DIALOGUE_ID)
         return content.validated(registration.catalog(generation))

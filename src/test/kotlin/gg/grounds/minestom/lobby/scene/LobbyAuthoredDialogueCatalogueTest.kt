@@ -668,17 +668,48 @@ class LobbyAuthoredDialogueCatalogueTest {
         story(prepared)
         write(
             "dialogues/a.json",
-            DialogueJsonCodec().encode(
-                DialogueBuilder.dialogue(id)
-                    .locales("fr", "fr", "es-MX")
-                    .node("start", Action(LobbyGuideContent.NAVIGATOR_ACTION, emptyMap(), "shown", "shown", "shown", "shown"))
-                    .node("shown", Message("guide", "hello", null, listOf(Choice("again", "choice", "shown", false, null), Choice("leave", "choice", "end", false, null)), null))
-                    .node("end", End("completed"))
-                    .build()
-            ),
+            DialogueJsonCodec()
+                .encode(
+                    DialogueBuilder.dialogue(id)
+                        .locales("fr", "fr", "es-MX")
+                        .node(
+                            "start",
+                            Action(
+                                LobbyGuideContent.NAVIGATOR_ACTION,
+                                emptyMap(),
+                                "shown",
+                                "shown",
+                                "shown",
+                                "shown",
+                            ),
+                        )
+                        .node(
+                            "shown",
+                            Message(
+                                "guide",
+                                "hello",
+                                null,
+                                listOf(
+                                    Choice("again", "choice", "shown", false, null),
+                                    Choice("leave", "choice", "end", false, null),
+                                ),
+                                null,
+                            ),
+                        )
+                        .node("end", End("completed"))
+                        .build()
+                ),
         )
-        write("texts/fr.json", """{"hello":"Cette phrase donne du temps pour parler avant le prochain choix.","choice":"Continuer"}""".toByteArray())
-        write("texts/es-MX.json", """{"hello":"Esta frase permite escuchar la voz antes de la siguiente elección.","choice":"Continuar"}""".toByteArray())
+        write(
+            "texts/fr.json",
+            """{"hello":"Cette phrase donne du temps pour parler avant le prochain choix.","choice":"Continuer"}"""
+                .toByteArray(),
+        )
+        write(
+            "texts/es-MX.json",
+            """{"hello":"Esta frase permite escuchar la voz antes de la siguiente elección.","choice":"Continuar"}"""
+                .toByteArray(),
+        )
         write("texts/en.json", """{"hello":"LEAKED","choice":"LEAKED"}""".toByteArray())
         val candidate = load(prepared)
         RendererFixture().use { fixture ->
@@ -689,44 +720,74 @@ class LobbyAuthoredDialogueCatalogueTest {
             var opened = 0
             var refresh: Runnable? = null
             var language = "es-MX"
-            val registrations = mapOf(id to LobbyDialogueHostRegistration.create(
-                candidate.contract,
-                id,
-                object : gg.grounds.lobby.LobbyNavigatorService {
-                    override fun open(player: net.minestom.server.entity.Player): java.util.concurrent.CompletionStage<Boolean> {
-                        opened++
-                        return java.util.concurrent.CompletableFuture.completedFuture(true)
-                    }
-                },
-                object : gg.grounds.lobby.LobbyQueueService {
-                    override fun toggleQueue(player: net.minestom.server.entity.Player, modeId: String) = java.util.concurrent.CompletableFuture.completedFuture(false)
-                    override fun openDuels(player: net.minestom.server.entity.Player) = java.util.concurrent.CompletableFuture.completedFuture(true)
-                },
-            ))
-            val owner = LobbyDialogues(
-                fixture.instance,
-                selected.identity,
-                selected.dialogueBindings(candidate.contract),
-                assets = assets,
-                proxyPackEnabled = true,
-                reducedMotion = { true },
-                locale = { language },
-                observeLocale = { _, callback -> refresh = callback; AutoCloseable { refresh = null } },
-                authoredContract = candidate.contract,
-                generation = generation,
-                actualRegistrations = registrations,
-                authoredEntries = candidate.revalidate(selected, registrations, generation),
-            )
+            val registrations =
+                mapOf(
+                    id to
+                        LobbyDialogueHostRegistration.create(
+                            candidate.contract,
+                            id,
+                            object : gg.grounds.lobby.LobbyNavigatorService {
+                                override fun open(
+                                    player: net.minestom.server.entity.Player
+                                ): java.util.concurrent.CompletionStage<Boolean> {
+                                    opened++
+                                    return java.util.concurrent.CompletableFuture.completedFuture(
+                                        true
+                                    )
+                                }
+                            },
+                            object : gg.grounds.lobby.LobbyQueueService {
+                                override fun toggleQueue(
+                                    player: net.minestom.server.entity.Player,
+                                    modeId: String,
+                                ) = java.util.concurrent.CompletableFuture.completedFuture(false)
+
+                                override fun openDuels(player: net.minestom.server.entity.Player) =
+                                    java.util.concurrent.CompletableFuture.completedFuture(true)
+                            },
+                        )
+                )
+            val owner =
+                LobbyDialogues(
+                    fixture.instance,
+                    selected.identity,
+                    selected.dialogueBindings(candidate.contract),
+                    assets = assets,
+                    proxyPackEnabled = true,
+                    reducedMotion = { true },
+                    locale = { language },
+                    observeLocale = { _, callback ->
+                        refresh = callback
+                        AutoCloseable { refresh = null }
+                    },
+                    authoredContract = candidate.contract,
+                    generation = generation,
+                    actualRegistrations = registrations,
+                    authoredEntries = candidate.revalidate(selected, registrations, generation),
+                )
             val player = fixture.player(net.minestom.server.coordinate.Pos(0.0, 0.0, 2.0))
-            fun voices() = player.connection.packets
-                .filterIsInstance<net.minestom.server.network.packet.server.play.SoundEffectPacket>()
-                .count { it.soundEvent().key().asString().startsWith("dialogue:guide/") }
-            fun visible() = fixture.instance.entities.filter {
-                it.entityType == net.minestom.server.entity.EntityType.TEXT_DISPLAY && player in it.viewers
-            }.map {
-                net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()
-                    .serialize((it.entityMeta as net.minestom.server.entity.metadata.display.TextDisplayMeta).text)
-            }
+            fun voices() =
+                player.connection.packets
+                    .filterIsInstance<
+                        net.minestom.server.network.packet.server.play.SoundEffectPacket
+                    >()
+                    .count { it.soundEvent().key().asString().startsWith("dialogue:guide/") }
+            fun visible() =
+                fixture.instance.entities
+                    .filter {
+                        it.entityType == net.minestom.server.entity.EntityType.TEXT_DISPLAY &&
+                            player in it.viewers
+                    }
+                    .map {
+                        net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
+                            .plainText()
+                            .serialize(
+                                (it.entityMeta
+                                        as
+                                        net.minestom.server.entity.metadata.display.TextDisplayMeta)
+                                    .text
+                            )
+                    }
             fun until(condition: () -> Boolean) {
                 val deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5)
                 while (!condition() && System.nanoTime() < deadline) {
@@ -734,7 +795,10 @@ class LobbyAuthoredDialogueCatalogueTest {
                     net.minestom.server.MinecraftServer.getSchedulerManager().processTick()
                     Thread.yield()
                 }
-                assertTrue(condition(), "Expected authored native presentation (locale=$language, status=${owner.presentation(player)}, text=${visible()}, voices=${voices()})")
+                assertTrue(
+                    condition(),
+                    "Expected authored native presentation (locale=$language, status=${owner.presentation(player)}, text=${visible()}, voices=${voices()})",
+                )
             }
             var sequence = 0
             fun refreshedVisit(requested: String, prefix: String) {
@@ -750,7 +814,9 @@ class LobbyAuthoredDialogueCatalogueTest {
                     net.minestom.server.event.player.PlayerPacketEvent(
                         player,
                         net.minestom.server.network.packet.client.play.ClientPlayerActionPacket(
-                            net.minestom.server.network.packet.client.play.ClientPlayerActionPacket.Status.SWAP_ITEM_HAND,
+                            net.minestom.server.network.packet.client.play.ClientPlayerActionPacket
+                                .Status
+                                .SWAP_ITEM_HAND,
                             net.minestom.server.coordinate.Vec.ZERO,
                             net.minestom.server.instance.block.BlockFace.TOP,
                             ++sequence,
@@ -762,13 +828,23 @@ class LobbyAuthoredDialogueCatalogueTest {
             }
             try {
                 owner.confirmPack(player, DialoguePackReadiness.State(1, true, assets.pin()))
-                val start = owner.start(
-                    gg.grounds.scene.minestom.SceneActionContext(
-                        selected.identity, player, gg.grounds.scene.format.LocalId("navigator"),
-                        gg.grounds.scene.format.SceneTrigger.RIGHT_CLICK, gg.grounds.scene.format.SceneHand.MAIN,
-                        0, emptyMap(), gg.grounds.scene.minestom.SceneViewerVisualState(),
-                    ), id, "guide",
-                ).toCompletableFuture()
+                val start =
+                    owner
+                        .start(
+                            gg.grounds.scene.minestom.SceneActionContext(
+                                selected.identity,
+                                player,
+                                gg.grounds.scene.format.LocalId("navigator"),
+                                gg.grounds.scene.format.SceneTrigger.RIGHT_CLICK,
+                                gg.grounds.scene.format.SceneHand.MAIN,
+                                0,
+                                emptyMap(),
+                                gg.grounds.scene.minestom.SceneViewerVisualState(),
+                            ),
+                            id,
+                            "guide",
+                        )
+                        .toCompletableFuture()
                 until { start.isDone && voices() > 0 }
                 assertEquals(gg.grounds.scene.minestom.SceneActionResult.Success, start.join())
                 assertEquals("npc", owner.presentation(player)?.effectiveSurface)

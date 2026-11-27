@@ -23,14 +23,7 @@ private constructor(private val project: String, private val snapshot: Validated
         validated(snapshot.catalog().withGeneration(generation))
 
     fun validated(host: HostCatalog): ValidatedDialogue {
-        val result =
-            DialogueValidator()
-                .validate(
-                    snapshot.definition(),
-                    texts,
-                    host,
-                    limits,
-                )
+        val result = DialogueValidator().validate(snapshot.definition(), texts, host, limits)
         return requireNotNull(result.validated()) {
             "$project: runtime validation failed: ${result.problems()}"
         }
