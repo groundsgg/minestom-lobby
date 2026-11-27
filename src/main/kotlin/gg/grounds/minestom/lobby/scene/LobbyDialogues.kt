@@ -65,6 +65,28 @@ internal class LobbyDialogues(
             >()
     }
 
+    @Volatile private var nameplatePackViewers = emptySet<Player>()
+
+    internal fun nameplatePackViewers(): Set<Player> = nameplatePackViewers
+
+    internal fun customNameplate(
+        text: net.kyori.adventure.text.Component
+    ): net.kyori.adventure.text.Component? {
+        if (!proxyPackEnabled) return null
+        val name =
+            net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()
+                .serialize(text)
+        return try {
+            gg.grounds.dialogue.minestom.render
+                .MinecraftWidgetEncoder()
+                .encodeSpeakerNameplate(name, "und", theme, assets)
+        } catch (_: gg.grounds.dialogue.presentation.DialoguePresenter.FallbackRequired) {
+            null
+        } catch (_: gg.grounds.dialogue.core.runtime.DialogueFailure) {
+            null
+        }
+    }
+
     private val sessions = IdentityHashMap<Player, Session>()
     private val voiceBank = GuideVoiceBank.load(assets.entries()[GuideVoiceBank.PATH])
     private val generation = "lobby-dialogue-" + UUID.randomUUID()
@@ -111,6 +133,7 @@ internal class LobbyDialogues(
         events.addListener(net.minestom.server.event.player.PlayerDisconnectEvent::class.java) {
             event ->
             synchronized(lock) {
+                nameplatePackViewers = nameplatePackViewers - event.player
                 sessions.remove(event.player)?.let { session ->
                     release(session)
                     session.ticket.cancel(
@@ -133,8 +156,14 @@ internal class LobbyDialogues(
                     state.revision,
                     state.ready && proxyPackEnabled,
                 )
-            if (accepted && state.ready && proxyPackEnabled)
-                sessions[player]?.let { it.ticket.updatePreferences(preferences(it)) }
+            if (accepted) {
+                if (state.ready && proxyPackEnabled && state.pin == assets.pin()) {
+                    nameplatePackViewers = nameplatePackViewers + player
+                    sessions[player]?.let { it.ticket.updatePreferences(preferences(it)) }
+                } else {
+                    nameplatePackViewers = nameplatePackViewers - player
+                }
+            }
         }
     }
 
@@ -401,6 +430,7 @@ internal class LobbyDialogues(
             net.minestom.server.MinecraftServer.getGlobalEventHandler().removeChild(events)
             sessions.values.forEach(::release)
             sessions.clear()
+            nameplatePackViewers = emptySet()
             host.closeAsync()
         }
 

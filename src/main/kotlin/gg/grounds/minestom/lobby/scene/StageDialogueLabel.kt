@@ -1,19 +1,19 @@
 package gg.grounds.minestom.lobby.scene
 
+import gg.grounds.npc.minestom.nameplate.NpcNameplate
 import gg.grounds.scene.format.AssetKey
 import gg.grounds.scene.format.AssetKind
 import gg.grounds.scene.format.LocalId
 import gg.grounds.scene.minestom.*
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import net.kyori.adventure.text.Component
 import net.minestom.server.coordinate.Pos
+import net.minestom.server.coordinate.Vec
 import net.minestom.server.entity.Entity
-import net.minestom.server.entity.EntityType
 import net.minestom.server.entity.Player
-import net.minestom.server.entity.metadata.display.TextDisplayMeta
+import net.minestom.server.entity.metadata.display.AbstractDisplayMeta
 import net.minestom.server.instance.Instance
 
 internal data class StageDialogueLabel(
@@ -21,54 +21,81 @@ internal data class StageDialogueLabel(
     val text: Component,
     val position: Pos,
 ) {
-    private val attached = AtomicReference<LabelEntity?>()
+    private val attached = AtomicReference(emptyList<NpcNameplate>())
 
-    fun hideFor(player: Player): AutoCloseable? = attached.get()?.hideFor(player)
-
-    private class LabelEntity(text: Component, private val npcDialogueViewers: () -> Set<Player>) :
-        Entity(EntityType.TEXT_DISPLAY) {
-        @Volatile private var hidden = npcDialogueViewers()
-        @Volatile private var leased = emptySet<Player>()
-
-        init {
-            setNoGravity(true)
-            (entityMeta as TextDisplayMeta).text = text
-            updateViewableRule { it !in hidden && it !in leased }
-        }
-
-        override fun update(time: Long) {
-            val current = npcDialogueViewers()
-            if (hidden != current) {
-                hidden = current
-                updateViewableRule()
+    fun hideFor(player: Player): AutoCloseable? {
+        val leases = mutableListOf<AutoCloseable>()
+        try {
+            val labels = attached.get()
+            if (labels.isEmpty()) return null
+            for (label in labels) {
+                val lease = label.hideFor(player)
+                if (lease == null) {
+                    leases.asReversed().forEach(AutoCloseable::close)
+                    return null
+                }
+                leases.add(lease)
             }
-        }
-
-        @Synchronized
-        fun hideFor(player: Player): AutoCloseable? {
-            if (isRemoved || player.instance !== instance || !player.isOnline || player in leased)
-                return null
-            leased = leased + player
-            try {
-                updateViewableRule()
-            } catch (failure: Exception) {
-                leased = leased - player
-                throw failure
+        } catch (failure: Exception) {
+            leases.asReversed().forEach { lease ->
+                try {
+                    lease.close()
+                } catch (cleanupFailure: Exception) {
+                    failure.addSuppressed(cleanupFailure)
+                }
             }
-            val closed = AtomicBoolean()
-            return AutoCloseable { if (closed.compareAndSet(false, true)) restoreFor(player) }
+            throw failure
         }
-
-        @Synchronized
-        private fun restoreFor(player: Player) {
-            leased = leased - player
-            if (!isRemoved && player.instance === instance && player.isOnline) updateViewableRule()
-        }
+        return AutoCloseable { leases.asReversed().forEach(AutoCloseable::close) }
     }
+
+    private data class Audience(val hidden: Set<Player>, val packed: Set<Player>)
+
+    private fun display(
+        custom: Component?,
+        customStyle: Boolean,
+        audience: () -> Audience,
+    ): NpcNameplate =
+        object :
+            NpcNameplate(
+                if (customStyle) requireNotNull(custom) else text,
+                { meta ->
+                    if (customStyle) {
+                        meta.setBillboardRenderConstraints(
+                            AbstractDisplayMeta.BillboardConstraints.CENTER
+                        )
+                        meta.setBrightness(15, 15)
+                        meta.setBackgroundColor(0)
+                        meta.setUseDefaultBackground(false)
+                        meta.setLineWidth(32_767)
+                        meta.setScale(Vec(0.32, 0.32, 0.32))
+                        meta.setTranslation(Vec(-0.008, -0.016, 0.0))
+                    }
+                },
+            ) {
+            @Volatile private var current = audience()
+
+            init {
+                setAudience { player ->
+                    val snapshot = current
+                    player !in snapshot.hidden && (player in snapshot.packed) == customStyle
+                }
+            }
+
+            override fun update(time: Long) {
+                val next = audience()
+                if (current != next) {
+                    current = next
+                    refreshAudience()
+                }
+            }
+        }
 
     fun renderers(
         delegate: SceneAssetRendererRegistry,
         body: AssetKey,
+        custom: Component? = null,
+        packedViewers: () -> Set<Player> = ::emptySet,
         npcDialogueViewers: () -> Set<Player>,
     ) = SceneAssetRendererRegistry { asset, kind ->
         val original = delegate.rendererFor(asset, kind)
@@ -82,7 +109,13 @@ internal data class StageDialogueLabel(
                     lifetime: SceneRendererLifetime,
                 ): CompletionStage<RenderedAssetHandle> {
                     if (context.elementId == station && context.partId == null)
-                        attach(context.instance, lifetime, npcDialogueViewers)
+                        attach(
+                            context.instance,
+                            lifetime,
+                            npcDialogueViewers,
+                            custom,
+                            packedViewers,
+                        )
                     return if (original is ScopedSceneAssetRendererFactory)
                         original.createScoped(context, lifetime)
                     else original.create(context)
@@ -94,17 +127,31 @@ internal data class StageDialogueLabel(
         instance: Instance,
         lifetime: SceneRendererLifetime,
         npcDialogueViewers: () -> Set<Player>,
+    ): Entity = attach(instance, lifetime, npcDialogueViewers, null, ::emptySet)
+
+    fun attach(
+        instance: Instance,
+        lifetime: SceneRendererLifetime,
+        npcDialogueViewers: () -> Set<Player>,
+        custom: Component?,
+        packedViewers: () -> Set<Player>,
     ): Entity {
-        val label = LabelEntity(text, npcDialogueViewers)
+        val audience = {
+            Audience(npcDialogueViewers(), if (custom == null) emptySet() else packedViewers())
+        }
+        val labels = buildList {
+            add(display(custom, false, audience))
+            if (custom != null) add(display(custom, true, audience))
+        }
         val spawned = CompletableFuture<Void>()
         val cleaned = CompletableFuture<Void>()
         lifetime.trackCleanup(cleaned)
         // Wait for any outstanding instance assignment before removing the entity.
         lifetime.onInvalidated {
-            attached.compareAndSet(label, null)
+            attached.compareAndSet(labels, emptyList())
             spawned.whenComplete { _, _ ->
                 try {
-                    label.remove()
+                    labels.forEach(Entity::remove)
                     cleaned.complete(null)
                 } catch (failure: Exception) {
                     cleaned.completeExceptionally(failure)
@@ -114,12 +161,18 @@ internal data class StageDialogueLabel(
         try {
             if (
                 !lifetime.runIfCurrent {
-                    val spawn =
-                        checkNotNull(label.setInstance(instance, position)) {
-                            "Stage dialogue label instance assignment was cancelled"
+                    val spawns =
+                        labels.map { label ->
+                            try {
+                                checkNotNull(label.setInstance(instance, position)) {
+                                    "Stage dialogue label instance assignment was cancelled"
+                                }
+                            } catch (failure: Exception) {
+                                CompletableFuture.failedFuture(failure)
+                            }
                         }
-                    spawn.whenComplete { _, failure ->
-                        if (failure == null) lifetime.runIfCurrent { attached.set(label) }
+                    CompletableFuture.allOf(*spawns.toTypedArray()).whenComplete { _, failure ->
+                        if (failure == null) lifetime.runIfCurrent { attached.set(labels) }
                         spawned.complete(null)
                         if (failure != null) lifetime.reportFailure(failure)
                     }
@@ -130,6 +183,6 @@ internal data class StageDialogueLabel(
             spawned.complete(null)
             lifetime.reportFailure(failure)
         }
-        return label
+        return labels.first()
     }
 }

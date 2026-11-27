@@ -1120,6 +1120,57 @@ class StageLobbyDialogueTest {
     }
 
     @Test
+    fun `packed guide label returns after the dialogue and has a readable fallback`() {
+        RendererFixture().use { fixture ->
+            val player = fixture.player(Pos(0.0, 0.0, 2.0))
+            val other = fixture.player(Pos(1.0, 0.0, 2.0))
+            val nameplate =
+                StageDialogueLabel(LocalId("demo-bounce"), Component.text("Guide"), Pos.ZERO)
+            val lifetime = TestLabelLifetime()
+            var packed = setOf(player)
+            val fallback =
+                nameplate.attach(
+                    fixture.instance,
+                    lifetime,
+                    ::emptySet,
+                    Component.text("Custom"),
+                    { packed },
+                )
+            val custom =
+                fixture.instance.entities
+                    .filterIsInstance<gg.grounds.npc.minestom.nameplate.NpcNameplate>()
+                    .single { it !== fallback }
+            tickUntil(fixture.instance) { player in custom.viewers && other in fallback.viewers }
+            assertFalse(player in fallback.viewers)
+            assertFalse(other in custom.viewers)
+
+            val lease = checkNotNull(nameplate.hideFor(player))
+            assertFalse(player in custom.viewers)
+            packed = emptySet()
+            fallback.update(0)
+            custom.update(0)
+            assertFalse(player in fallback.viewers)
+            packed = setOf(player)
+            fallback.update(0)
+            custom.update(0)
+            lease.close()
+            assertTrue(player in custom.viewers)
+            assertTrue(other in fallback.viewers)
+
+            packed = emptySet()
+            fallback.update(0)
+            custom.update(0)
+            assertTrue(player in fallback.viewers)
+            assertFalse(player in custom.viewers)
+
+            lifetime.invalidate()
+            await(checkNotNull(lifetime.cleanup), fixture.instance)
+            assertTrue(custom.isRemoved)
+            assertTrue(fallback.isRemoved)
+        }
+    }
+
+    @Test
     fun `station label does not spawn for an invalidated scene renderer`() {
         RendererFixture().use { fixture ->
             val lifetime = TestLabelLifetime().also { it.invalidate() }

@@ -97,14 +97,17 @@ internal fun PreparedLobbyScene.dialogueBindings(
 
 /** Replace only dialogue NPC labels with per-player visibility. */
 internal fun PreparedLobbyScene.withDialogueLabels(
-    bindings: List<LobbyDialogueBinding>
+    bindings: List<LobbyDialogueBinding>,
+    owner: LobbyDialogues,
 ): PreparedLobbyScene {
     var registry = renderers
     var document = scene
     for (binding in bindings) {
         val label = binding.replacementLabel ?: binding.standaloneLabel ?: continue
         val npc = scene.elements.filterIsInstance<Npc>().single { it.id == binding.elementId }
-        registry = label.renderers(registry, npc.body, ::emptySet)
+        val custom = binding.replacementLabel?.let { owner.customNameplate(it.text) }
+        registry =
+            label.renderers(registry, npc.body, custom, owner::nameplatePackViewers, ::emptySet)
         document =
             SceneDocument(
                 document.schemaVersion,

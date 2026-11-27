@@ -109,7 +109,8 @@ internal class LobbyModule(
                                 selected.identity.mapVersion,
                                 "spawn-guide",
                             )
-                        (if (starter == null) selected else selected.withDialogueLabels(bindings))
+                        (if (starter == null) selected
+                            else selected.withDialogueLabels(bindings, starter))
                             .runtimeRequest(instanceContainer, ctx.services, starter)
                     }
                     .also { request ->
