@@ -20,7 +20,7 @@ internal data class GuideVoice(
 internal class GuideSpeechOutput(
     private val valid: () -> Boolean,
     private val reducedMotion: () -> Boolean,
-    private val prepare: (NpcPublicationGuard) -> NpcPresentationStart?,
+    private val prepare: ((NpcPublicationGuard) -> NpcPresentationStart?)?,
     private val play: (GuideVoice) -> Unit,
     private val silence: (String) -> Unit,
     private val clock: () -> Long = System::nanoTime,
@@ -415,7 +415,7 @@ internal class GuideSpeechOutput(
             published = null
             return
         }
-        if (handle == null && preparing == null && !unavailable) begin()
+        if (prepare != null && handle == null && preparing == null && !unavailable) begin()
         move()
     }
 
@@ -439,7 +439,7 @@ internal class GuideSpeechOutput(
             }
         }
         optional {
-            val start = prepare(guard) ?: return@optional
+            val start = prepare?.invoke(guard) ?: return@optional
             preparing = start
             start.ready().whenComplete { result, failure ->
                 synchronized(lock) {

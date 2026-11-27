@@ -272,8 +272,9 @@ Ordinary Stage LOD serving, permission checks and its server-only configuration 
 
 NPC rendering delegates to `groundsgg/library-npc` through `scene-npc-minestom`.
 
-During an NPC dialogue, the speaker label rises from the scene nameplate's
-height for the player in the conversation. Set
+The Guide has a nameplate outside conversations, including on maps that omit
+its label. For the player in the conversation, the speaker label rises from the
+scene nameplate's height before the dialogue panel appears. Set
 `GROUNDS_DIALOGUE_REPLACE_NPC_LABELS=false` to keep scene nameplates visible
 during dialogues.
 The host validates the external bundle, exact Grounds catalogue bounds/animations/sounds,

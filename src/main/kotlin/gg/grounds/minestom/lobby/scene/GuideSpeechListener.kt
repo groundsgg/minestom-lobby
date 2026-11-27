@@ -13,7 +13,7 @@ internal class GuideSpeechListener(
     private val binding: LobbyDialogueBinding,
     valid: () -> Boolean,
     reducedMotion: () -> Boolean,
-    prepare: (NpcPublicationGuard) -> NpcPresentationStart?,
+    prepare: ((NpcPublicationGuard) -> NpcPresentationStart?)?,
     bank: GuideVoiceBank,
     graphemeDelay: Duration,
     clock: () -> Long = System::nanoTime,

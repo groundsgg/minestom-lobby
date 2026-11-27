@@ -4,6 +4,7 @@ import gg.grounds.scene.format.*
 import gg.grounds.scene.minestom.*
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.TimeUnit
+import net.kyori.adventure.text.Component
 import net.minestom.server.MinecraftServer
 import net.minestom.server.coordinate.Pos
 import net.minestom.server.instance.Instance
@@ -15,7 +16,7 @@ import org.junit.jupiter.api.Test
 
 class LobbyGuideSpeechIntegrationTest {
     @Test
-    fun `real Guide admits NPC presentation and closes without generic typing`() {
+    fun `real Guide speaks on the NPC surface and closes without generic typing`() {
         RendererFixture().use { fixture ->
             val player = fixture.player(Pos(0.0, 0.0, 2.0))
             val neighbor = fixture.player(Pos(1.0, 0.0, 2.0))
@@ -31,11 +32,15 @@ class LobbyGuideSpeechIntegrationTest {
                             Pos.ZERO,
                             LobbyGuideContent.DIALOGUE_ID,
                             LobbyGuideContent.SPEAKER_ROLE,
+                            StageDialogueLabel(
+                                LocalId("spawn-guide"),
+                                Component.text("Guide"),
+                                Pos(0.0, 2.2, 0.0),
+                            ),
                         )
                     ),
                     assets = assets,
                     proxyPackEnabled = true,
-                    reducedMotion = { true },
                     locale = { "en" },
                     observeLocale = { _, _ -> AutoCloseable {} },
                 )
@@ -69,6 +74,9 @@ class LobbyGuideSpeechIntegrationTest {
                 await(starting, fixture.instance)
                 tickUntil(fixture.instance) {
                     owner.presentation(player)?.effectiveSurface == "npc"
+                }
+                tickUntil(fixture.instance) {
+                    sounds(player).any { it.startsWith("dialogue:guide/") }
                 }
                 assertFalse(sounds(player).any { it.contains("typing") }, sounds(player).toString())
                 assertFalse(sounds(neighbor).any { it.startsWith("dialogue:guide/") })

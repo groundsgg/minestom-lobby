@@ -2,6 +2,7 @@ package gg.grounds.minestom.lobby.scene
 
 import gg.grounds.lobby.scene.LobbySceneCatalogs
 import gg.grounds.scene.format.*
+import net.kyori.adventure.text.Component
 import net.minestom.server.coordinate.Pos
 import net.minestom.server.coordinate.Vec
 
@@ -55,20 +56,35 @@ internal fun PreparedLobbyScene.dialogueBindings(
                                 -npc.transform.rotation.yaw.toFloat(),
                                 0f,
                             )
-                        LobbyDialogueBinding(
-                            npc.id,
-                            position,
-                            dialogue!!,
-                            speaker,
-                            npc.label
-                                ?.takeIf { replaceNpcLabels }
-                                ?.let { text ->
+                        val fallbackLabel =
+                            if (dialogue == LobbyGuideContent.DIALOGUE_ID && npc.label == null) {
+                                val top =
+                                    npc.interactionBounds.center.y +
+                                        npc.interactionBounds.size.y / 2
+                                val height = top * npc.transform.scale.y + 0.4
+                                StageDialogueLabel(
+                                    npc.id,
+                                    Component.text("Guide"),
+                                    position.add(0.0, height, 0.0),
+                                )
+                            } else null
+                        val replacementLabel =
+                            if (replaceNpcLabels) {
+                                npc.label?.let { text ->
                                     StageDialogueLabel(
                                         npc.id,
                                         text,
                                         position.add(npc.worldLabelOffset()),
                                     )
-                                },
+                                } ?: fallbackLabel
+                            } else null
+                        LobbyDialogueBinding(
+                            npc.id,
+                            position,
+                            dialogue!!,
+                            speaker,
+                            replacementLabel,
+                            fallbackLabel.takeUnless { replaceNpcLabels },
                         )
                     }
             }
@@ -81,13 +97,12 @@ internal fun PreparedLobbyScene.dialogueBindings(
 
 /** Replace only dialogue NPC labels with per-player visibility. */
 internal fun PreparedLobbyScene.withDialogueLabels(
-    owner: LobbyDialogues,
-    bindings: List<LobbyDialogueBinding>,
+    bindings: List<LobbyDialogueBinding>
 ): PreparedLobbyScene {
     var registry = renderers
     var document = scene
     for (binding in bindings) {
-        val label = binding.replacementLabel ?: continue
+        val label = binding.replacementLabel ?: binding.standaloneLabel ?: continue
         val npc = scene.elements.filterIsInstance<Npc>().single { it.id == binding.elementId }
         registry = label.renderers(registry, npc.body, ::emptySet)
         document =
@@ -119,7 +134,7 @@ internal fun PreparedLobbyScene.withDialogueLabels(
                 },
             )
     }
-    return copy(scene = document, renderers = owner.captureGuideRenderers(registry))
+    return copy(scene = document, renderers = registry)
 }
 
 private fun Npc.worldLabelOffset(): Vec =

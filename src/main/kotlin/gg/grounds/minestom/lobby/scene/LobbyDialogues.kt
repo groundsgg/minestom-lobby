@@ -67,18 +67,6 @@ internal class LobbyDialogues(
 
     private val sessions = IdentityHashMap<Player, Session>()
     private val voiceBank = GuideVoiceBank.load(assets.entries()[GuideVoiceBank.PATH])
-    private val guideNpcs =
-        GuideNpcPresentations(
-            bindings
-                .filter { it.dialogue == LobbyGuideContent.DIALOGUE_ID }
-                .map { it.elementId }
-                .toSet()
-        )
-
-    internal fun captureGuideRenderers(
-        delegate: gg.grounds.scene.minestom.SceneAssetRendererRegistry
-    ) = guideNpcs.renderers(delegate)
-
     private val generation = "lobby-dialogue-" + UUID.randomUUID()
     private val contents =
         bindings
@@ -334,17 +322,9 @@ internal class LobbyDialogues(
                         session.active.get() &&
                         session.player.playerConnection === session.connection
                 },
+                // Keep the scene model and its client entity IDs throughout the conversation.
                 { reducedMotion(session.player) },
-                { guard ->
-                    guideNpcs.prepare(
-                        session.binding.elementId,
-                        gg.grounds.npc.minestom.presentation.NpcPresentationOptions.builder(
-                                session.player
-                            )
-                            .publicationGuard(guard)
-                            .build(),
-                    )
-                },
+                null,
                 checkNotNull(voiceBank),
                 NPC_PREFERENCES.graphemeDelay(),
             )
@@ -477,4 +457,5 @@ internal data class LobbyDialogueBinding(
     val dialogue: String,
     val speaker: String,
     val replacementLabel: StageDialogueLabel? = null,
+    val standaloneLabel: StageDialogueLabel? = null,
 )

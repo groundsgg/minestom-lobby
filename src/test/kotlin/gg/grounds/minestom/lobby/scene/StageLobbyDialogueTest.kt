@@ -262,6 +262,7 @@ class StageLobbyDialogueTest {
             dialogue: String,
             trigger: SceneTrigger = SceneTrigger.RIGHT_CLICK,
             hand: SceneHand = SceneHand.MAIN,
+            label: Component? = npc.label,
         ): PreparedLobbyScene {
             val binding =
                 gg.grounds.scene.format.TriggerBinding(
@@ -287,7 +288,7 @@ class StageLobbyDialogueTest {
                     npc.visible,
                     npc.activation,
                     npc.body,
-                    npc.label,
+                    label,
                     npc.labelOffset,
                     npc.look,
                     npc.initialAnimation,
@@ -327,6 +328,14 @@ class StageLobbyDialogueTest {
         val guide = prepared(LobbyGuideContent.DIALOGUE_ID)
         assertEquals(2.1, guide.dialogueBindings().single().replacementLabel?.position?.y())
         assertNull(guide.dialogueBindings(replaceNpcLabels = false).single().replacementLabel)
+        val olderGuide = prepared(LobbyGuideContent.DIALOGUE_ID, label = null)
+        val replacement = checkNotNull(olderGuide.dialogueBindings().single().replacementLabel)
+        assertEquals(Component.text("Guide"), replacement.text)
+        assertEquals(2.2, replacement.position.y(), 1e-6)
+        val disabled = olderGuide.dialogueBindings(replaceNpcLabels = false).single()
+        assertNull(disabled.replacementLabel)
+        assertEquals(replacement, disabled.standaloneLabel)
+
         assertThrows(IllegalArgumentException::class.java) {
             prepared("unknown:dialogue").dialogueBindings()
         }
