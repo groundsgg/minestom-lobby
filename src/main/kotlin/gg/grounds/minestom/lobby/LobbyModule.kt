@@ -95,6 +95,8 @@ internal class LobbyModule(
                                     bindings,
                                     ctx.services.get<gg.grounds.lobby.LobbyNavigatorService>(),
                                     ctx.services.get<gg.grounds.lobby.LobbyQueueService>(),
+                                    faceViewer =
+                                        lodEnvironment["GROUNDS_DIALOGUE_NPC_FACE_VIEWER"] == "true",
                                 )
                         stageDialogue = starter
                         if (

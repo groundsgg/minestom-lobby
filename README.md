@@ -278,6 +278,10 @@ on older maps that omit it. When a conversation opens, the speaker label rises
 before the dialogue panel appears. Set
 `GROUNDS_DIALOGUE_REPLACE_NPC_LABELS=false` to keep scene nameplates visible
 during dialogues.
+
+Dialogue panels and their nameplates follow the NPC's body yaw. Set
+`GROUNDS_DIALOGUE_NPC_FACE_VIEWER=true` to let them turn toward the viewer's
+position.
 The host validates the external bundle, exact Grounds catalogue bounds/animations/sounds,
 and `grounds:npc_parts/` mesh references. The executable contains no purchased model JSON
 and the verifier rejects embedded legacy engine copies.

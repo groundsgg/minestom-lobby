@@ -43,6 +43,7 @@ internal class LobbyDialogues(
         gg.grounds.minigame.minestom.SidebarLocale.localeOf(it).toLanguageTag()
     },
     private val reducedMotion: (Player) -> Boolean = { false },
+    private val faceViewer: Boolean = false,
     private val observeLocale: (Player, Runnable) -> AutoCloseable =
         gg.grounds.minigame.minestom.SidebarLocale::observe,
 ) : LobbySceneDialogueStarter {
@@ -334,13 +335,19 @@ internal class LobbyDialogues(
         val base =
             if (session.binding.dialogue != LobbyGuideContent.DIALOGUE_ID) NPC_PREFERENCES
             else guidePreferences(motionReduced)
-        val position = session.binding.replacementLabel?.position ?: return base
-        val startHeight = position.y() - session.binding.position.y()
+        val position = session.binding.replacementLabel?.position
+        val effects = base.effects() + ("npcFaceViewer" to faceViewer.toString())
+        val nameplateEffects =
+            if (position == null) effects
+            else {
+                val startHeight = position.y() - session.binding.position.y()
+                effects + ("npcSpeakerLabelStartHeight" to startHeight.toString())
+            }
         return PresentationPreferences(
             base.surfaceKey(),
             base.graphemeDelay(),
-            motionReduced,
-            base.effects() + ("npcSpeakerLabelStartHeight" to startHeight.toString()),
+            if (position == null) base.reducedMotion() else motionReduced,
+            nameplateEffects,
         )
     }
 

@@ -1173,7 +1173,7 @@ class StageLobbyDialogueTest {
     @Test
     fun `opening and closing the guide dialogue preserves the nameplate entity for both players`() {
         RendererFixture().use { fixture ->
-            val viewer = fixture.player(Pos(0.0, 0.0, 2.0))
+            val viewer = fixture.player(Pos(0.75, 0.0, 2.0))
             val other = fixture.player(Pos(1.0, 0.0, 2.0))
             val station = LocalId("spawn-guide")
             val label =
