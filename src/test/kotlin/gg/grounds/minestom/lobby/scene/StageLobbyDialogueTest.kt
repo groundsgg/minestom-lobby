@@ -1171,6 +1171,134 @@ class StageLobbyDialogueTest {
     }
 
     @Test
+    fun `opening and closing the guide dialogue preserves the nameplate entity for both players`() {
+        RendererFixture().use { fixture ->
+            val viewer = fixture.player(Pos(0.0, 0.0, 2.0))
+            val other = fixture.player(Pos(1.0, 0.0, 2.0))
+            val station = LocalId("spawn-guide")
+            val label = StageDialogueLabel(station, Component.text("Guide"), Pos(0.0, 2.2, 0.0))
+            val identity =
+                SceneRuntimeIdentity(SceneId("test:guide-nameplate"), "lobby/mainlobby", 19)
+            val assets = StageDialogueAssets.load()
+            val owner =
+                LobbyDialogues(
+                    fixture.instance,
+                    identity,
+                    listOf(
+                        LobbyDialogueBinding(
+                            station,
+                            Pos.ZERO,
+                            LobbyGuideContent.DIALOGUE_ID,
+                            "guide",
+                            label,
+                        )
+                    ),
+                    assets = assets,
+                    proxyPackEnabled = true,
+                )
+            val lifetime = TestLabelLifetime()
+            try {
+                for (player in listOf(viewer, other)) {
+                    owner.confirmPack(player, DialoguePackReadiness.State(1, true, assets.pin()))
+                }
+                val fallback =
+                    label.attach(
+                        fixture.instance,
+                        lifetime,
+                        ::emptySet,
+                        checkNotNull(owner.customNameplate(label.text)),
+                        owner::nameplatePackViewers,
+                    )
+                val display =
+                    fixture.instance.entities
+                        .filterIsInstance<gg.grounds.npc.minestom.nameplate.NpcNameplate>()
+                        .single { it !== fallback }
+                tickUntil(fixture.instance) {
+                    viewer in display.viewers && other in display.viewers
+                }
+                assertTrue(viewer in display.viewers && other in display.viewers)
+                viewer.connection.packets.clear()
+                other.connection.packets.clear()
+                val context =
+                    SceneActionContext(
+                        identity,
+                        viewer,
+                        station,
+                        SceneTrigger.RIGHT_CLICK,
+                        SceneHand.MAIN,
+                        System.nanoTime(),
+                        emptyMap(),
+                        SceneViewerVisualState(),
+                    )
+                assertEquals(
+                    SceneActionResult.Success,
+                    await(
+                        owner.start(context, LobbyGuideContent.DIALOGUE_ID, "guide"),
+                        fixture.instance,
+                    ),
+                )
+                tickUntil(fixture.instance) {
+                    owner.presentation(viewer)?.effectiveSurface == "npc"
+                }
+                assertEquals("npc", owner.presentation(viewer)?.effectiveSurface)
+                assertTrue(viewer in display.viewers && other in display.viewers)
+                await(viewer.teleport(Pos(0.0, 0.0, 8.0)), fixture.instance)
+                tickUntil(fixture.instance) {
+                    EventDispatcher.call(PlayerTickEvent(viewer))
+                    owner.presentation(viewer)?.diagnostic == "CLOSED"
+                }
+                assertEquals("CLOSED", owner.presentation(viewer)?.diagnostic)
+
+                val packets = viewer.connection.packets
+                assertFalse(
+                    packets
+                        .filterIsInstance<
+                            net.minestom.server.network.packet.server.play.DestroyEntitiesPacket
+                        >()
+                        .any { display.entityId in it.entityIds() }
+                )
+                assertTrue(viewer.connection.spawns(display.entityId).isEmpty())
+                val changes =
+                    packets
+                        .filterIsInstance<
+                            net.minestom.server.network.packet.server.play.EntityMetaDataPacket
+                        >()
+                        .filter { it.entityId() == display.entityId }
+                val translation = net.minestom.server.entity.MetadataDef.Display.TRANSLATION.index()
+                val heights =
+                    changes
+                        .mapNotNull {
+                            it.entries()[translation]?.value()
+                                as? net.minestom.server.coordinate.Point
+                        }
+                        .map { it.y() }
+                assertEquals(2, heights.size)
+                val interpolation =
+                    net.minestom.server.entity.MetadataDef.Display
+                        .TRANSFORMATION_INTERPOLATION_DURATION
+                        .index()
+                assertEquals(
+                    listOf(5, 0),
+                    changes.mapNotNull { it.entries()[interpolation]?.value() },
+                )
+                assertTrue(heights.first() > 0.2)
+                assertEquals(-0.016, heights.last(), 1e-6)
+                assertFalse(
+                    other.connection.packets
+                        .filterIsInstance<
+                            net.minestom.server.network.packet.server.play.EntityMetaDataPacket
+                        >()
+                        .any { it.entityId() == display.entityId }
+                )
+            } finally {
+                await(owner.closeAsync(), fixture.instance)
+                lifetime.invalidate()
+                await(checkNotNull(lifetime.cleanup), fixture.instance)
+            }
+        }
+    }
+
+    @Test
     fun `station label does not spawn for an invalidated scene renderer`() {
         RendererFixture().use { fixture ->
             val lifetime = TestLabelLifetime().also { it.invalidate() }

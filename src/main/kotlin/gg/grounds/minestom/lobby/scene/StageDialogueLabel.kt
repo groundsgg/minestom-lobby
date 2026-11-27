@@ -5,6 +5,7 @@ import gg.grounds.scene.format.AssetKey
 import gg.grounds.scene.format.AssetKind
 import gg.grounds.scene.format.LocalId
 import gg.grounds.scene.minestom.*
+import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.atomic.AtomicReference
@@ -22,6 +23,12 @@ internal data class StageDialogueLabel(
     val position: Pos,
 ) {
     private val attached = AtomicReference(emptyList<NpcNameplate>())
+
+    fun riseFor(player: Player, rise: Double, duration: Duration): AutoCloseable? {
+        val label = attached.get().getOrNull(1) ?: return null
+        val ticks = kotlin.math.ceil(duration.toMillis() / 50.0).toInt()
+        return label.translateFor(player, Vec(0.0, rise, 0.0), ticks)
+    }
 
     fun hideFor(player: Player): AutoCloseable? {
         val leases = mutableListOf<AutoCloseable>()

@@ -265,6 +265,12 @@ internal class LobbyDialogues(
                         0,
                         speechListener,
                         { binding.replacementLabel?.hideFor(context.player) },
+                        { height, duration ->
+                            binding.replacementLabel?.let { label ->
+                                val rise = binding.position.y() + height - label.position.y()
+                                label.riseFor(context.player, rise, duration)
+                            }
+                        },
                     )
                 )
             session.ticket = ticket
