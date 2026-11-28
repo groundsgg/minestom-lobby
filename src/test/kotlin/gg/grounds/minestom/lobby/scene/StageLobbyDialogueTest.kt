@@ -458,6 +458,15 @@ class StageLobbyDialogueTest {
 
     @Test
     fun `unavailable duel menu stays localized and never joins a queue`() {
+        assertUnavailableMenu(false)
+    }
+
+    @Test
+    fun `missing guide menu services still validate and return localized unavailable`() {
+        assertUnavailableMenu(true)
+    }
+
+    private fun assertUnavailableMenu(missingServices: Boolean) {
         dialogueFixture().use { fixture ->
             val identity = SceneRuntimeIdentity(SceneId("test:duel-failure"), "lobby/mainlobby", 19)
             var opened = 0
@@ -474,21 +483,23 @@ class StageLobbyDialogueTest {
                         )
                     ),
                     queues =
-                        object : gg.grounds.lobby.LobbyQueueService {
-                            override fun toggleQueue(
-                                player: net.minestom.server.entity.Player,
-                                modeId: String,
-                            ): CompletionStage<Boolean> = fail("Dialogue must not join queues")
+                        if (missingServices) null
+                        else
+                            object : gg.grounds.lobby.LobbyQueueService {
+                                override fun toggleQueue(
+                                    player: net.minestom.server.entity.Player,
+                                    modeId: String,
+                                ): CompletionStage<Boolean> = fail("Dialogue must not join queues")
 
-                            override fun openDuels(
-                                player: net.minestom.server.entity.Player
-                            ): CompletionStage<Boolean> {
-                                opened++
-                                return CompletableFuture.failedFuture(
-                                    IllegalStateException("Unavailable")
-                                )
-                            }
-                        },
+                                override fun openDuels(
+                                    player: net.minestom.server.entity.Player
+                                ): CompletionStage<Boolean> {
+                                    opened++
+                                    return CompletableFuture.failedFuture(
+                                        IllegalStateException("Unavailable")
+                                    )
+                                }
+                            },
                 )
             val player = fixture.player(Pos(0.0, 0.0, 2.0))
             gg.grounds.minigame.minestom.SidebarLocale.set(player, "de")
@@ -526,11 +537,11 @@ class StageLobbyDialogueTest {
                 choose(guideText("de", "duels.choice"))
                 tickUntil(fixture.instance) { received(player, guideText("de", "unavailable")) }
                 assertTrue(received(player, guideText("de", "unavailable")))
-                assertEquals(1, opened)
+                assertEquals(if (missingServices) 0 else 1, opened)
                 gg.grounds.minigame.minestom.SidebarLocale.set(player, "en")
                 tickUntil(fixture.instance) { received(player, guideText("en", "unavailable")) }
                 assertTrue(received(player, guideText("en", "unavailable")))
-                assertEquals(1, opened)
+                assertEquals(if (missingServices) 0 else 1, opened)
                 assertNotNull(commandFor(player, guideText("en", "back.choice")))
             } finally {
                 await(owner.closeAsync(), fixture.instance)

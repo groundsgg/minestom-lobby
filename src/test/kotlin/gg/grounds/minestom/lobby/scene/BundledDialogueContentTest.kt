@@ -35,6 +35,42 @@ class BundledDialogueContentTest {
                 if (project == "lobby-guide") LobbyGuideContent.validated("facade")
                 else StageDialogueContent.validated("facade")
             assertEquals(golden, facade.contentPin().sha256)
+            val id =
+                if (project == "lobby-guide") LobbyGuideContent.DIALOGUE_ID
+                else StageDialogueContent.DIALOGUE_ID
+            val registration = LobbyDialogueHostRegistration.create(id)
+            val installed = registration.catalog("installed-runtime")
+            val runtime = content.validated(installed)
+            assertEquals(installed, runtime.catalog())
+            assertEquals(golden, runtime.contentPin().sha256)
+            assertThrows(IllegalArgumentException::class.java) {
+                content.validated(
+                    HostCatalog(
+                        installed.generation(),
+                        emptySet(),
+                        installed.conditions(),
+                        installed.actions(),
+                        installed.gestures(),
+                        installed.capabilities(),
+                        installed.durableOutcomes(),
+                    )
+                )
+            }
+            if (project == "lobby-guide") {
+                assertThrows(IllegalArgumentException::class.java) {
+                    content.validated(
+                        HostCatalog(
+                            installed.generation(),
+                            installed.speakers(),
+                            installed.conditions(),
+                            emptyMap(),
+                            installed.gestures(),
+                            installed.capabilities(),
+                            installed.durableOutcomes(),
+                        )
+                    )
+                }
+            }
         }
     }
 

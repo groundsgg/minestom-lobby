@@ -35,8 +35,8 @@ internal class LobbyDialogues(
     private val instance: Instance,
     private val identity: SceneRuntimeIdentity,
     private val bindings: List<LobbyDialogueBinding>,
-    private val navigator: gg.grounds.lobby.LobbyNavigatorService? = null,
-    private val queues: gg.grounds.lobby.LobbyQueueService? = null,
+    navigator: gg.grounds.lobby.LobbyNavigatorService? = null,
+    queues: gg.grounds.lobby.LobbyQueueService? = null,
     private val assets: AssetBundle = StageDialogueAssets.load(),
     private val proxyPackEnabled: Boolean = StageDialogueAssets.isPackaged(),
     private val theme: DialogueTheme = defaultTheme(),
@@ -46,7 +46,13 @@ internal class LobbyDialogues(
     private val reducedMotion: (Player) -> Boolean = { false },
     private val observeLocale: (Player, Runnable) -> AutoCloseable =
         gg.grounds.minigame.minestom.SidebarLocale::observe,
-    content: (String, String) -> ValidatedDialogue = ::builtInContent,
+    content: ((String, String) -> ValidatedDialogue)? = null,
+    private val admission: LobbyDialogueAdmission = LobbyDialogueAdmission(false),
+    internal val metadataContract: LobbyDialogueHostContract? = null,
+    internal val authoredContract: LobbyDialogueHostContract? = null,
+    private val generation: String = "lobby-dialogue-" + UUID.randomUUID(),
+    actualRegistrations: Map<String, LobbyDialogueHostRegistration>? = null,
+    private val authoredEntries: Map<String, LobbyAuthoredDialogueCatalogue.Entry> = emptyMap(),
 ) : LobbySceneDialogueStarter {
     private val lock = Any()
     @Volatile private var closed = false
@@ -56,7 +62,8 @@ internal class LobbyDialogues(
         val binding: LobbyDialogueBinding,
         val defaultLocale: String,
     ) {
-        lateinit var ticket: MinestomDialogueStart
+        var ticket: MinestomDialogueStart? = null
+        var actionSessionId: UUID? = null
         var handle: gg.grounds.dialogue.core.runtime.DialogueHandle? = null
         var subscription: AutoCloseable? = null
         val active = java.util.concurrent.atomic.AtomicBoolean(true)
@@ -64,6 +71,8 @@ internal class LobbyDialogues(
         var speech: GuideSpeechListener? = null
         var language = defaultLocale
         var revision = 0L
+        val pendingMenus =
+            java.util.concurrent.ConcurrentHashMap.newKeySet<CompletableFuture<Boolean>>()
         val actions =
             mutableMapOf<
                 gg.grounds.dialogue.core.port.ActionHandler.ActionRef,
@@ -71,23 +80,53 @@ internal class LobbyDialogues(
             >()
     }
 
+    private val cancelledMenus =
+        java.util.concurrent.ConcurrentLinkedQueue<CompletableFuture<Boolean>>()
     private val sessions = IdentityHashMap<Player, Session>()
+    // Diagnostic snapshots retain no ticket, subscription, action or player reference.
+    private val ended =
+        java.util.WeakHashMap<Player, gg.grounds.dialogue.minestom.render.PresentationStatus>()
     private val voiceBank = GuideVoiceBank.load(assets.entries()[GuideVoiceBank.PATH])
     private val guideNpcs =
-        GuideNpcPresentations(
-            bindings
-                .filter { it.dialogue == LobbyGuideContent.DIALOGUE_ID }
-                .map { it.elementId }
-                .toSet()
-        )
+        GuideNpcPresentations(bindings.filter { isGuide(it) }.map { it.elementId }.toSet())
 
     internal fun captureGuideRenderers(
         delegate: gg.grounds.scene.minestom.SceneAssetRendererRegistry
     ) = guideNpcs.renderers(delegate)
 
-    private val generation = "lobby-dialogue-" + UUID.randomUUID()
+    internal val registrations =
+        java.util.Collections.unmodifiableMap(
+            actualRegistrations
+                ?: bindings
+                    .map { it.dialogue }
+                    .distinct()
+                    .associateWith {
+                        if (metadataContract == null)
+                            LobbyDialogueHostRegistration.create(it, navigator, queues)
+                        else
+                            LobbyDialogueHostRegistration.create(
+                                metadataContract,
+                                it,
+                                navigator,
+                                queues,
+                            )
+                    }
+        )
     private val contents =
-        bindings.map { it.dialogue }.distinct().associateWith { content(it, generation) }
+        if (authoredContract != null) authoredEntries.mapValues { it.value.validated }
+        else
+            (if (metadataContract == null) registrations else emptyMap()).mapValues {
+                (dialogue, registration) ->
+                if (content != null) content(dialogue, generation)
+                else
+                    when (dialogue) {
+                        StageDialogueContent.DIALOGUE_ID ->
+                            StageDialogueContent.validated(generation, registration)
+                        LobbyGuideContent.DIALOGUE_ID ->
+                            LobbyGuideContent.validated(generation, registration)
+                        else -> error("Unsupported lobby dialogue $dialogue")
+                    }
+            }
     private val events =
         net.minestom.server.event.EventNode.all("lobby-dialogues-" + UUID.randomUUID())
     private val host =
@@ -122,10 +161,41 @@ internal class LobbyDialogues(
             synchronized(lock) {
                 sessions.remove(event.player)?.let { session ->
                     release(session)
-                    session.ticket.cancel(
+                    session.ticket?.cancel(
                         gg.grounds.dialogue.core.runtime.DialogueEndReason.DISCONNECTED
                     )
                 }
+            }
+            cancelReleasedMenus()
+        }
+        events.addListener(net.minestom.server.event.player.PlayerTickEvent::class.java) { event ->
+            synchronized(lock) {
+                sessions[event.player]
+                    ?.takeUnless { current(it) }
+                    ?.let {
+                        release(it)
+                        it.ticket?.cancel(
+                            gg.grounds.dialogue.core.runtime.DialogueEndReason.DISCONNECTED
+                        )
+                    }
+            }
+            cancelReleasedMenus()
+        }
+        events.addListener(
+            net.minestom.server.event.instance.RemoveEntityFromInstanceEvent::class.java
+        ) { event ->
+            if (event.instance === instance) {
+                synchronized(lock) {
+                    (event.entity as? Player)?.let { player ->
+                        sessions[player]?.let {
+                            release(it)
+                            it.ticket?.cancel(
+                                gg.grounds.dialogue.core.runtime.DialogueEndReason.DISCONNECTED
+                            )
+                        }
+                    }
+                }
+                cancelReleasedMenus()
             }
         }
         net.minestom.server.MinecraftServer.getGlobalEventHandler().addChild(events)
@@ -143,11 +213,12 @@ internal class LobbyDialogues(
                     state.ready && proxyPackEnabled,
                 )
             if (accepted && state.ready && proxyPackEnabled)
-                sessions[player]?.let { it.ticket.updatePreferences(preferences(it)) }
+                sessions[player]?.let { it.ticket?.updatePreferences(preferences(it)) }
         }
     }
 
-    internal fun presentation(player: Player) = sessions[player]?.ticket?.status()
+    internal fun presentation(player: Player) =
+        synchronized(lock) { sessions[player]?.ticket?.status() ?: ended[player] }
 
     internal fun npcDialogueViewers(elementId: LocalId? = null): Set<Player> =
         synchronized(lock) {
@@ -157,7 +228,7 @@ internal class LobbyDialogues(
                     player.takeIf {
                         it.isOnline &&
                             it.instance === instance &&
-                            session.ticket.status().effectiveSurface == "npc" &&
+                            session.ticket?.status()?.effectiveSurface == "npc" &&
                             (elementId == null || session.binding.elementId == elementId)
                     }
                 }
@@ -168,164 +239,218 @@ internal class LobbyDialogues(
         dialogue: String,
         speaker: String,
     ): CompletionStage<SceneActionResult> =
-        synchronized(lock) {
-            val binding =
-                bindings.singleOrNull {
-                    it.elementId == context.elementId &&
-                        it.dialogue == dialogue &&
-                        it.speaker == speaker
-                }
-            if (
-                closed ||
-                    binding == null ||
-                    context.identity != identity ||
-                    context.player.instance !== instance ||
-                    !context.player.isOnline ||
-                    context.trigger != SceneTrigger.RIGHT_CLICK ||
-                    context.hand != SceneHand.MAIN
-            )
-                return rejected("Lobby dialogue binding rejected")
-            val previous = sessions[context.player]
-            if (previous != null && previous.ticket.status().diagnostic != "CLOSED")
-                return rejected("A dialogue is already active")
-            previous?.let(::release)
-            val validated = contents.getValue(dialogue)
-            val session =
-                Session(context.player, binding, validated.definition().locales().defaultTag())
-            session.language = canonicalLocale(locale(context.player), session.defaultLocale)
-            val texts = validated.texts()
-            val services =
-                DialogueServices(
-                    generation,
-                    emptyMap(),
-                    if (dialogue == LobbyGuideContent.DIALOGUE_ID)
-                        mapOf(
-                            LobbyGuideContent.NAVIGATOR_ACTION to
-                                menuHandler(session, LobbyGuideContent.NAVIGATOR_ACTION),
-                            LobbyGuideContent.DUELS_ACTION to
-                                menuHandler(session, LobbyGuideContent.DUELS_ACTION),
+        try {
+            synchronized(lock) {
+                if (metadataContract != null || !admission.allowed)
+                    return rejected("Lobby dialogue admission denied")
+                val binding =
+                    bindings.singleOrNull {
+                        it.elementId == context.elementId &&
+                            it.dialogue == dialogue &&
+                            it.speaker == speaker
+                    }
+                if (
+                    closed ||
+                        binding == null ||
+                        context.identity != identity ||
+                        context.player.instance !== instance ||
+                        !context.player.isOnline ||
+                        context.trigger != SceneTrigger.RIGHT_CLICK ||
+                        context.hand != SceneHand.MAIN
+                )
+                    return rejected("Lobby dialogue binding rejected")
+                sessions.values
+                    .toList()
+                    .filter {
+                        it.player !== context.player && it.player.uuid == context.player.uuid
+                    }
+                    .forEach {
+                        release(it)
+                        it.ticket?.cancel(
+                            gg.grounds.dialogue.core.runtime.DialogueEndReason.SUPERSEDED
                         )
-                    else emptyMap(),
-                    null,
-                    TextResolver.catalogue(texts, session.defaultLocale),
-                    emptySet(),
-                )
-            val speechListener =
-                if (dialogue == LobbyGuideContent.DIALOGUE_ID && voiceBank != null)
-                    speechListener(session)
-                else MinestomDialogueSpeechListener.NO_OP
-            val ticket =
-                host.begin(
-                    MinestomDialogueRequest(
-                        UUID.randomUUID().toString(),
-                        context.player,
-                        0,
-                        validated,
-                        services,
+                    }
+                val previous = sessions[context.player]
+                if (previous != null && previous.active.get())
+                    return rejected("A dialogue is already active")
+                previous?.let(::release)
+                val validated = contents.getValue(dialogue)
+                val session =
+                    Session(context.player, binding, validated.definition().locales().defaultTag())
+                val entry = authoredEntries[dialogue]
+                session.language =
+                    entry?.locale(locale(context.player), 0)?.tag()
+                        ?: canonicalLocale(locale(context.player), session.defaultLocale)
+                ended.remove(context.player)
+                sessions[context.player] = session
+                val texts = validated.texts()
+                val services =
+                    DialogueServices(
+                        generation,
                         emptyMap(),
-                        LocaleContext(session.language, 0, session.defaultLocale),
-                        preferences(session),
-                        mapOf(
-                            speaker to
-                                MinestomSpeakerBinding(
-                                    generation,
-                                    instance,
-                                    {
-                                        MinestomSpeakerBinding.AnchorSnapshot(
-                                            binding.position,
-                                            binding.position.yaw(),
-                                            binding.position.add(0.0, 1.6, 0.0),
-                                            !closed,
-                                        )
-                                    },
-                                )
-                        ),
+                        registrations.getValue(dialogue).bindActions { menuHandler(session, it) },
                         null,
-                        InputProfile.defaults(),
-                        0,
-                        speechListener,
+                        entry?.resolver ?: TextResolver.catalogue(texts, session.defaultLocale),
+                        registrations.getValue(dialogue).capabilities,
                     )
-                )
-            session.ticket = ticket
-            sessions[context.player] = session
-            session.subscription =
-                observeLocale(context.player, Runnable { refreshLocale(session) })
-            // Re-read after subscribing so a preference changed during preparation cannot be lost.
-            refreshLocale(session)
-            ticket
-                .result()
-                .whenComplete { _, failure -> if (failure != null) release(session) }
-                .thenApply { result ->
-                    synchronized(lock) {
-                        when (result) {
-                            is DialogueStartResult.Started -> {
-                                session.handle = result.handle
-                                result.handle.completion().whenComplete { _, _ -> release(session) }
-                                SceneActionResult.Success
-                            }
-                            is DialogueStartResult.Rejected -> {
-                                release(session)
-                                SceneActionResult.Rejected(
-                                    "Dialogue start rejected: ${result.code()}"
-                                )
+                val speechListener =
+                    if (isGuide(binding) && voiceBank != null) speechListener(session)
+                    else MinestomDialogueSpeechListener.NO_OP
+                val ticket =
+                    try {
+                        host.begin(
+                            MinestomDialogueRequest(
+                                UUID.randomUUID().toString(),
+                                context.player,
+                                0,
+                                validated,
+                                services,
+                                emptyMap(),
+                                entry?.locale(session.language, 0)
+                                    ?: LocaleContext(session.language, 0, session.defaultLocale),
+                                preferences(session),
+                                mapOf(
+                                    speaker to
+                                        MinestomSpeakerBinding(
+                                            generation,
+                                            instance,
+                                            {
+                                                MinestomSpeakerBinding.AnchorSnapshot(
+                                                    binding.position,
+                                                    binding.position.yaw(),
+                                                    binding.position.add(0.0, 1.6, 0.0),
+                                                    !closed,
+                                                )
+                                            },
+                                        )
+                                ),
+                                null,
+                                InputProfile.defaults(),
+                                0,
+                                speechListener,
+                            )
+                        )
+                    } catch (failure: Throwable) {
+                        release(session)
+                        throw failure
+                    }
+                session.ticket = ticket
+                if (!current(session)) {
+                    ticket.cancel(gg.grounds.dialogue.core.runtime.DialogueEndReason.DISCONNECTED)
+                }
+                session.subscription =
+                    observeLocale(context.player, Runnable { refreshLocale(session) })
+                // Re-read after subscribing so a preference changed during preparation cannot be
+                // lost.
+                refreshLocale(session)
+                ticket
+                    .result()
+                    .whenComplete { _, failure -> if (failure != null) release(session) }
+                    .thenApply { result ->
+                        synchronized(lock) {
+                            when (result) {
+                                is DialogueStartResult.Started -> {
+                                    if (current(session)) {
+                                        session.handle = result.handle
+                                        check(
+                                            session.actionSessionId == null ||
+                                                session.actionSessionId ==
+                                                    result.handle.snapshot().sessionId()
+                                        )
+                                        result.handle.completion().whenComplete { _, _ ->
+                                            release(session)
+                                        }
+                                    } else
+                                        ticket.cancel(
+                                            gg.grounds.dialogue.core.runtime.DialogueEndReason
+                                                .DISCONNECTED
+                                        )
+                                    SceneActionResult.Success
+                                }
+                                is DialogueStartResult.Rejected -> {
+                                    release(session)
+                                    SceneActionResult.Rejected(
+                                        "Dialogue start rejected: ${result.code()}"
+                                    )
+                                }
                             }
                         }
                     }
-                }
+                    .whenComplete { _, _ -> cancelReleasedMenus() }
+            }
+        } finally {
+            cancelReleasedMenus()
         }
 
-    private fun current(session: Session) =
-        !closed &&
-            sessions[session.player] === session &&
-            session.player.isOnline &&
-            session.player.instance === instance
+    private fun current(session: Session): Boolean =
+        synchronized(lock) {
+            !closed &&
+                session.active.get() &&
+                sessions[session.player] === session &&
+                session.player.playerConnection === session.connection &&
+                session.player.isOnline &&
+                session.player.instance === instance
+        }
 
     private fun refreshLocale(session: Session) =
-        synchronized(lock) {
-            if (!current(session)) {
-                session.subscription?.close()
-                session.subscription = null
-                return@synchronized
+        try {
+            synchronized(lock) {
+                if (!current(session)) {
+                    release(session)
+                    session.ticket?.cancel(
+                        gg.grounds.dialogue.core.runtime.DialogueEndReason.DISCONNECTED
+                    )
+                    return@synchronized
+                }
+                val entry = authoredEntries[session.binding.dialogue]
+                val language =
+                    entry?.locale(locale(session.player), session.revision)?.tag()
+                        ?: canonicalLocale(locale(session.player), session.defaultLocale)
+                if (language != session.language) {
+                    session.language = language
+                    session.speech?.invalidate(effectiveSpeechLocale(session, language))
+                    session.ticket?.refreshLocale(
+                        authoredEntries[session.binding.dialogue]?.locale(
+                            language,
+                            ++session.revision,
+                        ) ?: LocaleContext(language, ++session.revision, session.defaultLocale)
+                    )
+                }
             }
-            val language = canonicalLocale(locale(session.player), session.defaultLocale)
-            if (language != session.language) {
-                session.language = language
-                session.speech?.invalidate(effectiveSpeechLocale(session, language))
-                session.ticket.refreshLocale(
-                    LocaleContext(language, ++session.revision, session.defaultLocale)
-                )
-            }
+        } finally {
+            cancelReleasedMenus()
         }
-
-    private fun canonicalLocale(tag: String, defaultTag: String): String =
-        Locale.forLanguageTag(tag.replace('_', '-'))
-            .takeIf { it.language.isNotEmpty() }
-            ?.toLanguageTag() ?: defaultTag
-
-    // Native speech views use the SDK's graph-selected locale, not the requested preference tag.
-    private fun effectiveSpeechLocale(session: Session, requested: String): String {
-        val supported =
-            contents.getValue(session.binding.dialogue).definition().locales().supported()
-        val language = Locale.forLanguageTag(requested).language
-        return when {
-            requested in supported -> requested
-            language in supported -> language
-            else -> session.defaultLocale
-        }
-    }
 
     private fun release(session: Session) =
-        synchronized(lock) {
-            session.active.set(false)
-            session.speech?.close()
-            session.speech = null
-            session.subscription?.close()
-            session.subscription = null
-            session.actions.clear()
+        try {
+            synchronized(lock) {
+                session.active.set(false)
+                if (sessions[session.player] === session) {
+                    sessions.remove(session.player)
+                    session.ticket?.status()?.let {
+                        ended[session.player] = it.copy(diagnostic = "CLOSED")
+                    }
+                }
+                session.speech?.close()
+                session.speech = null
+                session.subscription?.close()
+                session.subscription = null
+                session.actions.clear()
+                cancelledMenus.addAll(session.pendingMenus)
+                session.pendingMenus.clear()
+            }
+        } finally {
+            cancelReleasedMenus()
         }
 
+    /** Provider cancellation can acquire its service lock; never do it under the owner lock. */
+    private fun cancelReleasedMenus() {
+        if (Thread.holdsLock(lock)) return
+        while (true) (cancelledMenus.poll() ?: return).cancel(false)
+    }
+
     private fun preferences(session: Session): PresentationPreferences =
-        if (session.binding.dialogue != LobbyGuideContent.DIALOGUE_ID) NPC_PREFERENCES
+        if (!isGuide(session.binding)) NPC_PREFERENCES
         else guidePreferences(reducedMotion(session.player))
 
     private fun speechListener(session: Session): MinestomDialogueSpeechListener =
@@ -336,7 +461,8 @@ internal class LobbyDialogues(
                 {
                     !closed &&
                         session.active.get() &&
-                        session.player.playerConnection === session.connection
+                        session.player.playerConnection === session.connection &&
+                        session.player.instance === instance
                 },
                 { reducedMotion(session.player) },
                 { guard ->
@@ -356,59 +482,94 @@ internal class LobbyDialogues(
 
     private fun menuHandler(
         session: Session,
-        key: String,
+        provider: LobbyDialogueHostRegistration.ActionProvider,
     ): gg.grounds.dialogue.core.port.ActionHandler =
         object : gg.grounds.dialogue.core.port.ActionHandler {
             override fun execute(
                 request: gg.grounds.dialogue.core.port.ActionHandler.ActionRequest
             ): CompletionStage<gg.grounds.dialogue.core.port.ActionHandler.ActionResult> =
-                synchronized(lock) {
-                    val ref = request.reference()
-                    val handle = session.handle
-                    if (
-                        ref == null ||
-                            !current(session) ||
-                            handle == null ||
-                            request.key() != key ||
-                            request.arguments().isNotEmpty() ||
-                            request.durable() ||
-                            ref.audienceId != session.player.uuid.toString() ||
-                            ref.hostGeneration != 0L ||
-                            ref.sessionId != handle.snapshot().sessionId()
-                    )
-                        return CompletableFuture.completedFuture(
-                            gg.grounds.dialogue.core.port.ActionHandler.ActionResult.REJECTED
+                try {
+                    synchronized(lock) {
+                        val ref = request.reference()
+                        val handle = session.handle
+                        if (
+                            ref == null ||
+                                !current(session) ||
+                                request.key() != provider.key ||
+                                request.arguments().isNotEmpty() ||
+                                request.durable() ||
+                                ref.audienceId != session.player.uuid.toString() ||
+                                ref.hostGeneration != 0L ||
+                                (handle != null &&
+                                    ref.sessionId != handle.snapshot().sessionId()) ||
+                                (session.actionSessionId != null &&
+                                    ref.sessionId != session.actionSessionId)
                         )
-                    session.actions[ref]?.let {
-                        return it
-                    }
-                    val opened =
-                        try {
-                            if (key == LobbyGuideContent.NAVIGATOR_ACTION)
-                                navigator?.open(session.player)
-                            else queues?.openDuels(session.player)
-                        } catch (_: Exception) {
-                            null
+                            return CompletableFuture.completedFuture(
+                                gg.grounds.dialogue.core.port.ActionHandler.ActionResult.REJECTED
+                            )
+                        session.actionSessionId = ref.sessionId
+                        session.actions[ref]?.let {
+                            return it
                         }
-                    val outcome =
-                        opened
-                            ?.toCompletableFuture()
-                            ?.orTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-                            ?.handle { accepted, failure ->
-                                if (failure == null && accepted == true)
-                                    gg.grounds.dialogue.core.port.ActionHandler.ActionResult.SUCCESS
-                                else
-                                    gg.grounds.dialogue.core.port.ActionHandler.ActionResult
-                                        .UNAVAILABLE
+                        val opened =
+                            try {
+                                provider.open(session.player)
+                            } catch (_: Exception) {
+                                null
                             }
-                            ?: CompletableFuture.completedFuture(
+                        val original = opened?.toCompletableFuture()
+                        val outcome =
+                            CompletableFuture<
+                                gg.grounds.dialogue.core.port.ActionHandler.ActionResult
+                            >()
+                        if (original == null) {
+                            outcome.complete(
                                 gg.grounds.dialogue.core.port.ActionHandler.ActionResult.UNAVAILABLE
                             )
-                    // Requests only occur once per node visit. Keep the retry cache bounded.
-                    if (session.actions.size >= 64)
-                        session.actions.remove(session.actions.keys.first())
-                    session.actions[ref] = outcome
-                    outcome
+                        } else {
+                            if (current(session)) session.pendingMenus.add(original)
+                            else cancelledMenus.add(original)
+                            original
+                                .orTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+                                .whenComplete { accepted, failure ->
+                                    session.pendingMenus.remove(original)
+                                    // A service completes under its own lock. Renew delivery on the
+                                    // host
+                                    // scheduler rather than entering the owner or runtime from that
+                                    // lock.
+                                    instance.scheduler().scheduleNextTick {
+                                        synchronized(lock) {
+                                            val result =
+                                                if (
+                                                    !current(session) ||
+                                                        session.actionSessionId != ref.sessionId
+                                                )
+                                                    gg.grounds.dialogue.core.port.ActionHandler
+                                                        .ActionResult
+                                                        .REJECTED
+                                                else if (failure == null && accepted == true)
+                                                    gg.grounds.dialogue.core.port.ActionHandler
+                                                        .ActionResult
+                                                        .SUCCESS
+                                                else
+                                                    gg.grounds.dialogue.core.port.ActionHandler
+                                                        .ActionResult
+                                                        .UNAVAILABLE
+                                            outcome.complete(result)
+                                        }
+                                        cancelReleasedMenus()
+                                    }
+                                }
+                        }
+                        // Requests only occur once per node visit. Keep the retry cache bounded.
+                        if (session.actions.size >= 64)
+                            session.actions.remove(session.actions.keys.first())
+                        session.actions[ref] = outcome
+                        outcome
+                    }
+                } finally {
+                    cancelReleasedMenus()
                 }
 
             override fun reconcile(
@@ -420,25 +581,44 @@ internal class LobbyDialogues(
         }
 
     fun closeAsync(): CompletionStage<Void> =
-        synchronized(lock) {
-            closed = true
-            net.minestom.server.MinecraftServer.getGlobalEventHandler().removeChild(events)
-            sessions.values.forEach(::release)
-            sessions.clear()
-            host.closeAsync()
+        try {
+            synchronized(lock) {
+                closed = true
+                net.minestom.server.MinecraftServer.getGlobalEventHandler().removeChild(events)
+                sessions.values.toList().forEach(::release)
+                sessions.clear()
+                ended.clear()
+                host.closeAsync()
+            }
+        } finally {
+            cancelReleasedMenus()
         }
 
     private fun rejected(reason: String): CompletionStage<SceneActionResult> =
         CompletableFuture.completedFuture(SceneActionResult.Rejected(reason))
 
-    companion object {
-        internal fun builtInContent(id: String, generation: String): ValidatedDialogue =
-            when (id) {
-                StageLobbyDialogue.DIALOGUE_ID -> StageDialogueContent.validated(generation)
-                LobbyGuideContent.DIALOGUE_ID -> LobbyGuideContent.validated(generation)
-                else -> error("Unsupported lobby dialogue $id")
-            }
+    private fun isGuide(binding: LobbyDialogueBinding) =
+        binding.dialogue == LobbyGuideContent.DIALOGUE_ID ||
+            authoredContract == LobbyDialogueHostContract.GUIDE
 
+    private fun canonicalLocale(tag: String, defaultTag: String): String =
+        Locale.forLanguageTag(tag.replace('_', '-'))
+            .takeIf { it.language.isNotEmpty() }
+            ?.toLanguageTag() ?: defaultTag
+
+    // Speech events carry the SDK's graph-selected locale, rather than the requested preference.
+    private fun effectiveSpeechLocale(session: Session, requested: String): String {
+        val supported =
+            contents.getValue(session.binding.dialogue).definition().locales().supported()
+        val language = Locale.forLanguageTag(requested).language
+        return when {
+            requested in supported -> requested
+            language in supported -> language
+            else -> session.defaultLocale
+        }
+    }
+
+    companion object {
         fun defaultTheme() =
             DialogueTheme(
                 "grounds-npc-v1",

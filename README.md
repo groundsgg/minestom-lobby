@@ -36,15 +36,16 @@ Behind Velocity, configure modern forwarding and the matching secret, then enabl
 
 ## Find the right entry point
 
-| Goal                                                 | Entry point                                                                                     |
-| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Build, test or contribute                            | [Contributing](CONTRIBUTING.md)                                                                 |
-| Understand current packages and lifecycle            | [Architecture](docs/architecture.md)                                                            |
-| Configure world, proxy, chat or service providers    | [Operations](docs/operations.md)                                                                |
-| Author or qualify a scene / private NPC distribution | [Scene and asset operations](docs/operations.md#versioned-lobby-scene)                          |
-| Configure ordinary LOD serving                       | [LOD serving](docs/lod-serving.md)                                                              |
-| Inspect the older finite pilot                       | [LOD pilot](docs/lod-pilot.md)                                                                  |
-| Inspect historical decisions and results             | [Historical plans](docs/superpowers/plans), [historical specifications](docs/superpowers/specs) |
+| Goal                                                    | Entry point                                                                                     |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Build, test or contribute                               | [Contributing](CONTRIBUTING.md)                                                                 |
+| Understand current packages and lifecycle               | [Architecture](docs/architecture.md)                                                            |
+| Configure world, proxy, chat or service providers       | [Operations](docs/operations.md)                                                                |
+| Author or qualify a scene / private NPC distribution    | [Scene and asset operations](docs/operations.md#versioned-lobby-scene)                          |
+| Author a Guide Story or verify its private distribution | [Dialogue authoring and admission](docs/operations.md#optional-dialogue-startup-verification)   |
+| Configure ordinary LOD serving                          | [LOD serving](docs/lod-serving.md)                                                              |
+| Inspect the older finite pilot                          | [LOD pilot](docs/lod-pilot.md)                                                                  |
+| Inspect historical decisions and results                | [Historical plans](docs/superpowers/plans), [historical specifications](docs/superpowers/specs) |
 
 Licensed NPC archives stay external to Git and public artifacts. Private distribution qualification, native-client acceptance, real multi-proxy transfers and deployment are separate checks; a successful build does not activate a map or publish a pack.
 
