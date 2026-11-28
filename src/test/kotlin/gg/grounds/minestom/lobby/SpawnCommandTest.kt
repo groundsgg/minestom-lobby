@@ -41,7 +41,13 @@ class SpawnCommandTest {
 
         commandManager.execute(console, "spawn")
 
-        assertEquals(listOf(Component.text("This command is player-only.")), console.messages)
+        assertEquals(
+            listOf("[Grounds] General | You can only use this command in the game."),
+            console.messages.map(
+                net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()::
+                    serialize
+            ),
+        )
     }
 
     private class FakeConnection : PlayerConnection() {

@@ -1,6 +1,5 @@
 package gg.grounds.minestom.lobby
 
-import net.kyori.adventure.text.Component
 import net.minestom.server.command.builder.Command
 import net.minestom.server.coordinate.Pos
 import net.minestom.server.entity.Player
@@ -15,7 +14,7 @@ internal class SpawnCommand(
                 beforeTeleport(sender)
                 sender.teleport(spawn)
             } else {
-                sender.sendMessage(Component.text("This command is player-only."))
+                LobbyMessages.text.send(sender, LobbyMessage.PLAYERS_ONLY)
             }
         }
     }
