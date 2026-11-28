@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.28.3](https://github.com/groundsgg/minestom-lobby/compare/v2.28.2...v2.28.3) (2026-11-28)
+
+
+### Bug Fixes
+
+* localize lobby admission and command feedback ([#312](https://github.com/groundsgg/minestom-lobby/issues/312)) ([3819c0f](https://github.com/groundsgg/minestom-lobby/commit/3819c0f1bdba33461ec08915064ae62361d8b9d1))
+
 ## [2.28.2](https://github.com/groundsgg/minestom-lobby/compare/v2.28.1...v2.28.2) (2026-11-26)
 
 
