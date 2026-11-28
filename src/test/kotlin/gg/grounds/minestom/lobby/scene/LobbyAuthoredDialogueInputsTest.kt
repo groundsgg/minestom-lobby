@@ -5,6 +5,8 @@ import java.nio.file.Path
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 
 class LobbyAuthoredDialogueInputsTest {
     @TempDir lateinit var root: Path
@@ -12,6 +14,79 @@ class LobbyAuthoredDialogueInputsTest {
     @Test
     fun `empty root is absent and does not need a profile`() {
         assertSame(LobbyAuthoredDialogueInputs.Absent, LobbyAuthoredDialogueInputs.read(root))
+    }
+
+    @Test
+    fun `unrelated shared symlinks preserve absent Story discovery`() {
+        Files.createDirectories(root.resolve("grounds"))
+        Files.createDirectories(root.resolve("context"))
+        Files.createSymbolicLink(
+            root.resolve("grounds/preview.png"),
+            root.resolve("missing-preview"),
+        )
+        Files.createSymbolicLink(root.resolve("context/notes.txt"), root.resolve("missing-notes"))
+        assertSame(LobbyAuthoredDialogueInputs.Absent, LobbyAuthoredDialogueInputs.read(root))
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["", "grounds", "context"])
+    fun `unrelated root and shared inventories do not consume Story traversal budget`(
+        directory: String
+    ) {
+        unrelatedFiles(root.resolve(directory))
+        assertSame(LobbyAuthoredDialogueInputs.Absent, LobbyAuthoredDialogueInputs.read(root))
+    }
+
+    @Test
+    fun `captured Story ignores unrelated additions replacements and shared subtrees`() {
+        complete()
+        val captured = LobbyAuthoredDialogueInputs.read(root) as LobbyAuthoredDialogueInputs.Present
+        unrelatedFiles(root.resolve("context"))
+        write("grounds/preview.png", "before")
+        Files.createDirectories(root.resolve("context/other"))
+        Files.createSymbolicLink(
+            root.resolve("context/other/host-catalog.json"),
+            root.resolve("missing"),
+        )
+        captured.requireUnchanged()
+        write("grounds/preview.png", "after")
+        captured.requireUnchanged()
+        Files.delete(root.resolve("grounds/preview.png"))
+        Files.createSymbolicLink(root.resolve("grounds/preview.png"), root.resolve("missing"))
+        captured.requireUnchanged()
+        assertEquals("{}", captured.dialogues().getValue("a.json").toString(Charsets.UTF_8))
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+        strings =
+            [
+                "dialogues/a.json",
+                "texts/en.json",
+                "grounds/dialogue.json",
+                "context/host-catalog.json",
+            ]
+    )
+    fun `actual Story source symlinks reject before capture`(path: String) {
+        complete()
+        val target = root.resolve("unrelated.json")
+        Files.writeString(target, "{}")
+        Files.delete(root.resolve(path))
+        Files.createSymbolicLink(root.resolve(path), target)
+        assertThrows(IllegalArgumentException::class.java) {
+            LobbyAuthoredDialogueInputs.read(root)
+        }
+    }
+
+    @Test
+    fun `complete Story traversal still charges empty library directories`() {
+        complete()
+        repeat(10000) { Files.createDirectory(root.resolve("dialogues/entry-$it")) }
+        val failure =
+            assertThrows(IllegalArgumentException::class.java) {
+                LobbyAuthoredDialogueInputs.read(root)
+            }
+        assertEquals("Story discovery exceeds limit", failure.message)
     }
 
     @Test
@@ -29,6 +104,9 @@ class LobbyAuthoredDialogueInputsTest {
                 "Dialogues/a.json",
                 "texts./en.json",
                 "grounds/Dialogue.json",
+                "grounds/dialogue.json.",
+                "grounds./dialogue.json",
+                "Context/host-catalog.json",
                 "context/host-catalog.json/child",
             )) {
             val child = Files.createTempDirectory(root, "case")
@@ -38,10 +116,12 @@ class LobbyAuthoredDialogueInputsTest {
                 LobbyAuthoredDialogueInputs.read(child)
             }
         }
-        val linkRoot = Files.createTempDirectory(root, "links")
-        Files.createSymbolicLink(linkRoot.resolve("dialogues"), root)
-        assertThrows(IllegalArgumentException::class.java) {
-            LobbyAuthoredDialogueInputs.read(linkRoot)
+        for (anchor in listOf("dialogues", "texts", "grounds", "context")) {
+            val linkRoot = Files.createTempDirectory(root, "links")
+            Files.createSymbolicLink(linkRoot.resolve(anchor), root)
+            assertThrows(IllegalArgumentException::class.java) {
+                LobbyAuthoredDialogueInputs.read(linkRoot)
+            }
         }
     }
 
@@ -102,6 +182,11 @@ class LobbyAuthoredDialogueInputsTest {
         val captured = LobbyAuthoredDialogueInputs.read(root) as LobbyAuthoredDialogueInputs.Present
         write("dialogues/new.json", "{}")
         assertThrows(IllegalArgumentException::class.java) { captured.requireUnchanged() }
+    }
+
+    private fun unrelatedFiles(directory: Path) {
+        Files.createDirectories(directory)
+        repeat(10001) { Files.createFile(directory.resolve("unrelated-$it")) }
     }
 
     private fun complete() {

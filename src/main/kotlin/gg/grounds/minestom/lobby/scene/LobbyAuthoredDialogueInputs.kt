@@ -51,21 +51,22 @@ internal sealed interface LobbyAuthoredDialogueInputs {
             val paths = linkedMapOf<String, Path>()
             var visited = 0
             fun visit(path: Path, depth: Int) {
-                require(++visited <= 10000 && depth <= 64) { "Story discovery exceeds limit" }
                 val relative = root.relativize(path).joinToString("/")
                 val parts = relative.split('/')
                 val normalized = parts.map { it.trimEnd(' ', '.').lowercase(Locale.ROOT) }
                 val first = normalized.first()
                 if (first !in reserved) return
-                require(parts.first() == first) { "Noncanonical reserved Story root: $relative" }
-                LobbyDialogueRuntimeVerification.requireSafe(path)
+                val library = first in setOf("dialogues", "texts")
                 val fixed = normalized.take(2).joinToString("/")
                 val special = fixed in setOf("grounds/dialogue.json", "context/host-catalog.json")
+                if (!library && depth > 1 && !special) return
+                require(++visited <= 10000 && depth <= 64) { "Story discovery exceeds limit" }
+                require(parts.first() == first) { "Noncanonical reserved Story root: $relative" }
+                LobbyDialogueRuntimeVerification.requireSafe(path)
                 if (special)
                     require(relative == fixed && Files.isRegularFile(path, NOFOLLOW_LINKS)) {
                         "Noncanonical Story context: $relative"
                     }
-                val library = first in setOf("dialogues", "texts")
                 if (Files.isDirectory(path, NOFOLLOW_LINKS)) {
                     if (library || depth == 1)
                         Files.newDirectoryStream(path).use { stream ->
