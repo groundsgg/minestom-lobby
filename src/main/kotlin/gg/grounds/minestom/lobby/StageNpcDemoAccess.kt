@@ -5,7 +5,6 @@ import gg.grounds.scene.format.SceneDocument
 import gg.grounds.scene.format.Vec3
 import gg.grounds.scene.interaction.SceneBoundsRaycaster
 import java.util.UUID
-import net.kyori.adventure.text.Component
 import net.minestom.server.command.builder.Command
 import net.minestom.server.command.builder.arguments.ArgumentType
 import net.minestom.server.coordinate.Point
@@ -124,11 +123,7 @@ internal class StageNpcDemoAccess(
     fun enter(player: Player) {
         if (closed || player.instance !== instance) return
         player.teleport(ENTRANCE)
-        player.sendMessage(
-            Component.text(
-                "NPC-Testplattform: Die Labels erklären jede Station. /spawn bringt dich zurück."
-            )
-        )
+        LobbyMessages.text.send(player, LobbyMessage.DEMO_ENTER)
     }
 
     @Synchronized
@@ -140,10 +135,15 @@ internal class StageNpcDemoAccess(
         modes.putIfAbsent(player.uuid, player.gameMode)
         player.gameMode =
             if (player.gameMode == GameMode.CREATIVE) GameMode.ADVENTURE else GameMode.CREATIVE
-        player.sendMessage(
-            Component.text(
-                "NPC-Testmodus: ${player.gameMode.name}. Beim Verlassen wird dein vorheriger Modus wiederhergestellt."
-            )
+        LobbyMessages.text.send(
+            player,
+            LobbyMessage.DEMO_MODE,
+            "mode" to
+                LobbyMessages.text.render(
+                    if (player.gameMode == GameMode.CREATIVE) LobbyMessage.MODE_CREATIVE
+                    else LobbyMessage.MODE_ADVENTURE,
+                    player,
+                ),
         )
         return true
     }
@@ -181,16 +181,12 @@ internal class StageNpcDemoCommand(private val access: StageNpcDemoAccess) : Com
     init {
         setDefaultExecutor { sender, _ ->
             if (sender is Player) access.enter(sender)
-            else sender.sendMessage(Component.text("Dieser Befehl ist nur im Spiel verfügbar."))
+            else LobbyMessages.text.send(sender, LobbyMessage.PLAYERS_ONLY)
         }
         addSyntax(
             { sender, _ ->
                 if (sender is Player && !access.toggleMode(sender))
-                    sender.sendMessage(
-                        Component.text(
-                            "Den Testmodus können nur Editoren auf der NPC-Testplattform umschalten."
-                        )
-                    )
+                    LobbyMessages.text.send(sender, LobbyMessage.DEMO_MODE_DENIED)
             },
             ArgumentType.Literal("mode"),
         )

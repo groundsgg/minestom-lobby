@@ -2,7 +2,6 @@ package gg.grounds.minestom.lobby
 
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
-import net.kyori.adventure.text.Component
 import net.minestom.server.coordinate.Pos
 import net.minestom.server.event.Event
 import net.minestom.server.event.EventNode
@@ -38,13 +37,13 @@ internal object LobbyEvents {
                 failure.toString(),
             )
             if (player.isOnline)
-                player.kick(Component.text("Lobby is not ready. Please reconnect."))
+                player.kick(LobbyMessages.text.render(LobbyMessage.NOT_READY, player))
             return false
         }
         // A successful future cannot be revoked when shutdown begins.
         if (sceneClosed() || !player.isOnline) {
             if (player.isOnline)
-                player.kick(Component.text("Lobby is shutting down. Please reconnect."))
+                player.kick(LobbyMessages.text.render(LobbyMessage.SHUTTING_DOWN, player))
             return false
         }
         return true
