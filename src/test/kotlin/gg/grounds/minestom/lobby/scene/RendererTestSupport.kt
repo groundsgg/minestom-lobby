@@ -90,6 +90,8 @@ internal class RendererFixture(
     override fun close() {
         instance.entities.toList().forEach { it.remove() }
         MinecraftServer.getInstanceManager().unregisterInstance(instance)
+        // Manual fixture ticks omit the server's end-of-tick packet cleanup.
+        net.minestom.server.utils.PacketViewableUtils.flush()
     }
 }
 

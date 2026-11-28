@@ -31,6 +31,64 @@ import org.junit.jupiter.params.provider.EnumSource
 @org.junit.jupiter.api.Timeout(20)
 class PlaceholderDisplayHandleTest {
     @Test
+    fun `closing nested fixture releases packet storage without ticking or writing active fixture`() {
+        net.minestom.server.utils.PacketViewableUtils.flush()
+        val field =
+            net.minestom.server.utils.PacketViewableUtils::class.java.getDeclaredField("PENDING")
+        field.isAccessible = true
+        val pending = field.get(null) as java.util.Queue<*>
+        RendererFixture().use { active ->
+            val player = active.player()
+            val nested = RendererFixture()
+            try {
+                val nestedPlayer = nested.player()
+                val nestedChunk = requireNotNull(nested.instance.getChunk(0, 0))
+                val activeChunk = requireNotNull(active.instance.getChunk(0, 0))
+                net.minestom.server.utils.PacketViewableUtils.flush()
+                net.minestom.server.utils.PacketViewableUtils.prepareViewablePacket(
+                    nestedChunk,
+                    EntityMetaDataPacket(nestedPlayer.entityId, emptyMap()),
+                )
+                val storage = requireNotNull(pending.peek())
+                val viewable = storage.javaClass.getDeclaredField("viewable")
+                viewable.isAccessible = true
+                assertSame(
+                    nestedChunk,
+                    viewable.get(storage),
+                    "Pending packet storage retains the nested world",
+                )
+                net.minestom.server.utils.PacketViewableUtils.prepareViewablePacket(
+                    activeChunk,
+                    EntityMetaDataPacket(player.entityId, emptyMap()),
+                )
+                val packets = player.connection.packets.toList()
+                var ticks = 0
+                active.instance.scheduler().scheduleNextTick { ticks++ }
+
+                nested.close()
+
+                assertTrue(
+                    pending.isEmpty(),
+                    "Closed fixture must not remain rooted by packet storage",
+                )
+                assertEquals(0, ticks, "Cleanup must not run another fixture's scheduled work")
+                assertEquals(
+                    packets,
+                    player.connection.packets,
+                    "Cleanup must not write to the active fake connection",
+                )
+                assertTrue(active.instance.isRegistered)
+                assertSame(active.instance, player.instance)
+                active.instance.tick(0)
+                assertEquals(1, ticks, "The active fixture's task must remain scheduled")
+            } finally {
+                if (nested.instance.isRegistered) nested.close()
+                net.minestom.server.utils.PacketViewableUtils.flush()
+            }
+        }
+    }
+
+    @Test
     fun `factory waits for real attachment and tracks distant displays automatically`() {
         RendererFixture().use { fixture ->
             assertNull(fixture.registry.rendererFor(guideKey, AssetKind.PROP))
